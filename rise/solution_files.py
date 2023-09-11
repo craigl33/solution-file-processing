@@ -364,17 +364,28 @@ class SolutionFileProperties(SolutionFileFramework):
 
             self._res_gen_df = _df
         return self._res_gen_df
+
+
+class SolutionFileOutput(SolutionFileFramework):
+
+    def __init__(self, model_dir, soln_choice, soln_idx_path):
+        super().__init__(model_dir, soln_choice, soln_idx_path)
+        self.prop = SolutionFileProperties(model_dir, soln_choice, soln_idx_path)
+
     def create_output_1(self, timescale):
         ### Output 1
         ### To allow scaling, the group index is maintained (i.e. as_index=True) before resetting the index
 
         if timescale == 'year':
-            load_by_reg = self.node_yr_df[self.node_yr_df.property == 'Load'].groupby(
-                ['model', 'timestamp'] + GEO_COLS).sum().value
-            customer_load_by_reg = self.node_yr_df[
-                (self.node_yr_df.property == 'Customer Load') | (
-                        self.node_yr_df.property == 'Unserved Energy')].groupby(
-                ['model', 'timestamp'] + GEO_COLS).sum().value
+            load_by_reg = self.prop.node_yr_df[self.prop.node_yr_df.property == 'Load'].groupby(
+                ['model', 'timestamp'] + GEO_COLS).sum(numeric_only=True).value
+            customer_load_by_reg = self.prop.node_yr_df[
+                (self.prop.node_yr_df.property == 'Customer Load') | (
+                        self.prop.node_yr_df.property == 'Unserved Energy')].groupby(
+                ['model', 'timestamp'] + GEO_COLS).sum(numeric_only=True).value
+
+            load_by_reg = load_by_reg.compute()
+            customer_load_by_reg = customer_load_by_reg.compute()
 
             os.makedirs(self.DIR_05_1_SUMMARY_OUT, exist_ok=True)
             add_df_column(load_by_reg, 'units', 'GWh').to_csv(
@@ -388,11 +399,12 @@ class SolutionFileProperties(SolutionFileFramework):
 
     def create_output_2(self, timescale):
         ### Output 2: USE
+        _node_yr_df = self.prop.node_yr_df.compute()
 
-        use_by_reg = self.node_yr_df[self.node_yr_df.property == 'Unserved Energy'].groupby(
-            ['model'] + GEO_COLS).sum().value
-        use_reg_daily_ts = self.node_yr_df[self.node_yr_df.property == 'Unserved Energy'].groupby(
-            ['model'] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum().value
+        use_by_reg = _node_yr_df[_node_yr_df.property == 'Unserved Energy'].groupby(
+            ['model'] + GEO_COLS).sum(numeric_only=True).value
+        use_reg_daily_ts = _node_yr_df[_node_yr_df.property == 'Unserved Energy'].groupby(
+            ['model'] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum(numeric_only=True).value
 
         add_df_column(use_by_reg, 'units', 'GWh').to_csv(os.path.join(self.DIR_05_1_SUMMARY_OUT, '02a_use_reg.csv'),
                                                          index=False)
@@ -558,8 +570,11 @@ class SolutionFileProperties(SolutionFileFramework):
     def create_output_5(self, timescale):
         ### Ouput 5
 
-        unit_starts_by_tech = self.gen_yr_df[self.gen_yr_df.property == 'Units Started'].groupby(
-            ['model', 'Category']).sum().value.unstack(level='Category')
+        unit_starts_by_tech = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Units Started'].groupby(
+            ['model', 'Category']).sum(numeric_only=True)
+        # Change back to pd.DataFrame
+        unit_starts_by_tech = unit_starts_by_tech.compute()
+        unit_starts_by_tech = unit_starts_by_tech.value.unstack(level='Category')
 
         add_df_column(unit_starts_by_tech.stack(), 'units', 'starts').to_csv(
             os.path.join(self.DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
@@ -578,7 +593,3 @@ class SolutionFileProperties(SolutionFileFramework):
                         print(f'Row {index}: {column} - {row[column]} != {df2.iloc[index][column]}')
 
             raise Exception(f'Output {file_name} is not the same as the one in the repo. Check it out.')
-
-
-
-    # TODO USE DASK
