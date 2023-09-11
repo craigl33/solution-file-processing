@@ -1,5 +1,6 @@
 import os
 
+import dask.dataframe as dd
 import pandas as pd
 
 def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
@@ -47,28 +48,39 @@ def add_df_column(df, column_name, value, reset_index=True):
 
 
 def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_names={}):
+    def convert_to_datetime(partition, common_yr):
+        partition['timestamp'] = pd.to_datetime({
+            'Year': [common_yr] * len(partition),
+            'Month': partition.timestamp.dt.month.values,
+            'Day': partition.timestamp.dt.day.values,
+            'Hour': partition.timestamp.dt.hour.values,
+            'Minute': partition.timestamp.dt.minute.values
+        })
+        return partition
+
+
     ### Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)
     if out_type == 'rel':
         df = df.rename(columns={0: 'value'})[['parent', 'child', 'property', 'timestamp', 'model', 'value']]
         ## Add soln idx
-        df = pd.merge(df, soln_idx, left_on='child', right_on='name')
+        df = dd.merge(df, soln_idx, left_on='child', right_on='name')
     else:
         df = df.rename(columns={0: 'value'})[['name', 'property', 'timestamp', 'model', 'value']]
         ## Add soln idx
-        df = pd.merge(df, soln_idx, left_on='name', right_on='name')
+        df = dd.merge(df, soln_idx, left_on='name', right_on='name')
 
     if common_yr:
-        ### Add common year date .... will in future need to add line for removing leap days
-        df.loc[:, 'timestamp'] = pd.to_datetime(
-            {'Year': [common_yr] * len(df), 'Month': df.timestamp.dt.month.values, 'Day': df.timestamp.dt.day.values,
-             'Hour': df.timestamp.dt.hour.values, 'Minute': df.timestamp.dt.minute.values})
-    else:
-        df.loc[:, 'timestamp'] = df.timestamp
+        df = df.map_partitions(convert_to_datetime, common_yr=common_yr)
 
-    try:
-        df.loc[:, 'model'] = df.model.apply(lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else
-        x.split('Model ')[-1].split(' Solution.h5')[0])
-    except:
-        print('Error re-defining model names')
+    # df.loc[:, 'model'] = df.model.apply(
+    #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1].split(' Solution.h5')[0],
+    #         meta=('model', 'str'))
+
+    def prettify_model_names(partition):
+        partition['model'] = partition.model.apply(
+            lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1].split(' Solution.h5')[0])
+        return partition
+
+    df = df.map_partitions(prettify_model_names)
 
     return df

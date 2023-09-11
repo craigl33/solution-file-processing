@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
-import time
 
 import pandas as pd
-# import dask.dataframe as dd
+import dask.dataframe as dd
 import julia
 from h5plexos.query import PLEXOSSolution
 
@@ -25,35 +24,23 @@ incl_regs = ['JVB', 'SUM']
 
 # # incl_regs = ['JVB', 'SUM', 'KLM', 'SLW', 'MPN']
 
-
-class SolutionFileProcessor():
-
+class SolutionFileFramework:
     def __init__(self, model_dir, soln_choice, soln_idx_path):
-        # self.MODEL_DIR = 'C:/Users/TRIPPE_L/Code/dev_dirs/Indonesia/2021_IPSE'
-
         self.DIR_04_SOLUTION_FILES = os.path.join(model_dir, '04_SolutionFiles', soln_choice)
         self.DIR_04_CACHE = os.path.join(model_dir, '04_SolutionFilesCache', soln_choice)
         self.DIR_05_DATA_PROCESSING = os.path.join(model_dir, '05_DataProcessing', soln_choice)
         self.DIR_05_1_SUMMARY_OUT = os.path.join(model_dir, '05_DataProcessing', soln_choice, 'summary_out')
 
         self.soln_idx = pd.read_excel(soln_idx_path, sheet_name='SolutionIndex', engine='openpyxl')
-        # self.soln_idx = dd.from_pandas(self.soln_idx, npartitions=1)
 
-        # TODO NEEDS also cleanup
-        self.gen_addl_idx = self.soln_idx[['name', 'FlexCategory', 'CostCategory', 'CofiringCategory', 'Cofiring', 'CCUS', 'IPP']]
 
-        # TODO PRELIMINARY, NEEDS TO BE BETTER IMPLEMENTED
-        idn_actuals_2019 = pd.read_excel(
-            'R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/Modelling/01 InputData/01 Generation/20220201_generator_capacity_v23_NZE.xlsx',
-            sheet_name='IDN_Summary_per_tech', usecols='A:T', engine='openpyxl')
-        # idn_actuals_2019 = dd.from_pandas(idn_actuals_2019, npartitions=1)
+class SolutionFileProcessor(SolutionFileFramework):
 
-        idn_actuals_2019 = idn_actuals_2019.rename(columns={'PLEXOS_Name': 'name', 'SummaryEn_GWh': 'Generation'})
-        idn_actuals_2019 = pd.merge(idn_actuals_2019, self.soln_idx, left_on='name', right_on='name', how='left')
-        idn_actuals_2019 = idn_actuals_2019.assign(model='2019 (Historical)')
-        self.idn_actuals_2019 = idn_actuals_2019
+    def __init__(self, model_dir, soln_choice, soln_idx_path):
+        super().__init__(model_dir, soln_choice, soln_idx_path)
 
-    def install_dependencies(self):
+    @staticmethod
+    def install_dependencies():
         julia.install()
 
     def convert_solution_files_to_h5(self):
@@ -73,7 +60,7 @@ class SolutionFileProcessor():
             jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
-    def convert_solution_files_to_properties(self, timescale, overwrite=False):
+    def convert_solution_files_to_properties(self, timescale):
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
 
@@ -82,7 +69,6 @@ class SolutionFileProcessor():
 
         dfs_dict = {}
         for file in soln_h5_files:
-
             # Any spaces in the file will break it
             core_name = file.split('\\')[-1].split('Model ')[-1].split(' Solution.h5')[0]
 
@@ -143,166 +129,236 @@ class SolutionFileProcessor():
 
         for obj, dfs in dfs_dict.items():
             df = pd.concat(dfs)
-            os.makedirs(self.DIR_04_CACHE, exist_ok=True)
-            df.to_parquet(os.path.join(self.DIR_04_CACHE, f'{timescale}-{obj}.parquet'))
+            os.makedirs(os.path.join(self.DIR_04_CACHE, 'unprocessed'), exist_ok=True)
+            df.to_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', f'{timescale}-{obj}.parquet'))
             print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]}.')
 
-    def general_preprocessing(self, obj, df, timescale):
-        """
-        # Warning: This is extremly preliminary and was just copied from the old code. Needs to be re-written
-        """
-        full_soln_idx = self.soln_idx.copy()
+    def process_properties(self):
 
-        ### No leap years....but this could become a factor soon
-        reg_df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'interval-regions.parquet'))
-        model_yrs = reg_df.groupby(['model']).first().timestamp.dt.year.values
+        # Import necessary stuff
+        # - common_yr
+        model_yrs = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'interval-regions.parquet'))
+        model_yrs = model_yrs.groupby(['model']).first().timestamp.dt.year.values
+        model_yrs = model_yrs.compute()
         if len(model_yrs) > 1:
             common_yr = model_yrs[-1]
         else:
             common_yr = None
-
-        gen_yr_df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'year-generators.parquet'))
-        node_yr_df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'year-nodes.parquet'))
-
-        filter_reg_by_gen = enrich_df(gen_yr_df,
-                                      soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'generator'].drop(
+        # - filter_regs
+        filter_reg_by_gen = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'year-generators.parquet'))
+        filter_reg_by_gen = enrich_df(filter_reg_by_gen,
+                                      soln_idx=self.soln_idx[
+                                          self.soln_idx.Object_type.str.lower() == 'generator'].drop(
                                           columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
-        filter_reg_by_load = enrich_df(node_yr_df,
+        filter_reg_by_load = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'year-nodes.parquet'))
+        filter_reg_by_load = enrich_df(filter_reg_by_load,
                                        soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'node'].drop(
                                            columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
 
         ### Filter out nodes that have zero load
         filter_reg_by_load = filter_reg_by_load[
             (filter_reg_by_load.property == 'Load') & (filter_reg_by_load.value != 0)]
-
         filter_reg_by_gen = filter_reg_by_gen[GEO_COLS[-1]].unique()
         filter_reg_by_load = filter_reg_by_load[GEO_COLS[-1]].unique()
-
-        ####
-
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
-        o_key = obj.replace('ies', 'ys')
+        # Actual processing
+        files = [f for f in os.listdir(os.path.join(self.DIR_04_CACHE, 'unprocessed')) if f.endswith('.parquet')]
+        for file in files:
+            if os.path.exists(os.path.join(self.DIR_04_CACHE, 'processed', file)):
+                print(f'{file} already exists. Pass overwrite=True to overwrite.')
+                continue
 
-        if '_' in o_key:
-            ### Memebrship properties can used the generator/battery part which is the second part
-            ### Also o_key is for singular form, hence drops s
-            o_key = o_key.split('_')[-1][:-1]
-        else:
-            o_key = o_key[:-1]
+            obj = file.split('-')[-1].split('.parquet')[0]
+            timescale = file.split('-')[0]
+            print(f'Processing {obj} ({timescale})...')
+            df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', file))
+            df = df.repartition(partition_size="100MB")
+            print()
+            print(f'Number of partitions: {df.npartitions}')
 
-        ### No need to filter out solnb_idx for the annual data as the size wont be an issue
-        if timescale == 'interval':
-            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
-        else:
-            o_idx = full_soln_idx[full_soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
+            o_key = obj.replace('ies', 'ys')
 
-        if len(o_idx) > 0:
-            if '_' not in obj:
-                df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='direct',
-                               pretty_model_names=PRETTY_MODEL_NAMES)
-            else:
-                df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
-                               pretty_model_names=PRETTY_MODEL_NAMES)
+            if timescale == 'interval':
+                if '_' in o_key:
+                    ### Memebrship properties can used the generator/battery part which is the second part
+                    ### Also o_key is for singular form, hence drops s
+                    o_key = o_key.split('_')[-1][:-1]
+                else:
+                    o_key = o_key[:-1]
 
-            ### Filter out regions with no generation nor load
-            if (obj == 'nodes') | (obj == 'regions'):
-                df = df[df[GEO_COLS[-1]].isin(filter_regs)]
+                    ### Remove unnecessary columns, so object_type can be removed for the o_idx
+                o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
+                    columns='Object_type')
+                if len(o_idx) > 0:
+                    if '_' not in obj:
+                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                       out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                    else:
+                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
+                                       pretty_model_names=PRETTY_MODEL_NAMES)
 
-        return df
+                    ### Filter out regions with no generation nor load
+                    if (obj == 'nodes') | (obj == 'regions'):
+                        df = df[df[GEO_COLS[-1]].isin(filter_regs)]
 
-    _node_yr_df = None
+            elif timescale == 'year':
 
-    @property
-    def node_yr_df(self):
-        if self._node_yr_df is None:
-            _df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'year-nodes.parquet'))
-            _df = self.general_preprocessing('nodes', _df, timescale='year')
-            self._node_yr_df = _df
-        return self._node_yr_df
+                if '_' in o_key:
+                    ### Memebrship properties can used the generator/battery part which is the second part
+                    ### Also o_key is for singular form, hence drops s
+                    o_key = o_key.split('_')[-1][:-1]
+                else:
+                    o_key = o_key[:-1]
 
-    _gen_df = None
+                ### No need to filter out solnb_idx for the annual data as the size wont be an issue
+                o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
+                    columns='Object_type')
+                if len(o_idx) > 0:
+                    if '_' not in obj:
+                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                       out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                    else:
+                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                       out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
 
-    @property
-    def gen_df(self):
-        if self._gen_df is None:
-            _df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'interval-generators.parquet'))
-            _df = self.general_preprocessing('generators', _df, timescale='interval')
+                    ### Filter out regions with no generation nor load
+                    if (obj == 'nodes') | (obj == 'regions'):
+                        df = df[df[GEO_COLS[-1]].isin(filter_regs)]
 
-            try:
-                bat_df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'interval-batteries.parquet'))
-                _df = pd.concat([_df, bat_df], axis=0)
-            except KeyError:
-                print("No batteries objects")
+            os.makedirs(os.path.join(self.DIR_04_CACHE, 'processed'), exist_ok=True)
+            df.to_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'{timescale}-{obj}.parquet'))
+            print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]}.')
 
-            self._gen_df = _df
-        return self._gen_df
+
+class SolutionFileProperties(SolutionFileFramework):
+
+    def __init__(self, model_dir, soln_choice, soln_idx_path):
+        super().__init__(model_dir, soln_choice, soln_idx_path)
+
+        self.model_yrs = self.reg_df.groupby(['model']).first().timestamp.dt.year.values
 
     _gen_yr_df = None
+    _node_yr_df = None
+    _gen_df = None
+    _reg_df = None
+    _res_gen_df = None
 
     @property
     def gen_yr_df(self):
         if self._gen_yr_df is None:
-            _df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'year-generators.parquet'))
-            _df = self.general_preprocessing('generators', _df, timescale='year')
-            #### For WEO_tech simpl. probably should add something to soln_idx
-            _df.loc[:, 'WEO_Tech_simpl'] = _df['WEO tech'].apply(
-                lambda x: x.
-                replace('NEW ', '').
-                replace(' 1', '').
-                replace(' 2', '').
-                replace(' 3', '').
-                replace(' 4', '').
-                replace(' 5', ''))
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-generators.parquet'))
 
+            try:
+                bat_yr_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-batteries.parquet'))
+                _df = dd.concat([_df, bat_yr_df], axis=0)
+            except KeyError:
+                print("No batteries for current scenarios")
+
+            #### For WEO_tech simpl. probably should add something to soln_idx
+            def clean_weo_tech(x):
+                if isinstance(x, float):
+                    return x
+                x = x. \
+                    replace('NEW ', ''). \
+                    replace(' 1', ''). \
+                    replace(' 2', ''). \
+                    replace(' 3', ''). \
+                    replace(' 4', ''). \
+                    replace(' 5', '')
+                return x
+
+            _df['WEO_Tech_simpl'] = _df['WEO tech'].map(clean_weo_tech)
+
+            # todo: Stuff not sure why it exists
             ### Cofiring change here!
             ### Due to memory allocation errors, additional columns from soln_idx are used and then discarded
             cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
                               ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
 
-            # Add additional columns for interval dataframes (these are not added at first due to memory issues with the big size of the df)
-            gen_df = pd.merge(self.gen_df, self.gen_addl_idx[['name', 'Cofiring', 'CofiringCategory']], on='name', how='left')
-            res_gen_df = pd.merge(self.res_gen_df, self.gen_addl_idx[['name', 'Cofiring', 'CofiringCategory']], left_on='child',
-                                  right_on='name', how='left')
-
             ### Add category
-            _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
-                _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            gen_df.loc[(gen_df.Cofiring == 'Y') & (gen_df.model.isin(cofiring_scens)), 'Category'] = gen_df.loc[
-                (gen_df.Cofiring == 'Y') & (gen_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            res_gen_df.loc[(res_gen_df.Cofiring == 'Y') & (res_gen_df.model.isin(cofiring_scens)), 'Category'] = \
-                res_gen_df.loc[
-                    (res_gen_df.Cofiring == 'Y') & (res_gen_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
+            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            def update_category(df):
+                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
+                return df
+
+            # Use map_partitions to apply the function to each partition
+            _df = _df.map_partitions(update_category)
 
             ### And capacity category
-            _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-                _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            gen_df.loc[(gen_df.Cofiring == 'Y') & (~gen_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-                gen_df.loc[(gen_df.Cofiring == 'Y') & (~gen_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            res_gen_df.loc[(res_gen_df.Cofiring == 'Y') & (res_gen_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-                res_gen_df.loc[
-                    (res_gen_df.Cofiring == 'Y') & (res_gen_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
+            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            def update_capacity_category(df):
+                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
+                return df
+
+            # Use map_partitions to apply the function to each partition
+            _df = _df.map_partitions(update_capacity_category)
 
             ### Drop addl columns for interval df
-            gen_df = gen_df.drop(columns=['Cofiring', 'CofiringCategory'])
-            res_gen_df = res_gen_df.drop(columns=['Cofiring', 'CofiringCategory'])
+            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
 
             self._gen_yr_df = _df
         return self._gen_yr_df
 
-    _res_gen_df = None
+    @property
+    def node_yr_df(self):
+        if self._node_yr_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'year-nodes.parquet'))
+            self._node_yr_df = _df
+        return self._node_yr_df
+
+    @property
+    def gen_df(self):
+        if self._gen_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-generators.parquet'))
+
+            try:
+                bat_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-batteries.parquet'))
+                _df = dd.concat([_df, bat_df], axis=0)
+            except KeyError:
+                print("No batteries objects")
+
+            # Add temp columns for category and capacity category
+            cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
+                              ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
+            _df = dd.merge(_df, self.gen_addl_idx[['name', 'Cofiring', 'CofiringCategory']],
+                           on='name',
+                           how='left')
+            # Add category
+            _condition = (_df['Cofiring'] == 'Y') & (_df.model.isin(cofiring_scens))
+            _df['Category'] = _df.apply(lambda x: x['CofiringCategory'] if _condition else x['Category'],
+                                        axis=1,
+                                        meta=('Category', 'str'))
+
+            # And capacity category
+            _df.loc[(_df.Cofiring == 'Y') & (~_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
+                _df.loc[(_df.Cofiring == 'Y') & (~_df.model.isin(cofiring_scens)), 'CofiringCategory']
+
+            # Drop temp columns for interval df
+            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+
+            self._gen_df = _df
+        return self._gen_df
+
+    @property
+    def reg_df(self):
+        if self._reg_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-regions.parquet'))
+            self._reg_df = _df
+        return self._reg_df
 
     @property
     def res_gen_df(self):
         if self._res_gen_df is None:
-            _df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'interval-reserves_generators.parquet'))
-            _df = self.general_preprocessing('reserves_generators', _df, timescale='interval')
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-reserves_generators.parquet'))
 
             try:
-                bat_df = pd.read_parquet(os.path.join(self.DIR_04_CACHE, f'interval-batteries.parquet'))
-                _df = pd.concat([_df, bat_df], axis=0)
+                bat_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-batteries.parquet'))
+                _df = dd.concat([_df, bat_df], axis=0)
             except KeyError:
                 print("No batteries objects")
 
