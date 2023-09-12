@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 import dask.dataframe as dd
+import numpy as np
 import julia
 from h5plexos.query import PLEXOSSolution
 
@@ -12,6 +13,8 @@ from .constants import PRETTY_MODEL_NAMES
 
 # todo: preliminiary, needs to better implemented
 GEO_COLS = ['Island', 'Region', 'Subregion']
+VRE_TECHS = ['Solar', 'Wind']
+
 # Validation
 validation = False
 idn_actuals_2019 = pd.read_excel('R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/\
@@ -239,7 +242,9 @@ class SolutionFileProperties(SolutionFileFramework):
         self.model_yrs = self.reg_df.groupby(['model']).first().timestamp.dt.year.values
 
     _gen_yr_df = None
+    _em_gen_yr_df = None
     _node_yr_df = None
+    _line_yr_df = None
     _gen_df = None
     _reg_df = None
     _res_gen_df = None
@@ -298,11 +303,18 @@ class SolutionFileProperties(SolutionFileFramework):
             # Use map_partitions to apply the function to each partition
             _df = _df.map_partitions(update_capacity_category)
 
-            ### Drop addl columns for interval df
+            # Drop addl columns for interval df
             _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
 
             self._gen_yr_df = _df
         return self._gen_yr_df
+
+    @property
+    def em_gen_yr_df(self):
+        if self._em_gen_yr_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-emissions_generators.parquet'))
+            self._em_gen_yr_df = _df
+        return self._em_gen_yr_df
 
     @property
     def node_yr_df(self):
@@ -310,6 +322,13 @@ class SolutionFileProperties(SolutionFileFramework):
             _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'year-nodes.parquet'))
             self._node_yr_df = _df
         return self._node_yr_df
+
+    @property
+    def line_yr_df(self):
+        if self._line_yr_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-lines.parquet'))
+            self._line_yr_df = _df
+        return self._line_yr_df
 
     @property
     def gen_df(self):
@@ -322,21 +341,33 @@ class SolutionFileProperties(SolutionFileFramework):
             except KeyError:
                 print("No batteries objects")
 
-            # Add temp columns for category and capacity category
+            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+            _df = dd.merge(_df, self.soln_idx[['name', 'Cofiring', 'CofiringCategory']], on='name', how='left')
+
             cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
                               ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
-            _df = dd.merge(_df, self.gen_addl_idx[['name', 'Cofiring', 'CofiringCategory']],
-                           on='name',
-                           how='left')
+
             # Add category
-            _condition = (_df['Cofiring'] == 'Y') & (_df.model.isin(cofiring_scens))
-            _df['Category'] = _df.apply(lambda x: x['CofiringCategory'] if _condition else x['Category'],
-                                        axis=1,
-                                        meta=('Category', 'str'))
+            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
+            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            def update_category(df):
+                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
+                return df
+
+            # Use map_partitions to apply the function to each partition
+            _df = _df.map_partitions(update_category)
 
             # And capacity category
-            _df.loc[(_df.Cofiring == 'Y') & (~_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-                _df.loc[(_df.Cofiring == 'Y') & (~_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
+            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
+            def update_capacity_category(df):
+                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
+                return df
+
+            # Use map_partitions to apply the function to each partition
+            _df = _df.map_partitions(update_capacity_category)
 
             # Drop temp columns for interval df
             _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
@@ -373,9 +404,11 @@ class SolutionFileOutput(SolutionFileFramework):
         self.prop = SolutionFileProperties(model_dir, soln_choice, soln_idx_path)
 
     def create_output_1(self, timescale):
+        """"
         ### Output 1
         ### To allow scaling, the group index is maintained (i.e. as_index=True) before resetting the index
-
+        """
+        print('Creating output 1...', end=' ')
         if timescale == 'year':
             load_by_reg = self.prop.node_yr_df[self.prop.node_yr_df.property == 'Load'].groupby(
                 ['model', 'timestamp'] + GEO_COLS).sum(numeric_only=True).value
@@ -568,28 +601,399 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('03c_vre_by_isl.csv')
 
     def create_output_5(self, timescale):
-        ### Ouput 5
+        print("Creating output 5...", end=" ")
 
         unit_starts_by_tech = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Units Started'].groupby(
             ['model', 'Category']).sum(numeric_only=True)
         # Change back to pd.DataFrame
-        unit_starts_by_tech = unit_starts_by_tech.compute()
+        unit_starts_by_tech = unit_starts_by_tech.compute()  # Change dd.DataFrame back to pd.DataFrame
         unit_starts_by_tech = unit_starts_by_tech.value.unstack(level='Category')
 
         add_df_column(unit_starts_by_tech.stack(), 'units', 'starts').to_csv(
             os.path.join(self.DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
         self._dev_test_output('05_unit_starts_by_tech.csv')
+        print("Done.")
+
+    def create_output_6(self, timescale):
+        print("Creating output 6...", end=" ")
+
+        ## Standard
+        gen_max_by_tech_reg = self.prop.gen_df[self.prop.gen_df.property == 'Generation'].groupby(
+            ['model'] + GEO_COLS + ['Category']).max(numeric_only=True)
+        gen_max_by_tech_reg = gen_max_by_tech_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
+        gen_max_by_tech_reg = gen_max_by_tech_reg.value.unstack(level=GEO_COLS).fillna(0)
+        add_df_column(gen_max_by_tech_reg.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '06a_gen_max_by_tech_reg.csv'), index=False)
+
+        self._dev_test_output('06a_gen_max_by_tech_reg.csv')
+        print("Done.")
+
+    def create_output_7(self, timescale):
+        print("Creating output 7...", end=" ")
+
+        tx_losses = self.prop.line_yr_df[self.prop.line_yr_df.property == 'Loss'] \
+            .groupby(['model', 'timestamp', 'name']).sum(numeric_only=True).value
+        tx_losses = tx_losses.compute()  # Change dd.DataFrame back to pd.DataFrame
+        add_df_column(tx_losses, 'units', 'GWh').to_csv(os.path.join(self.DIR_05_1_SUMMARY_OUT, '07_tx_losses.csv'),
+                                                        index=False)
+
+        self._dev_test_output('07_tx_losses.csv')
+        print("Done.")
+
+    def create_output_8(self, timescale):
+        print("Creating output 8...", end=" ")
+        # todo Not sure if that always works
+        # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
+        time_idx = self.prop.reg_df.reset_index().timestamp.drop_duplicates().compute()
+
+        interval_periods = len(time_idx)
+        nr_days = len(time_idx.dt.date.drop_duplicates())
+        daily_periods = interval_periods / nr_days
+        hour_corr = 24 / daily_periods
+
+        ### Output 8 & 9
+
+        ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_add_df_columns
+        ## To add something for subregions
+
+        ### There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
+        load_by_reg = self.prop.node_yr_df[self.prop.node_yr_df.property == 'Load'] \
+            .groupby(['model', 'timestamp'] + GEO_COLS) \
+            .sum(numeric_only=True) \
+            .value
+
+        vre_cap = self.prop.gen_yr_df[(self.prop.gen_yr_df.property == 'Installed Capacity') &
+                                      (self.prop.gen_yr_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model', 'Category'] + GEO_COLS) \
+            .max() \
+            .value \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=GEO_COLS) \
+            .fillna(0)
+
+        vre_av_abs = self.prop.gen_df[(self.prop.gen_df.property == 'Available Capacity') &
+                                      (self.prop.gen_df.Category.isin(VRE_TECHS))] \
+                         .compute() \
+                         .groupby(
+            ['model', 'Category'] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum().value.unstack(
+            'Category').fillna(0).stack('Category').unstack(level=GEO_COLS).fillna(0) * hour_corr
+
+        # ### Add zero values to regions without VRE
+        geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(GEO_COLS).columns)),
+                                   index=load_by_reg.compute().unstack(GEO_COLS).columns)
+        vre_cap = (vre_cap * geo_col_filler).fillna(0)
+        vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
+
+        ### 24 periods per day for the daily data
+        vre_av_norm = (vre_av_abs / vre_cap / daily_periods).fillna(0)
+
+        ### Add non-VRE spillage/curtailment
+        constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
+
+        add_df_column(vre_cap.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '08a_vre_cap.csv'),
+            index=False)
+        add_df_column(vre_av_abs.stack(GEO_COLS), 'units', 'GWh').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '08b_vre_daily_abs.csv'), index=False)
+        add_df_column(vre_av_norm.stack(GEO_COLS), 'units', '-').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '08c_vre_daily_norm.csv'), index=False)
+
+        self._dev_test_output('08a_vre_cap.csv')
+        self._dev_test_output('08b_vre_daily_abs.csv')
+        self._dev_test_output('08c_vre_daily_norm.csv')
+        print("Done.")
+
+    def create_output_9(self, timescale):
+        print("Creating output 9...", end=" ")
+        # todo Not sure if that always works
+        # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
+        time_idx = self.prop.reg_df.reset_index().timestamp.drop_duplicates().compute()
+
+        interval_periods = len(time_idx)
+        nr_days = len(time_idx.dt.date.drop_duplicates())
+        daily_periods = interval_periods / nr_days
+        hour_corr = 24 / daily_periods
+
+        ### Output 8 & 9
+
+        ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_add_df_columns
+        ## To add something for subregions
+
+        ### There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
+        load_by_reg = self.prop.node_yr_df[self.prop.node_yr_df.property == 'Load'] \
+            .groupby(['model', 'timestamp'] + GEO_COLS) \
+            .sum(numeric_only=True) \
+            .value
+
+        vre_av_abs = self.prop.gen_df[(self.prop.gen_df.property == 'Available Capacity') &
+                                      (self.prop.gen_df.Category.isin(VRE_TECHS))] \
+                         .compute() \
+                         .groupby(
+            ['model', 'Category'] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum().value.unstack(
+            'Category').fillna(0).stack('Category').unstack(level=GEO_COLS).fillna(0) * hour_corr
+
+        vre_gen_abs = self.prop.gen_df[(self.prop.gen_df.property == 'Generation') & (
+            self.prop.gen_df.Category.isin(VRE_TECHS))].compute().groupby(
+            ['model', 'Category', ] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum().value.unstack(
+            'Category').fillna(0).stack('Category').unstack(level=GEO_COLS).fillna(0) * hour_corr
+
+        # ### Add zero values to regions without VRE
+        geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(GEO_COLS).columns)),
+                                   index=load_by_reg.compute().unstack(GEO_COLS).columns)
+        vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
+        vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
+
+        ### 24 periods per day for the daily data
+        vre_curtailed = vre_av_abs - vre_gen_abs
+
+        ### Add non-VRE spillage/curtailment
+        constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
+
+        other_re_gen_abs = self.prop.gen_df[(self.prop.gen_df.property == 'Generation') & (
+            self.prop.gen_df.Category.isin(constr_techs))].compute(). \
+                               groupby(['model', 'Category', ] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]). \
+                               sum().value. \
+                               unstack('Category'). \
+                               fillna(0). \
+                               stack('Category'). \
+                               unstack(level=GEO_COLS). \
+                               fillna(0) \
+                           * hour_corr
+        other_re_energy_vio = self.prop.gen_df[(self.prop.gen_df.property == 'Min Energy Violation') & (
+            self.prop.gen_df.Category.isin(constr_techs))].compute().groupby(
+            ['model', 'Category'] + GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]).sum().value.unstack(
+            'Category').fillna(0).stack('Category').unstack(level=GEO_COLS).fillna(0) * hour_corr
+
+        other_re_gen_abs = (other_re_gen_abs * geo_col_filler).fillna(0)
+        other_re_energy_vio = (other_re_energy_vio * geo_col_filler).fillna(0)
+        other_re_av = other_re_energy_vio + other_re_gen_abs
+
+        all_re_av = pd.concat([vre_av_abs, other_re_av], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
+
+        all_re_curtailed = pd.concat([vre_curtailed, other_re_energy_vio], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
+
+        re_curtailment_rate = (all_re_curtailed.sum(axis=1).groupby('model').sum() / all_re_av.sum(axis=1).groupby(
+            'model').sum()).fillna(0) * 100
+
+        curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
+            'model').sum()).fillna(0) * 100
+        curtailment_rate_isl = (vre_curtailed.groupby('Island', axis=1).sum().groupby(
+            'model').sum() / vre_av_abs.groupby('Island', axis=1).sum().groupby('model').sum()).fillna(0) * 100
+
+        curtailment_rate = pd.concat([curtailment_rate_isl, curtailment_rate.rename('IDN')], axis=1)
+
+        add_df_column(vre_curtailed.stack(GEO_COLS), 'units', 'GWh').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '09a_vre_daily_curtailed.csv'), index=False)
+        add_df_column(curtailment_rate, 'units', '%').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '09b_curtailment_rate.csv'),
+            index=False)
+        add_df_column(all_re_curtailed.stack(GEO_COLS), 'units', 'GWh').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '09c_all_RE_daily_curtailed.csv'), index=False)
+        add_df_column(re_curtailment_rate, 'units', '%').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '09d_all_RE_curtailment_rate.csv'), index=False)
+
+        self._dev_test_output('09a_vre_daily_curtailed.csv')
+        self._dev_test_output('09b_curtailment_rate.csv')
+        self._dev_test_output('09c_all_RE_daily_curtailed.csv')
+        self._dev_test_output('09d_all_RE_curtailment_rate.csv')
+        print("Done.")
+
+    def create_output_10(self, timescale):
+        print("Creating output 10...", end=" ")
+        ### Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface (as % of capacity?)
+
+        line_cap = self.prop.line_yr_df[(self.prop.line_yr_df.property == 'Import Limit') | \
+                                        (self.prop.line_yr_df.property == 'Export Limit')].groupby(
+            ['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']).sum().value.compute().unstack(
+            level='property')
+
+        line_imp_exp = self.prop.line_yr_df[(self.prop.line_yr_df.property == 'Flow') | \
+                                            (self.prop.line_yr_df.property == 'Flow Back')].groupby(
+            ['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']).sum().value.compute().unstack(
+            level='property')
+
+        ####
+        line_cap_isl = line_cap.reset_index()
+        line_cap_isl = line_cap_isl[line_cap_isl.islFrom != line_cap_isl.islTo]
+        line_cap_isl.loc[:, 'line'] = line_cap_isl.islFrom + '-' + line_cap_isl.islTo
+        line_cap_isl = line_cap_isl.groupby(['model', 'line']).sum()
+
+        if line_cap_isl.shape[0] == 0:
+            pd.DataFrame({'model': self.prop.line_yr_df.model.unique(),
+                          'nodeFrom': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'nodeTo': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'islFrom': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'islTo': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'value': [0] * len(self.prop.line_yr_df.model.unique())})
+
+        if line_imp_exp.shape[0] == 0:
+            pd.DataFrame({'model': self.prop.line_yr_df.model.unique(),
+                          'nodeFrom': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'nodeTo': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'islFrom': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'islTo': ['None'] * len(self.prop.line_yr_df.model.unique()),
+                          'value': [0] * len(self.prop.line_yr_df.model.unique())})
+
+        line_imp_exp_isl = line_imp_exp.reset_index()
+        line_imp_exp_isl = line_imp_exp_isl[line_imp_exp_isl.islFrom != line_imp_exp_isl.islTo]
+        line_imp_exp_isl.loc[:, 'line'] = line_imp_exp_isl.islFrom + '-' + line_imp_exp_isl.islTo
+
+        add_df_column(line_cap, 'units', 'MW').to_csv(os.path.join(self.DIR_05_1_SUMMARY_OUT, '10a_line_cap.csv'),
+                                                      index=False)
+        add_df_column(line_imp_exp, 'units', 'GWh').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '10b_line_imports_exports.csv'), index=False)
+
+        self._dev_test_output('10a_line_cap.csv')
+        self._dev_test_output('10b_line_imports_exports.csv')
+        print("Done.")
+
+    def create_output_11(self, timescale):
+        print("Creating output 11...", end=" ")
+
+        ### Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
+
+        gen_cap_tech_reg = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Installed Capacity'].groupby(
+            ['model'] + GEO_COLS + ['Category']).sum().value.compute().unstack(level=GEO_COLS).fillna(0)
+
+        gen_cap_tech_reg_IPPs = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Installed Capacity'].groupby(
+            ['model'] + GEO_COLS + ['IPP', 'Category']).sum().value.compute().unstack(level=GEO_COLS).fillna(0)
+
+        # gen_cap_tech_subreg = gen_yr_df[gen_yr_df.property == 'Installed Capacity'].groupby(
+        #     [ 'model', 'Subregion', 'Category']).sum().value.unstack(level='Subregion').fillna(0)
+
+        gen_cap_subtech_reg = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Installed Capacity'].groupby(
+            ['model'] + GEO_COLS + ['CapacityCategory']).sum().value.compute().unstack(level=GEO_COLS).fillna(0)
+
+        #### For Capex calcs
+        gen_cap_costTech_reg = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Installed Capacity'].groupby(
+            ['model'] + GEO_COLS + ['CostCategory']).sum().value.compute().unstack(level=GEO_COLS).fillna(0)
+
+
+        if validation:
+            idn_cap_actuals_by_tech_reg = idn_actuals_2019.groupby(
+                ['model'] + GEO_COLS + ['CapacityCategory']).sum().SummaryCap_MW.compute().unstack(level=GEO_COLS).fillna(0)
+            gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
+
+
+        add_df_column(gen_cap_tech_reg.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '11a_cap_by_tech_reg.csv'), index=False)
+        add_df_column(gen_cap_subtech_reg.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
+        add_df_column(gen_cap_costTech_reg.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
+        add_df_column(gen_cap_costTech_reg.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
+        add_df_column(gen_cap_tech_reg_IPPs.stack(GEO_COLS), 'units', 'MW').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_w_IPPs_by_tech_reg.csv'), index=False)
+
+
+
+        self._dev_test_output('11a_cap_by_tech_reg.csv')
+        self._dev_test_output('11b_gen_cap_by_subtech_reg.csv')
+        self._dev_test_output('11c_gen_cap_by_costTech_reg.csv')
+        self._dev_test_output('11d_gen_cap_by_weoTech_reg.csv')
+        self._dev_test_output('11d_gen_cap_w_IPPs_by_tech_reg.csv')
+        print("Done.")
+
+    def create_output_12(self, timescale):
+        print("Creating output 12...", end=" ")
+
+        # todo Not sure if that always works
+        # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
+        time_idx = self.prop.reg_df.reset_index().timestamp.drop_duplicates().compute()
+
+        nr_days = len(time_idx.dt.date.drop_duplicates())
+
+        gen_by_tech_reg_orig = self.prop.gen_yr_df[
+            self.prop.gen_yr_df.property == 'Generation']  ### For not seperating cofiring. good for CF comparison
+        gen_by_tech_reg_orig = gen_by_tech_reg_orig.groupby(['model'] + GEO_COLS + ['Category']).sum().value.compute().unstack(
+            level=GEO_COLS).fillna(0)
+
+        ### Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
+
+        gen_cap_tech_reg = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Installed Capacity'].groupby(
+            ['model'] + GEO_COLS + ['Category']).sum().value.compute().unstack(level=GEO_COLS).fillna(0)
+
+
+        if validation:
+            idn_cap_actuals_by_tech_reg = idn_actuals_2019.groupby(
+                ['model'] + GEO_COLS + ['CapacityCategory']).sum().SummaryCap_MW.compute().unstack(level=GEO_COLS).fillna(0)
+            gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
+
+        ### Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
+        ### Standard
+        ### As we make adjustments for co_firing on the energy values, we must re-calculate this
+
+        cf_tech_reg = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * nr_days * 24)).fillna(0)
+
+        cf_tech = (gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24)).unstack(
+            level='Category').fillna(0)
+
+        #     add_df_column(gen_cap_tech_subreg.stack(), 'units', 'MW').to_csv(os.path.join(save_dir_sum, '11b_gen_cap_by_tech_subreg.csv'), index=False)
+        add_df_column(cf_tech_reg.stack(GEO_COLS), 'units', '%').to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '12a_cf_tech_reg.csv'), index=False)
+        #     add_df_column(cf_tech_subreg.stack(), 'units', '%').to_csv(os.path.join(save_dir_sum, '12b_cf_tech_subreg.csv'), index=False)
+        add_df_column(cf_tech, 'units', '%').to_csv(os.path.join(self.DIR_05_1_SUMMARY_OUT, '12c_cf_tech.csv'),
+                                                    index=False)
+
+        self._dev_test_output('12a_cf_tech_reg.csv')
+        self._dev_test_output('12c_cf_tech.csv')
+        print("Done.")
+
+    def create_output_14(self, timescale):
+        print("Creating output 14...", end=" ")
+        ### Output 14: Emissions
+
+        ## Standard
+
+        em_by_type_tech_reg = self.prop.em_gen_yr_df[(self.prop.em_gen_yr_df.property == 'Production')].groupby(
+            ['model', 'parent'] + GEO_COLS + ['Category']).sum(numeric_only=True).value.reset_index()
+
+
+        def get_parent(x):
+            return x if '_' not in x else x.split('_')[0]
+
+        em_by_type_tech_reg.parent = em_by_type_tech_reg.parent.apply(get_parent, meta=('parent', 'object'))
+
+        co2_by_tech_reg = self.prop.em_gen_yr_df[
+            self.prop.em_gen_yr_df.parent.str.contains('CO2') & (self.prop.em_gen_yr_df.property == 'Production')].groupby(
+            ['model'] + GEO_COLS + ['Category']).sum(numeric_only=True).value.to_frame()
+
+        co2_by_reg = self.prop.em_gen_yr_df[
+            self.prop.em_gen_yr_df.parent.str.contains('CO2') & (self.prop.em_gen_yr_df.property == 'Production')].groupby(
+            ['model'] + GEO_COLS).sum(numeric_only=True).value.to_frame()
+
+        add_df_column(co2_by_tech_reg, 'units', 'tonnes').compute().to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '13a_co2_by_tech_reg.csv'), index=False)
+        add_df_column(co2_by_reg, 'units', 'tonnes').compute().to_csv(
+            os.path.join(self.DIR_05_1_SUMMARY_OUT, '13b_co2_by_reg.csv'), index=False)
+
+        self._dev_test_output('13a_co2_by_tech_reg.csv')
+        self._dev_test_output('13b_co2_by_reg.csv')
+        print("Done.")
 
     def _dev_test_output(self, file_name):
         df1 = pd.read_csv(
             f'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/summary_out/{file_name}')
         df2 = pd.read_csv(os.path.join(self.DIR_05_1_SUMMARY_OUT, file_name))
 
+        # Avoid issues with floating point precision
+        df1 = df1.round(2)
+        df2 = df2.round(2)
+
         if not df1.equals(df2):
             # Print or inspect the differing values
             for index, row in df1.iterrows():
                 for column in df1:
-                    if row[column] != df2.iloc[index][column]:
-                        print(f'Row {index}: {column} - {row[column]} != {df2.iloc[index][column]}')
+                    try:
+                        if row[column] != df2.iloc[index][column]:
+                            print(f'Row {index}: {column} - {row[column]} != {df2.iloc[index][column]}')
+                    except KeyError:
+                        print(f'Row {index}: {column} does not exist in the created file.')
 
             raise Exception(f'Output {file_name} is not the same as the one in the repo. Check it out.')
