@@ -24,6 +24,8 @@ Modelling/01 InputData/01 Generation/20220201_generator_capacity_v23_NZE.xlsx',
 ix = pd.IndexSlice
 incl_regs = ['JVB', 'SUM']
 
+reg_ts = True
+
 
 # # incl_regs = ['JVB', 'SUM', 'KLM', 'SLW', 'MPN']
 
@@ -33,6 +35,7 @@ class SolutionFileFramework:
         self.DIR_04_CACHE = os.path.join(model_dir, '04_SolutionFilesCache', soln_choice)
         self.DIR_05_DATA_PROCESSING = os.path.join(model_dir, '05_DataProcessing', soln_choice)
         self.DIR_05_1_SUMMARY_OUT = os.path.join(model_dir, '05_DataProcessing', soln_choice, 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(model_dir, '05_DataProcessing', soln_choice, 'timeseries_out')
 
         self.soln_idx = pd.read_excel(soln_idx_path, sheet_name='SolutionIndex', engine='openpyxl')
 
@@ -246,6 +249,7 @@ class SolutionFileProperties(SolutionFileFramework):
     _node_yr_df = None
     _line_yr_df = None
     _gen_df = None
+    _node_df = None
     _reg_df = None
     _res_gen_df = None
 
@@ -376,6 +380,13 @@ class SolutionFileProperties(SolutionFileFramework):
         return self._gen_df
 
     @property
+    def node_df(self):
+        if self._node_df is None:
+            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-nodes.parquet'))
+            self._node_df = _df
+        return self._node_df
+
+    @property
     def reg_df(self):
         if self._reg_df is None:
             _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-regions.parquet'))
@@ -403,7 +414,7 @@ class SolutionFileOutput(SolutionFileFramework):
         super().__init__(model_dir, soln_choice, soln_idx_path)
         self.prop = SolutionFileProperties(model_dir, soln_choice, soln_idx_path)
 
-    def create_output_1(self, timescale):
+    def create_year_output_1(self):
         """"
         ### Output 1
         ### To allow scaling, the group index is maintained (i.e. as_index=True) before resetting the index
@@ -431,7 +442,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('01b_customer_load_by_reg.csv')
         print('Done.')
 
-    def create_output_2(self, timescale):
+    def create_year_output_2(self):
         """
         ### Output 2: USE
         """
@@ -453,7 +464,9 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('02b_use_reg_daily_ts.csv')
         print('Done.')
 
-    def create_output_3(self, timescale):
+    def create_year_output_3(self):
+        print('Creating output 3 is not implemented yet.')
+        return
         print('Creating output 3...')
         # ### Output 3a:
         #
@@ -594,7 +607,10 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('03b_re_by_isl.csv')
         self._dev_test_output('03c_vre_by_isl.csv')
 
-    def create_output_5(self, timescale):
+    def create_year_output_4(self):
+        pass
+
+    def create_year_output_5(self):
         print("Creating output 5...", end=" ")
 
         unit_starts_by_tech = self.prop.gen_yr_df[self.prop.gen_yr_df.property == 'Units Started'].groupby(
@@ -608,7 +624,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('05_unit_starts_by_tech.csv')
         print("Done.")
 
-    def create_output_6(self, timescale):
+    def create_year_output_6(self):
         print("Creating output 6...", end=" ")
 
         # Standard
@@ -622,7 +638,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('06a_gen_max_by_tech_reg.csv')
         print("Done.")
 
-    def create_output_7(self, timescale):
+    def create_year_output_7(self):
         print("Creating output 7...", end=" ")
 
         tx_losses = self.prop.line_yr_df[self.prop.line_yr_df.property == 'Loss'] \
@@ -634,7 +650,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('07_tx_losses.csv')
         print("Done.")
 
-    def create_output_8(self, timescale):
+    def create_year_output_8(self):
         print("Creating output 8...", end=" ")
         # todo Not sure if that always works
         # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
@@ -698,7 +714,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('08c_vre_daily_norm.csv')
         print("Done.")
 
-    def create_output_9(self, timescale):
+    def create_year_output_9(self):
         print("Creating output 9...", end=" ")
         # todo Not sure if that always works
         # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
@@ -798,7 +814,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('09d_all_RE_curtailment_rate.csv')
         print("Done.")
 
-    def create_output_10(self, timescale):
+    def create_year_output_10(self):
         print("Creating output 10...", end=" ")
         # Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface
         # (as % of capacity?)
@@ -848,7 +864,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('10b_line_imports_exports.csv')
         print("Done.")
 
-    def create_output_11(self, timescale):
+    def create_year_output_11(self):
         print("Creating output 11...", end=" ")
 
         # Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
@@ -893,7 +909,7 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('11d_gen_cap_w_IPPs_by_tech_reg.csv')
         print("Done.")
 
-    def create_output_12(self, timescale):
+    def create_year_output_12(self):
         print("Creating output 12...", end=" ")
 
         # todo Not sure if that always works
@@ -937,7 +953,10 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('12c_cf_tech.csv')
         print("Done.")
 
-    def create_output_14(self, timescale):
+    def create_year_output_13(self):
+        pass
+
+    def create_year_output_14(self):
         print("Creating output 14...", end=" ")
         # Output 14: Emissions
 
@@ -969,6 +988,117 @@ class SolutionFileOutput(SolutionFileFramework):
         self._dev_test_output('13a_co2_by_tech_reg.csv')
         self._dev_test_output('13b_co2_by_reg.csv')
         print("Done.")
+
+    def create_interval_output_1(self):
+        print("Creating interval output 1...", end=" ")
+        ### Output 1a-b: Load and USE time-series
+        total_load_ts = self.prop.reg_df[self.prop.reg_df.property == 'Load'] \
+            .groupby(['model', 'timestamp']) \
+            .agg({'value': 'sum'})
+
+        add_df_column(total_load_ts, 'units', 'MW').reset_index().compute() \
+            .to_csv(os.path.join(self.DIR_05_2_TS_OUT, '01a_total_load_ts.csv'))
+
+        use_ts = self.prop.reg_df[self.prop.reg_df.property == 'Unserved Energy'] \
+            .groupby(['model', 'timestamp']) \
+            .agg({'value': 'sum'})
+
+        add_df_column(use_ts, 'units', 'MW').reset_index().compute() \
+            .to_csv(os.path.join(self.DIR_05_2_TS_OUT, '01b_use_ts.csv'))
+
+        ## Need to calculate whether its 30mn or 1hr within but for now just assume hourly
+        use_dly_ts = self.prop.reg_df[self.prop.reg_df.property == 'Unserved Energy'] \
+            .assign(timestamp=dd.to_datetime(self.prop.reg_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'timestamp']) \
+            .sum() \
+            .applymap(lambda x: x / 1000 if isinstance(x, float) else x)
+
+        add_df_column(use_dly_ts, 'units', 'GWh').reset_index().compute().to_csv(
+            os.path.join(self.DIR_05_2_TS_OUT, '01c_use_dly_ts.csv'))
+
+        # load_w_use_ts = dd.concat([total_load_ts.rename('Load'), use_ts.rename('USE')])
+        #
+        # add_df_column(load_w_use_ts, 'units', 'MW').reset_index().compute().to_csv(
+        #     os.path.join(self.DIR_05_2_TS_OUT, '01d_load_w_use_ts.csv'))
+
+        self._dev_test_output('01a_total_load_ts.csv')
+        self._dev_test_output('01b_use_ts.csv')
+        self._dev_test_output('01c_use_dly_ts.csv')
+        # self._dev_test_output('01d_load_w_use_ts.csv')
+        print('Done.')
+
+        if reg_ts:
+            print("Creating interval special output 1 (reg_ts=True)...", end=" ")
+            load_by_reg_ts = self.prop.node_df[self.prop.node_df.property == 'Load'].groupby(
+                ['model'] + GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
+                level='timestamp').fillna(0).stack('timestamp')
+
+            use_reg_ts = self.prop.node_df[self.prop.node_df.property == 'Unserved Energy'].groupby(
+                ['model'] + GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(level=GEO_COLS)
+
+            use_dly_reg_ts = use_reg_ts.groupby(
+                [pd.Grouper(level='model'), pd.Grouper(freq='D', level='timestamp')]).sum() / 1000
+
+            for geo in GEO_COLS:
+                geo_suffix = geo[:3].lower()
+                count = ord('e')
+
+                add_df_column(load_by_reg_ts.unstack(level=GEO_COLS).groupby(level=geo, axis=1).sum(), 'units',
+                              'MW').to_csv(os.path.join(
+                    self.DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)), index=False)
+
+                add_df_column(use_reg_ts.groupby(level=geo, axis=1).sum(), 'units', 'MW').to_csv(os.path.join(
+                    self.DIR_05_2_TS_OUT, '01{}_use_{}_ts.csv'.format(chr(count + 1), geo_suffix)), index=False)
+
+                add_df_column(use_dly_reg_ts.groupby(level=geo, axis=1).sum(), 'units', 'GWh').to_csv(
+                    os.path.join(self.DIR_05_2_TS_OUT, '01{}_use_dly_{}_ts.csv'.format(chr(count + 2), geo_suffix)),
+                    index=False)
+
+                self._dev_test_output('01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix))
+                self._dev_test_output('01{}_use_{}_ts.csv'.format(chr(count + 1), geo_suffix))
+                self._dev_test_output('01{}_use_dly_{}_ts.csv'.format(chr(count + 2), geo_suffix))
+
+                count += 3
+            print("Done.")
+
+    def create_interval_output_2(self):
+        ### Output 2: Generation
+
+        gen_by_tech_ts = self.prop.gen_df[self.prop.gen_df.property == 'Generation'] \
+            .groupby(['model', 'Category', 'timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack(level='Category') \
+            .fillna(0)
+
+        gen_by_subtech_ts = self.prop.gen_df[self.prop.gen_df.property == 'Generation']\
+            .groupby(['model', 'CapacityCategory', 'timestamp'])\
+            .agg({'value': 'sum'})\
+            .compute()\
+            .unstack(level='CapacityCategory')\
+            .fillna(0)
+
+        av_cap_by_tech_ts = self.prop.gen_df[self.prop.gen_df.property == 'Available Capacity']\
+            .groupby(['model', 'Category', 'timestamp'])\
+            .agg({'value': 'sum'})\
+            .compute()\
+            .unstack(level='Category')\
+            .fillna(0)
+
+        add_df_column(gen_by_tech_ts, 'units', 'MW')\
+            .to_csv(os.path.join(self.DIR_05_2_TS_OUT, '02a_gen_by_tech_ts.csv'), index=False)
+
+        add_df_column(gen_by_subtech_ts, 'units', 'MW')\
+            .to_csv(os.path.join(self.DIR_05_2_TS_OUT, '02b_gen_by_tech_ts.csv'), index=False)
+
+        add_df_column(av_cap_by_tech_ts, 'units', 'MW')\
+            .to_csv(os.path.join(self.DIR_05_2_TS_OUT, '02c_av_cap_by_subtech_ts.csv'), index=False)
+
+        self._dev_test_output('02a_gen_by_tech_ts.csv')
+        self._dev_test_output('02b_gen_by_tech_ts.csv')
+        self._dev_test_output('02c_av_cap_by_subtech_ts.csv')
+        print("Done.")
+
 
     def _dev_test_output(self, file_name):
         df1 = pd.read_csv(f'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/'
