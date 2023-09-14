@@ -32,6 +32,8 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
 def add_df_column(df, column_name, value, reset_index=True):
     if type(df) == pd.Series:
         out_df = pd.DataFrame(df)
+    elif type(df) == dd.Series:
+        out_df = df.to_frame()
     else:
         out_df = df.copy()
 
