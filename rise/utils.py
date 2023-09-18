@@ -29,6 +29,21 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
 
 ### Errors may arise from using input as output. Check back if weird behavior
 
+from functools import wraps
+from time import time
+
+def timing(f):
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time()
+        result = f(*args, **kw)
+        te = time()
+        in_min = (te-ts)/60
+        print('func:%r args:[%r, %r] took: %2.4f min' % \
+          (f.__name__, args, kw, in_min))
+        return result
+    return wrap
+
 def add_df_column(df, column_name, value, reset_index=True):
     if type(df) == pd.Series:
         out_df = pd.DataFrame(df)

@@ -134,7 +134,7 @@ class SolutionFileProcessor(SolutionFileFramework):
                             dfs_dict[obj] = [db_data]
 
         for obj, dfs in dfs_dict.items():
-            df = pd.concat(dfs)
+            df = dd.concat(dfs)
             os.makedirs(os.path.join(self.DIR_04_CACHE, 'unprocessed'), exist_ok=True)
             df.to_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', f'{timescale}-{obj}.parquet'))
             print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]}.')
