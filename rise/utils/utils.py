@@ -32,7 +32,7 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
 from functools import wraps
 from time import time
 
-def timing(f):
+def time_it_decorator(f):
     @wraps(f)
     def wrap(*args, **kw):
         ts = time()
@@ -43,6 +43,13 @@ def timing(f):
           (f.__name__, args, kw, in_min))
         return result
     return wrap
+
+last_time = time()
+def time_it():
+    last_time = time()
+    print(f' {time() - last_time} seconds since last call')
+
+
 
 def add_df_column(df, column_name, value, reset_index=True):
     if type(df) == pd.Series:
