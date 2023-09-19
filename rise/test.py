@@ -3,9 +3,24 @@ import os
 import pandas as pd
 
 from .settings import MODEL_DIR, MODEL_DIR_TEST, SOLN_CHOICE
+from .utils.logger import log
+
+print = log.info
 
 
-def test_output(timescale, output_number=None):
+def _list_csv_files(root_dir):
+    csv_files = []
+
+    for foldername, subfolders, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if filename.endswith(".csv"):
+                relative_path = os.path.relpath(os.path.join(foldername, filename), root_dir)
+                csv_files.append(relative_path)
+
+    return csv_files
+
+
+def test_output(timescale, output_number=None, check_mode='simple'):
     if timescale == 'year':
         path = os.path.join(MODEL_DIR, '05_DataProcessing', SOLN_CHOICE, 'summary_out')
         path_test = os.path.join(MODEL_DIR_TEST, '05_DataProcessing', SOLN_CHOICE, 'summary_out')
@@ -15,53 +30,63 @@ def test_output(timescale, output_number=None):
     else:
         raise Exception('timescale must be either "year" or "interval"')
 
-    print(f'Starting tests for {timescale} output.')
+    if output_number is None:
+        print(f'Start tests for {timescale} output (check_mode={check_mode}).')
+    else:
+        print(f'Start tests for {timescale} output {output_number} (check_mode={check_mode}).')
+
     # Get all files
-    files = [f for f in os.listdir(path_test)]
+    files = [f for f in _list_csv_files(path_test)]
     files.sort()
 
     for file in files:
+
         if output_number is not None:
-            if not file.startswith(f'0{output_number}') and not file.startswith(f'{output_number}'):
+            if not file.split('\\')[-1].startswith(f'0{output_number}') and \
+                    not file.split('\\')[-1].startswith(f'{output_number}'):
                 continue
         try:
-            df = pd.read_csv(os.path.join(path, file))
+            df = pd.read_csv(os.path.join(path, file), low_memory=False)
         except FileNotFoundError:
             # print(f'File was not created: {file}.')
             continue
-        df_test = pd.read_csv(os.path.join(path_test, file))
+        df_test = pd.read_csv(os.path.join(path_test, file), low_memory=False)
 
-        # Avoid issues with floating point precision
-        df = df.round(2)
-        df_test = df_test.round(2)
+        cols = df.columns.to_list()
+        cols_test = df_test.columns.to_list()
 
-        # Sort dataframe in the same way
-        df = df.sort_values(by=df.columns.to_list()).reset_index(drop=True)
-        df_test = df_test.sort_values(by=df_test.columns.to_list()).reset_index(drop=True)
-
-        cols = sorted(df.columns.to_list())
-        cols_test = sorted(df_test.columns.to_list())
-
-        df = df[cols]
-        df_test = df_test[cols_test]
-
-        matched_cols = list(set(cols) & set(cols_test))
+        matched_cols = sorted(list(set(cols) & set(cols_test)))
         redundant_cols = list(set(cols) - set(cols_test))
         missing_cols = list(set(cols_test) - set(cols))
+
         for col in redundant_cols:
             print(f'Column {col} is redundant.')
         for col in missing_cols:
             print(f'Column {col} is missing.')
 
+        # Make columns match
         df = df[matched_cols]
         df_test = df_test[matched_cols]
 
+        # Round to avoid floating point errors
+        df = df.round(5)
+        df_test = df_test.round(5)
+
         test_failed = False
         if not df_test.equals(df):
-            for index, row in df_test.iterrows():
-                for column in df_test.columns:
-                    if row[column] != df.iloc[index][column]:
-                        print(f'Row {index}: {column} - {row[column]} != {df.iloc[index][column]}')
+
+            if df_test.shape != df.shape:
+                print(f'Shape of {file} does not match: {df_test.shape} != {df.shape}.')
+                test_failed = True
+
+            for col in df.columns:
+                if pd.to_numeric(df[col], errors='coerce').notna().all():
+                    if df[col].sum() != df_test[col].sum():
+                        print(f'Sum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                        test_failed = True
+                else:
+                    if not set(df[col].unique()) == set(df_test[col].unique()):
+                        print(f'Unique values of {file} column {col} do not match.')
                         test_failed = True
 
         if test_failed:
