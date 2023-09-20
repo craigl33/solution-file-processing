@@ -6,7 +6,7 @@ import dask.dataframe as dd
 from .solution_files import SolutionFileFramework
 from .properties import properties as p
 from .utils.logger import log
-from .settings import config
+from .settings import settings as s
 
 print = log.info
 
@@ -65,7 +65,7 @@ class _Variables(SolutionFileFramework):
     def gen_by_tech_reg_ts(self):
         if self._gen_by_tech_reg_ts is None:
             self._gen_by_tech_reg_ts = p.gen_df[p.gen_df.property == 'Generation'] \
-                .groupby(['model', 'Category'] + config['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model', 'Category'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='Category') \

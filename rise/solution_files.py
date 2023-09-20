@@ -9,19 +9,20 @@ from h5plexos.query import PLEXOSSolution
 from .utils.logger import log
 from .utils.utils import get_files, add_df_column, enrich_df
 from .constants import PRETTY_MODEL_NAMES
-from .settings import config
+from .settings import settings as s
 
 print = log.info
 
 class SolutionFileFramework:
     def __init__(self):
-        self.DIR_04_SOLUTION_FILES = os.path.join(config['path']['model_dir'], '04_SolutionFiles', config['model']['soln_choice'])
-        self.DIR_04_CACHE = os.path.join(config['path']['model_dir'], '04_SolutionFilesCache', config['model']['soln_choice'])
-        self.DIR_05_DATA_PROCESSING = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'])
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'timeseries_out')
 
-        self.soln_idx = pd.read_excel(config['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
+        self.DIR_04_SOLUTION_FILES = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFiles', s.cfg['model']['soln_choice'])
+        self.DIR_04_CACHE = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFilesCache', s.cfg['model']['soln_choice'])
+        self.DIR_05_DATA_PROCESSING = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'])
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'], 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'], 'timeseries_out')
+
+        self.soln_idx = pd.read_excel(s.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
 
 class SolutionFileProcessor(SolutionFileFramework):

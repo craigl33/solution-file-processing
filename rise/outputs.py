@@ -1,18 +1,19 @@
+"""
+TODO DOCSTRING
+"""
+
 import os
-from pathlib import Path
 
 import pandas as pd
 import dask.dataframe as dd
 import numpy as np
-import julia
-from h5plexos.query import PLEXOSSolution
 
 from .properties import properties as p
 from .variables import variables as v
 from .utils.logger import log
 from .utils.utils import add_df_column
 from .constants import VRE_TECHS
-from .settings import config
+from .settings import settings as s
 
 
 print = log.info
@@ -28,14 +29,14 @@ def create_year_output_1():
     ### Output 1
     ### To allow scaling, the group index is maintained (i.e. as_index=True) before resetting the index
     """
-    print('Creating output 1...', end=' ')
+    print('Creating output 1...')
 
     load_by_reg = p.node_yr_df[p.node_yr_df.property == 'Load'].groupby(
-        ['model', 'timestamp'] + config['settings']['geo_cols']).agg({'value': 'sum'})
+        ['model', 'timestamp'] + s.cfg['settings']['geo_cols']).agg({'value': 'sum'})
     customer_load_by_reg = p.node_yr_df[
         (p.node_yr_df.property == 'Customer Load') | (
                 p.node_yr_df.property == 'Unserved Energy')].groupby(
-        ['model', 'timestamp'] + config['settings']['geo_cols']).agg({'value': 'sum'})
+        ['model', 'timestamp'] + s.cfg['settings']['geo_cols']).agg({'value': 'sum'})
 
     load_by_reg = load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
     customer_load_by_reg = customer_load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
@@ -58,9 +59,9 @@ def create_year_output_2():
     _node_yr_df = p.node_yr_df.compute()  # Change dd.DataFrame back to pd.DataFrame
 
     use_by_reg = _node_yr_df[_node_yr_df.property == 'Unserved Energy'].groupby(
-        ['model'] + config['settings']['geo_cols']).agg({'value': 'sum'})
+        ['model'] + s.cfg['settings']['geo_cols']).agg({'value': 'sum'})
     use_reg_daily_ts = _node_yr_df[_node_yr_df.property == 'Unserved Energy'].groupby(
-        ['model'] + config['settings']['geo_cols'] + [pd.Grouper(key='timestamp', freq='D')]).agg({'value': 'sum'})
+        ['model'] + s.cfg['settings']['geo_cols'] + [pd.Grouper(key='timestamp', freq='D')]).agg({'value': 'sum'})
 
     add_df_column(use_by_reg, 'units', 'GWh').to_csv(os.path.join(p.DIR_05_1_SUMMARY_OUT, '02a_use_reg.csv'),
                                                      index=False)
@@ -334,38 +335,38 @@ def create_year_output_9():
 
     # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
     load_by_reg = p.node_yr_df[p.node_yr_df.property == 'Load'] \
-        .groupby(['model', 'timestamp'] + config['settings']['geo_cols']) \
+        .groupby(['model', 'timestamp'] + s.cfg['settings']['geo_cols']) \
         .agg({'value': 'sum'})
 
     vre_av_abs = p.gen_df[(p.gen_df.property == 'Available Capacity') &
                           (p.gen_df.Category.isin(VRE_TECHS))] \
         .assign(timestamp=dd.to_datetime(p.gen_df['timestamp']).dt.floor('D')) \
-        .groupby(['model', 'Category'] + config['settings']['geo_cols'] + ['timestamp']) \
+        .groupby(['model', 'Category'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
         .agg({'value': 'sum'}) \
         .compute() \
         .unstack('Category') \
         .fillna(0) \
         .stack('Category') \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0) \
         .apply(lambda x: x * hour_corr)
 
     vre_gen_abs = p.gen_df[(p.gen_df.property == 'Generation') &
                            (p.gen_df.Category.isin(VRE_TECHS))] \
         .assign(timestamp=dd.to_datetime(p.gen_df['timestamp']).dt.floor('D')) \
-        .groupby(['model', 'Category', ] + config['settings']['geo_cols'] + ['timestamp']) \
+        .groupby(['model', 'Category', ] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
         .agg({'value': 'sum'}) \
         .compute() \
         .unstack('Category') \
         .fillna(0) \
         .stack('Category') \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0) \
         .apply(lambda x: x * hour_corr)
 
     # Add zero values to regions without VRE
-    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(config['settings']['geo_cols']).columns)),
-                               index=load_by_reg.compute().unstack(config['settings']['geo_cols']).columns)
+    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(s.cfg['settings']['geo_cols']).columns)),
+                               index=load_by_reg.compute().unstack(s.cfg['settings']['geo_cols']).columns)
     vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
     vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
 
@@ -378,26 +379,26 @@ def create_year_output_9():
     other_re_gen_abs = p.gen_df[(p.gen_df.property == 'Generation') &
                                 (p.gen_df.Category.isin(constr_techs))] \
         .assign(timestamp=dd.to_datetime(p.gen_df['timestamp']).dt.floor('D')) \
-        .groupby(['model', 'Category', ] + config['settings']['geo_cols'] + ['timestamp']) \
+        .groupby(['model', 'Category', ] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
         .agg({'value': 'sum'}) \
         .compute() \
         .unstack('Category') \
         .fillna(0) \
         .stack('Category') \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0) \
         .apply(lambda x: x * hour_corr)
 
     other_re_energy_vio = p.gen_df[(p.gen_df.property == 'Min Energy Violation') &
                                    (p.gen_df.Category.isin(constr_techs))] \
         .assign(timestamp=dd.to_datetime(p.gen_df['timestamp']).dt.floor('D')) \
-        .groupby(['model', 'Category'] + config['settings']['geo_cols'] + ['timestamp']) \
+        .groupby(['model', 'Category'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
         .agg({'value': 'sum'}) \
         .compute() \
         .unstack('Category') \
         .fillna(0) \
         .stack('Category') \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0) \
         .apply(lambda x: x * hour_corr)
 
@@ -498,55 +499,55 @@ def create_year_output_11():
     # Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
 
     gen_cap_tech_reg = p.gen_yr_df[p.gen_yr_df.property == 'Installed Capacity'] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['Category']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['Category']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
     gen_cap_tech_reg_IPPs = p.gen_yr_df[p.gen_yr_df.property == 'Installed Capacity'] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['IPP', 'Category']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['IPP', 'Category']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
     # gen_cap_tech_subreg = gen_yr_df[gen_yr_df.property == 'Installed Capacity'].groupby(
     #     [ 'model', 'Subregion', 'Category']).agg({'value': 'sum'})..unstack(level='Subregion').fillna(0)
 
     gen_cap_subtech_reg = p.gen_yr_df[p.gen_yr_df.property == 'Installed Capacity'] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['CapacityCategory']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['CapacityCategory']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
     # For Capex calcs
     gen_cap_costTech_reg = p.gen_yr_df[p.gen_yr_df.property == 'Installed Capacity'] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['CostCategory']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['CostCategory']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
-    if config['settings']['validation']:
+    if s.cfg['settings']['validation']:
         idn_cap_actuals_by_tech_reg = idn_actuals_2019 \
-            .groupby(['model'] + config['settings']['geo_cols'] + ['CapacityCategory']) \
+            .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['CapacityCategory']) \
             .agg({'SummaryCap_MW': 'sum'}) \
             .compute() \
-            .unstack(level=config['settings']['geo_cols']) \
+            .unstack(level=s.cfg['settings']['geo_cols']) \
             .fillna(0)
         gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
 
-    add_df_column(gen_cap_tech_reg.stack(config['settings']['geo_cols']), 'units', 'MW').to_csv(
+    add_df_column(gen_cap_tech_reg.stack(s.cfg['settings']['geo_cols']), 'units', 'MW').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '11a_cap_by_tech_reg.csv'), index=False)
-    add_df_column(gen_cap_subtech_reg.stack(config['settings']['geo_cols']), 'units', 'MW').to_csv(
+    add_df_column(gen_cap_subtech_reg.stack(s.cfg['settings']['geo_cols']), 'units', 'MW').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
-    add_df_column(gen_cap_costTech_reg.stack(config['settings']['geo_cols']), 'units', 'MW').to_csv(
+    add_df_column(gen_cap_costTech_reg.stack(s.cfg['settings']['geo_cols']), 'units', 'MW').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
-    add_df_column(gen_cap_costTech_reg.stack(config['settings']['geo_cols']), 'units', 'MW').to_csv(
+    add_df_column(gen_cap_costTech_reg.stack(s.cfg['settings']['geo_cols']), 'units', 'MW').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
-    add_df_column(gen_cap_tech_reg_IPPs.stack(config['settings']['geo_cols']), 'units', 'MW').to_csv(
+    add_df_column(gen_cap_tech_reg_IPPs.stack(s.cfg['settings']['geo_cols']), 'units', 'MW').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_w_IPPs_by_tech_reg.csv'), index=False)
 
     print("Done.")
@@ -567,27 +568,27 @@ def create_year_output_12():
     gen_by_tech_reg_orig = p.gen_yr_df[
         p.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
     gen_by_tech_reg_orig = gen_by_tech_reg_orig \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['Category']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['Category']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
     # Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
 
     gen_cap_tech_reg = p.gen_yr_df[p.gen_yr_df.property == 'Installed Capacity'] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['Category']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['Category']) \
         .agg({'value': 'sum'}) \
         .compute() \
-        .unstack(level=config['settings']['geo_cols']) \
+        .unstack(level=s.cfg['settings']['geo_cols']) \
         .fillna(0)
 
-    if config['settings']['validation']:
+    if s.cfg['settings']['validation']:
         idn_cap_actuals_by_tech_reg = idn_actuals_2019 \
-            .groupby(['model'] + config['settings']['geo_cols'] + ['CapacityCategory']) \
+            .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['CapacityCategory']) \
             .agg({'SummaryCap_MW': 'sum'}) \
             .compute() \
-            .unstack(level=config['settings']['geo_cols']) \
+            .unstack(level=s.cfg['settings']['geo_cols']) \
             .fillna(0)
         gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
 
@@ -600,7 +601,7 @@ def create_year_output_12():
     cf_tech = (gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24)).unstack(
         level='Category').fillna(0)
 
-    add_df_column(cf_tech_reg.stack(config['settings']['geo_cols']), 'units', '%').to_csv(
+    add_df_column(cf_tech_reg.stack(s.cfg['settings']['geo_cols']), 'units', '%').to_csv(
         os.path.join(p.DIR_05_1_SUMMARY_OUT, '12a_cf_tech_reg.csv'), index=False)
     add_df_column(cf_tech, 'units', '%').to_csv(os.path.join(p.DIR_05_1_SUMMARY_OUT, '12c_cf_tech.csv'),
                                                 index=False)
@@ -618,7 +619,7 @@ def create_year_output_13():
     # Standard
 
     em_by_type_tech_reg = p.em_gen_yr_df[(p.em_gen_yr_df.property == 'Production')].groupby(
-        ['model', 'parent'] + config['settings']['geo_cols'] + ['Category']).agg({'value': 'sum'}).reset_index()
+        ['model', 'parent'] + s.cfg['settings']['geo_cols'] + ['Category']).agg({'value': 'sum'}).reset_index()
 
     def get_parent(x):
         return x if '_' not in x else x.split('_')[0]
@@ -627,12 +628,12 @@ def create_year_output_13():
 
     co2_by_tech_reg = p.em_gen_yr_df[p.em_gen_yr_df.parent.str.contains('CO2') &
                                      (p.em_gen_yr_df.property == 'Production')] \
-        .groupby(['model'] + config['settings']['geo_cols'] + ['Category']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['Category']) \
         .agg({'value': 'sum'})
 
     co2_by_reg = p.em_gen_yr_df[p.em_gen_yr_df.parent.str.contains('CO2') &
                                 (p.em_gen_yr_df.property == 'Production')] \
-        .groupby(['model'] + config['settings']['geo_cols']) \
+        .groupby(['model'] + s.cfg['settings']['geo_cols']) \
         .agg({'value': 'sum'})
 
     add_df_column(co2_by_tech_reg, 'units', 'tonnes').compute().to_csv(
@@ -678,24 +679,26 @@ def create_interval_output_1():
     print('Done.')
 
     if reg_ts:
-        print("Creating interval special output 1 (reg_ts=True)...", end=" ")
+        print("Creating interval special output 1 (reg_ts=True)...")
         load_by_reg_ts = p.node_df[p.node_df.property == 'Load'].groupby(
-            ['model'] + GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
+            ['model'] + s.cfg['settings']['geo_cols'] + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
             level='timestamp').fillna(0).stack('timestamp')
 
         use_reg_ts = p.node_df[p.node_df.property == 'Unserved Energy'].groupby(
-            ['model'] + GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(level=GEO_COLS)
+            ['model'] + s.cfg['settings']['geo_cols'] + ['timestamp']).agg({'value': 'sum'}).compute().unstack(level=s.cfg['settings']['geo_cols'])
 
         use_dly_reg_ts = use_reg_ts.groupby(
             [pd.Grouper(level='model'), pd.Grouper(freq='D', level='timestamp')]).sum() / 1000
 
-        for geo in GEO_COLS:
+        for geo in s.cfg['settings']['geo_cols']:
             geo_suffix = geo[:3].lower()
             count = ord('e')
 
-            add_df_column(load_by_reg_ts.unstack(level=GEO_COLS).groupby(level=geo, axis=1).sum(), 'units',
-                          'MW').to_csv(os.path.join(
-                p.DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)), index=False)
+            add_df_column(load_by_reg_ts.unstack(level=s.cfg['settings']['geo_cols'])
+                          .groupby(level=geo, axis=1)
+                          .sum(), 'units', 'MW') \
+                .to_csv(os.path.join(p.DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)),
+                        index=False)
 
             add_df_column(use_reg_ts.groupby(level=geo, axis=1).sum(), 'units', 'MW').to_csv(os.path.join(
                 p.DIR_05_2_TS_OUT, '01{}_use_{}_ts.csv'.format(chr(count + 1), geo_suffix)), index=False)
