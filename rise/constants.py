@@ -1,4 +1,4 @@
-### Prettify names
+VRE_TECHS = ['Solar', 'Wind']
 
 PRETTY_MODEL_NAMES = {
     'IDN_2019_Validation': '2019',
@@ -84,4 +84,34 @@ PRETTY_MODEL_NAMES = {
     'IDN_2030_NZE_DSM_wLTExp_2015 Solution': '2030 APS (2015)',
     'IDN_2030_NZE_DSM_wLTExp_2011 Solution': '2030 APS (2011)',
     'IDN_2030_NZE_DSM_wLTExp_2010 Solution': '2030 APS (2010)',
+}
+
+FILTER_OUT_OBJS = ['constraints', 'contingencyreserves_regions', 'decisionvariables', 'storages', 'timeslices',
+                   'variables']
+
+FILTER_PROPS = {
+    'generators': ['Available Capacity', 'Generation', 'Installed Capacity', 'Min Energy Violation', 'Units',
+                   'Units Generating', 'Units Out', 'Units Started', 'Forced Outage', 'Maintenance', 'Firm Capacity'],
+    'batteries': ['Age', 'Energy', 'Generation', 'Hours Charging', 'Hours Discharging', 'Hours Idle',
+                  'Installed Capacity', 'Load', 'Losses', 'Lower Reserve', 'Net Generation', 'Raise Reserve',
+                  'Regulation Lower Reserve', 'Regulation Raise Reserve', 'SoC'],
+    'regions': ['Capacity Reserve Margin', 'Capacity Reserves', 'Customer Load', 'Dump Energy', 'Forced Outage',
+                'Generation', 'Generation Capacity', 'Load', 'Maintenance', 'Native Load', 'Pump Load', 'Battery Load',
+                'Transmission Losses', 'Unserved Energy', 'Unserved Energy Hours', 'Price', 'Shadow Price', 'SRMC'],
+    # 'Exports', 'Imports'
+
+    'nodes': ['Customer Load', 'Exports', 'Generation', 'Generation Capacity',
+              'Imports', 'Load', 'Min Load', 'Native Load', 'Peak Load', 'Price', 'Pump Load', 'Battery Load',
+              'Unserved Energy', 'Price', 'Shadow Price', 'SRMC'],
+    'lines': ['Export Limit', 'Flow', 'Import Limit', 'Loading', 'Loss', 'Units'],
+
+    # ## differ by emission_gens or plain emissions
+    # filter_props['emissions_generators'] = ['Cost', 'Intensity', 'Generator Production', ]
+    'emissions': ['Intensity', 'Price', 'Production', 'Shadow Price'],
+    'fuels': ['Cost', 'Offtake', 'Price', 'Time-weighted Price'],
+    'reserves': ['Shortage', 'Risk'],
+    'reserves_generators': ['Available Response', 'Cleared Offer Cost', 'Cleared Offer Price',
+                            'Non-spinning Reserve Provision',
+                            'Provision']
+
 }

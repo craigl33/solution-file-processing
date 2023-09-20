@@ -6,39 +6,22 @@ import dask.dataframe as dd
 import julia
 from h5plexos.query import PLEXOSSolution
 
-from .utils.utils import get_files, add_df_column, enrich_df
-from .settings import FILTER_PROPS, FILTER_OUT_OBJS, GEO_COLS
-from .constants import PRETTY_MODEL_NAMES
 from .utils.logger import log
+from .utils.utils import get_files, add_df_column, enrich_df
+from .constants import PRETTY_MODEL_NAMES
+from .settings import config
 
 print = log.info
 
-# todo: preliminary, needs to better implemented
-VRE_TECHS = ['Solar', 'Wind']
-
-# Validation
-validation = False
-idn_actuals_2019 = pd.read_excel('R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/\
-Modelling/01 InputData/01 Generation/20220201_generator_capacity_v23_NZE.xlsx',
-                                 sheet_name='IDN_Summary_per_tech', usecols='A:T', engine='openpyxl')
-
-ix = pd.IndexSlice
-incl_regs = ['JVB', 'SUM']
-
-reg_ts = True
-
-
-# # incl_regs = ['JVB', 'SUM', 'KLM', 'SLW', 'MPN']
-
 class SolutionFileFramework:
-    def __init__(self, model_dir, soln_choice, soln_idx_path):
-        self.DIR_04_SOLUTION_FILES = os.path.join(model_dir, '04_SolutionFiles', soln_choice)
-        self.DIR_04_CACHE = os.path.join(model_dir, '04_SolutionFilesCache', soln_choice)
-        self.DIR_05_DATA_PROCESSING = os.path.join(model_dir, '05_DataProcessing', soln_choice)
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(model_dir, '05_DataProcessing', soln_choice, 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(model_dir, '05_DataProcessing', soln_choice, 'timeseries_out')
+    def __init__(self):
+        self.DIR_04_SOLUTION_FILES = os.path.join(config['path']['model_dir'], '04_SolutionFiles', config['model']['soln_choice'])
+        self.DIR_04_CACHE = os.path.join(config['path']['model_dir'], '04_SolutionFilesCache', config['model']['soln_choice'])
+        self.DIR_05_DATA_PROCESSING = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'])
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'timeseries_out')
 
-        self.soln_idx = pd.read_excel(soln_idx_path, sheet_name='SolutionIndex', engine='openpyxl')
+        self.soln_idx = pd.read_excel(config['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
 
 class SolutionFileProcessor(SolutionFileFramework):

@@ -1,30 +1,12 @@
 import os
 
-import pandas as pd
 import dask.dataframe as dd
 
-from .settings import MODEL_DIR, SOLN_CHOICE, SOLN_IDX_PATH
 from .solution_files import SolutionFileFramework
-from .constants import PRETTY_MODEL_NAMES
 from .utils.logger import log
+from .constants import PRETTY_MODEL_NAMES
 
 print = log.info
-
-# todo: preliminary, needs to better implemented
-GEO_COLS = ['Island', 'Region', 'Subregion']
-VRE_TECHS = ['Solar', 'Wind']
-
-# Validation
-validation = False
-idn_actuals_2019 = pd.read_excel(
-    'R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/\
-Modelling/01 InputData/01 Generation/20220201_generator_capacity_v23_NZE.xlsx',
-                                 sheet_name='IDN_Summary_per_tech', usecols='A:T', engine='openpyxl')
-
-ix = pd.IndexSlice
-incl_regs = ['JVB', 'SUM']
-
-reg_ts = True
 
 def property_not_found_decorator(func):
     def wrapper(*args, **kwargs):
@@ -38,8 +20,8 @@ def property_not_found_decorator(func):
 
 class _Properties(SolutionFileFramework):
 
-    def __init__(self, model_dir, soln_choice, soln_idx_path):
-        super().__init__(model_dir, soln_choice, soln_idx_path)
+    def __init__(self):
+        super().__init__()
 
         try:
             self.model_yrs = self.reg_df.groupby(['model']).first().timestamp.dt.year.values
@@ -236,4 +218,4 @@ class _Properties(SolutionFileFramework):
         return self._purch_df
 
 
-properties = _Properties(model_dir=MODEL_DIR, soln_choice=SOLN_CHOICE, soln_idx_path=SOLN_IDX_PATH)
+properties = _Properties()

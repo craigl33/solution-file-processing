@@ -1,9 +1,10 @@
 import os
+import math
 
 import pandas as pd
 
-from .settings import MODEL_DIR, MODEL_DIR_TEST, SOLN_CHOICE
 from .utils.logger import log
+from .settings import config
 
 print = log.info
 
@@ -22,11 +23,11 @@ def _list_csv_files(root_dir):
 
 def test_output(timescale, output_number=None, check_mode='simple'):
     if timescale == 'year':
-        path = os.path.join(MODEL_DIR, '05_DataProcessing', SOLN_CHOICE, 'summary_out')
-        path_test = os.path.join(MODEL_DIR_TEST, '05_DataProcessing', SOLN_CHOICE, 'summary_out')
+        path = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'summary_out')
+        path_test = os.path.join(config['path']['model_dir_test'], '05_DataProcessing', config['model']['soln_choice'], 'summary_out')
     elif timescale == 'interval':
-        path = os.path.join(MODEL_DIR, '05_DataProcessing', SOLN_CHOICE, 'timeseries_out')
-        path_test = os.path.join(MODEL_DIR_TEST, '05_DataProcessing', SOLN_CHOICE, 'timeseries_out')
+        path = os.path.join(config['path']['model_dir'], '05_DataProcessing', config['model']['soln_choice'], 'timeseries_out')
+        path_test = os.path.join(config['path']['model_dir_test'], '05_DataProcessing', config['model']['soln_choice'], 'timeseries_out')
     else:
         raise Exception('timescale must be either "year" or "interval"')
 

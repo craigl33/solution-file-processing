@@ -1,27 +1,26 @@
 import os
-from functools import wraps
 
 import pandas as pd
 import dask.dataframe as dd
 
-from .settings import MODEL_DIR, SOLN_CHOICE, SOLN_IDX_PATH, GEO_COLS
 from .solution_files import SolutionFileFramework
 from .properties import properties as p
 from .utils.logger import log
+from .settings import config
 
 print = log.info
-VARIABLES_CACHE = True
 
 def variables_caching(func):
     """
     TODO docstring
     """
+
     def _variables_caching(self, *args, **kwargs):
         if getattr(self, f'_{func.__name__}') is not None:
             return getattr(self, f'_{func.__name__}')
 
         path = os.path.join(p.DIR_04_CACHE, 'variables', f'{func.__name__}.parquet')
-        if VARIABLES_CACHE and os.path.exists(path):
+        if config.variables_cache and os.path.exists(path):
             # Check if dask or pandas
             if os.path.isdir(path):
                 print(f"Loading from cache: dd.DataFrame {func.__name__}.")
@@ -32,7 +31,7 @@ def variables_caching(func):
         else:
             print(f"Computing variable {func.__name__}.")
             call = func(*args, **kwargs)
-            if VARIABLES_CACHE:
+            if config.variables_cache:
                 print(f"Saved {func.__name__} to cache.")
                 call.to_parquet(path)
 
@@ -41,9 +40,10 @@ def variables_caching(func):
 
     return _variables_caching
 
+
 class _Variables(SolutionFileFramework):
-    def __init__(self, model_dir, soln_choice, soln_idx_path):
-        super().__init__(model_dir, soln_choice, soln_idx_path)
+    def __init__(self):
+        super().__init__()
 
     _time_idx = None
     _gen_by_tech_reg_ts = None
@@ -65,7 +65,7 @@ class _Variables(SolutionFileFramework):
     def gen_by_tech_reg_ts(self):
         if self._gen_by_tech_reg_ts is None:
             self._gen_by_tech_reg_ts = p.gen_df[p.gen_df.property == 'Generation'] \
-                .groupby(['model', 'Category'] + GEO_COLS + ['timestamp']) \
+                .groupby(['model', 'Category'] + config['settings']['geo_cols'] + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='Category') \
@@ -78,7 +78,7 @@ class _Variables(SolutionFileFramework):
     def gen_by_subtech_reg_ts(self):
         if self._gen_by_subtech_reg_ts is None:
             self._gen_by_subtech_reg_ts = p.gen_df[p.gen_df.property == 'Generation'] \
-                .groupby(['model', 'CapacityCategory'] + GEO_COLS + ['timestamp']) \
+                .groupby(['model', 'CapacityCategory'] + config['settings']['geo_cols'] + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='CapacityCategory') \
@@ -87,4 +87,4 @@ class _Variables(SolutionFileFramework):
         return self._gen_by_subtech_reg_ts
 
 
-variables = _Variables(model_dir=MODEL_DIR, soln_choice=SOLN_CHOICE, soln_idx_path=SOLN_IDX_PATH)
+variables = _Variables()
