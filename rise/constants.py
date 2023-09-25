@@ -84,6 +84,43 @@ PRETTY_MODEL_NAMES = {
     'IDN_2030_NZE_DSM_wLTExp_2015 Solution': '2030 APS (2015)',
     'IDN_2030_NZE_DSM_wLTExp_2011 Solution': '2030 APS (2011)',
     'IDN_2030_NZE_DSM_wLTExp_2010 Solution': '2030 APS (2010)',
+
+    'THA22_2021_Validation': '2021 Validation',
+    'THA22_2025_Base': '2025 Base',
+
+    'THA22_2030_Base': '2030 Base',
+    'THA22_2030plus': '2030 VRE Plus',
+    'THA22_2030plus_CO2p': '2030 VRE Plus + CO2p',
+
+    'THA22_2030plus_PPflex': '2030 VRE Plus + PPFlex',
+    'THA22_2030plus_Batt': '2030 VRE Plus + Sto',
+    'THA22_2030plus_Batt_PPflex': '2030 VRE Plus + PPFlex + Sto',
+    'THA22_2030plus_Batt_NoTOP_PPflex': '2030 VRE Plus + PPFlex + Sto + ContrFlex',
+
+    'THA22_2037_Base': '2037 Base',
+    'THA22_2037plus': '2037 VRE Plus',
+    'THA22_2037plus_CO2p': '2037 VRE Plus + CO2p',
+    'THA22_2037plus_Batt': '2037 VRE Plus + Sto',
+    'THA22_2037plus_Batt_CO2p': '2037 VRE Plus + Sto + CO2p',
+    'THA22_2037plus_EVFlex_Batt_PPflex': '2037 VRE Plus + PPFlex + Sto + EV',
+    'THA22_2037plus_EVFlex_Batt_PPflex_CO2p': '2037 VRE Plus + PPFlex + Sto + EV + CO2p',
+
+    'THA22_2037plus_PPflex': '2037 VRE Plus + PPFlex',
+    'THA22_2037plus_EVFlex': '2037 VRE Plus + EV',
+    'THA22_2037plus_EVFlex_Batt_NoTOP_PPflex': '2037 VRE Plus + PPFlex + Sto + EV + ContrFlex',
+
+    'THA22_2030plus_Batt_NoTOP': '2030 VRE Plus + Sto + ContrFlex',
+    'THA22_2037plus_EVFlex_Batt': '2037 VRE Plus + Sto + EV',
+    'THA22_2037plus_EVFlex_Batt_NoTOP': '2037 VRE Plus + Sto + ContrFlex',
+    "THA22_2037plus_EVFlex25": '2037 VRE Plus + EV25',
+    "THA22_2037plus_EVFlex50": '2037 VRE Plus + EV50',
+    "THA22_2037plus_Batt25": '2037 VRE Plus + Sto25',
+    "THA22_2037plus_Batt50": '2037 VRE Plus + Sto50',
+    "THA22_2037plus_EVFlex25_Batt_NoTOP_PPflex": '2037 VRE Plus + Sto + EV25 + ContrFlex',
+    "THA22_2037plus_EVFlex25_Batt_PPflex": '2037 VRE Plus + Sto + EV25',
+    "THA22_2037plus_EVFlex50_Batt_NoTOP_PPflex": '2037 VRE Plus + Sto + EV50 + ContrFlex',
+    "THA22_2037plus_EVFlex50_Batt_PPflex": '2037 VRE Plus + Sto + EV50',
+
 }
 
 FILTER_OUT_OBJS = ['constraints', 'contingencyreserves_regions', 'decisionvariables', 'storages', 'timeslices',

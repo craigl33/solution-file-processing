@@ -13,7 +13,7 @@ class _Settings:
     # noinspection PyMissingOrEmptyDocstring
 
     _config_name = None
-    cfg = {}
+    _cfg = {}
 
     @property
     def config_name(self):
@@ -24,5 +24,15 @@ class _Settings:
         self._config_name = value
         with open(os.path.join('configurations', value), 'r') as f:
             self.cfg = toml.load(f)
+
+    @property
+    def cfg(self):
+        if not self._cfg:
+            raise Exception('No configuration loaded. Please set the config_name property first.')
+        return self._cfg
+
+    @cfg.setter
+    def cfg(self, value):
+        self._cfg = value
 
 settings = _Settings()

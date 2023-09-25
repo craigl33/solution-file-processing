@@ -82,7 +82,7 @@ def test_output(timescale, output_number=None, check_mode='simple'):
 
             for col in df.columns:
                 if pd.to_numeric(df[col], errors='coerce').notna().all():
-                    if df[col].sum() != df_test[col].sum():
+                    if not math.isclose(df[col].sum(), df_test[col].sum()):
                         print(f'Sum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
                         test_failed = True
                 else:

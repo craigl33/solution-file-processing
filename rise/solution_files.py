@@ -8,7 +8,7 @@ from h5plexos.query import PLEXOSSolution
 
 from .utils.logger import log
 from .utils.utils import get_files, add_df_column, enrich_df
-from .constants import PRETTY_MODEL_NAMES
+from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS, FILTER_OUT_OBJS
 from .settings import settings as s
 
 print = log.info
@@ -27,8 +27,8 @@ class SolutionFileFramework:
 
 class SolutionFileProcessor(SolutionFileFramework):
 
-    def __init__(self, model_dir, soln_choice, soln_idx_path):
-        super().__init__(model_dir, soln_choice, soln_idx_path)
+    def __init__(self):
+        super().__init__()
 
     @staticmethod
     def install_dependencies():
@@ -124,7 +124,7 @@ class SolutionFileProcessor(SolutionFileFramework):
             df.to_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', f'{timescale}-{obj}.parquet'))
             print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]}.')
 
-    def process_properties(self):
+    def process_properties(self, overwrite=False):
 
         # Import necessary stuff
         # - common_yr
@@ -149,16 +149,19 @@ class SolutionFileProcessor(SolutionFileFramework):
         # Filter out nodes that have zero load
         filter_reg_by_load = filter_reg_by_load[
             (filter_reg_by_load.property == 'Load') & (filter_reg_by_load.value != 0)]
-        filter_reg_by_gen = filter_reg_by_gen[GEO_COLS[-1]].unique()
-        filter_reg_by_load = filter_reg_by_load[GEO_COLS[-1]].unique()
+        filter_reg_by_gen = filter_reg_by_gen[s.cfg['settings']['geo_cols'][-1]].unique()
+        filter_reg_by_load = filter_reg_by_load[s.cfg['settings']['geo_cols'][-1]].unique()
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
         files = [f for f in os.listdir(os.path.join(self.DIR_04_CACHE, 'unprocessed')) if f.endswith('.parquet')]
         for file in files:
             if os.path.exists(os.path.join(self.DIR_04_CACHE, 'processed', file)):
-                print(f'{file} already exists. Pass overwrite=True to overwrite.')
-                continue
+                if overwrite:
+                    print(f'{file} already exists. Overwriting...')
+                else:
+                    print(f'{file} already exists. Pass overwrite=True to overwrite.')
+                    continue
 
             obj = file.split('-')[-1].split('.parquet')[0]
             timescale = file.split('-')[0]
@@ -189,7 +192,7 @@ class SolutionFileProcessor(SolutionFileFramework):
 
                     # Filter out regions with no generation nor load
                     if (obj == 'nodes') | (obj == 'regions'):
-                        df = df[df[GEO_COLS[-1]].isin(filter_regs)]
+                        df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
             elif timescale == 'year':
 
@@ -213,7 +216,7 @@ class SolutionFileProcessor(SolutionFileFramework):
 
                     # Filter out regions with no generation nor load
                     if (obj == 'nodes') | (obj == 'regions'):
-                        df = df[df[GEO_COLS[-1]].isin(filter_regs)]
+                        df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
             os.makedirs(os.path.join(self.DIR_04_CACHE, 'processed'), exist_ok=True)
             df.to_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'{timescale}-{obj}.parquet'))

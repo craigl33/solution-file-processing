@@ -70,7 +70,7 @@ def change_log_file_path(logger: logging.Logger, new_log_file: str):
     if new_log_file:
         new_file_handler = logging.FileHandler(new_log_file)
         new_file_handler.setLevel(logging.DEBUG)
-        new_file_handler.setFormatter(fmt)
+        new_file_handler.setFormatter(fmt_file)
         logger.addHandler(new_file_handler)
 
 def change_log_level(logger: logging.Logger, new_log_level):
