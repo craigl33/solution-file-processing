@@ -4,6 +4,8 @@ Contains a custom logger class which uses some extra filters and handlers.
 import datetime as dt
 import logging
 
+logging.addLevelName(logging.DEBUG, 'D')
+logging.addLevelName(logging.INFO, 'I')
 
 # noinspection PyUnresolvedReferences,PyAttributeOutsideInit
 class FilterTimeTaker(logging.Filter):
@@ -27,77 +29,114 @@ class FilterTimeTaker(logging.Filter):
 
         return True
 
-logging.addLevelName(logging.DEBUG, 'D')
-logging.addLevelName(logging.INFO, 'I')
+class _Logger(logging.Logger):
+    def __init__(self, name, path='logs/logs.log'):
+        self.name = name
+        super().__init__(self.name)
+        self.setLevel(logging.DEBUG)
 
-log = logging.getLogger('rise')
-log.setLevel(logging.DEBUG)
+        # Create formatters
+        self._fmt_stream = logging.Formatter(
+            fmt="[%(asctime)s %(time_relative)5s] %(levelname)s:%(lineno)d:%(funcName)s - %(message)s",
+            datefmt="%H:%M:%S")
+        self._fmt_file = logging.Formatter(
+            fmt="[%(asctime)s %(time_relative)5s] %(levelname)s:%(lineno)d:%(funcName)s - %(message)s",
+            datefmt="%y%m%d %H:%M:%S")
 
-# Create formatters
-fmt_stream = logging.Formatter(
-    fmt="[%(asctime)s %(time_relative)5s] %(levelname)s:%(lineno)d:%(funcName)s - %(message)s",
-    datefmt="%H:%M:%S")
-fmt_file = logging.Formatter(
-    fmt="[%(asctime)s %(time_relative)5s] %(levelname)s:%(lineno)d:%(funcName)s - %(message)s",
-    datefmt="%y%m%d %H:%M:%S")
+        # Create stream handler
+        h_stream = logging.StreamHandler()
+        h_stream.setLevel(logging.DEBUG)
+        h_stream.setFormatter(self._fmt_stream)
+        h_stream.addFilter(FilterTimeTaker())
+        self.addHandler(h_stream)
 
-# Create stream handler
-h_stream = logging.StreamHandler()
-h_stream.setLevel(logging.DEBUG)
-h_stream.setFormatter(fmt_stream)
-h_stream.addFilter(FilterTimeTaker())
-log.addHandler(h_stream)
+        # Create file handler
+        h_file = logging.FileHandler(path, delay=True)
+        h_file.setLevel(logging.DEBUG)
+        h_file.setFormatter(self._fmt_file)
+        h_file.addFilter(FilterTimeTaker())
+        self.addHandler(h_file)
 
-# Create file handler
-h_file = logging.FileHandler('logs.log', delay=True)
-h_file.setLevel(logging.DEBUG)
-h_file.setFormatter(fmt_file)
-h_file.addFilter(FilterTimeTaker())
-log.addHandler(h_file)
+        # Create pre_disabled_methods to allow disabling and enabling logging (see disable_logging and enable_logging)
+        self._pre_disabled_methods = {}
 
-def change_log_file_path(logger: logging.Logger, new_log_file: str):
-    """
-    Changes the log file path of the given logger. If the logger does not have a file handler, a new one is created.
+    def change_log_file_path(self, new_log_file: str):
+        """
+        todo docstring not up to date
+        Changes the log file path of the given logger. If the logger does not have a file handler, a new one
+        is created.
 
-    Args:
-        logger (logging.Logger): Logger to change the log file path of.
-        new_log_file (str): New log file path.
-    """
-    for handler in logger.handlers:
-        if isinstance(handler, logging.FileHandler):
-            logger.removeHandler(handler)
-            break
-    if new_log_file:
-        new_file_handler = logging.FileHandler(new_log_file)
-        new_file_handler.setLevel(logging.DEBUG)
-        new_file_handler.setFormatter(fmt_file)
-        logger.addHandler(new_file_handler)
+        Args:
+            logger (logging.Logger): Logger to change the log file path of.
+            new_log_file (str): New log file path.
+        """
+        for handler in self.handlers:
+            if isinstance(handler, logging.FileHandler):
+                self.removeHandler(handler)
+                break
+        if new_log_file:
+            new_file_handler = logging.FileHandler(new_log_file)
+            new_file_handler.setLevel(logging.DEBUG)
+            new_file_handler.setFormatter(self._fmt_file)
+            self.addHandler(new_file_handler)
 
-def change_log_level(logger: logging.Logger, new_log_level):
-    """
-    Changes the log level of the given logger. If the logger does not have a level set, the new level will be applied.
-    The new_log_level can be provided as an integer or a string representing the log level name.
+    def change_log_level(self, new_log_level):
+        """
+        todo docstring not up to date
+        Changes the log level of the given logger. If the logger does not have a level set, the new level will be applied.
+        The new_log_level can be provided as an integer or a string representing the log level name.
 
-    Args:
-        logger (logging.Logger): Logger to change the log level of.
-        new_log_level: New log level (int or str).
-    """
-    level_name_to_level = {
-        'CRITICAL': logging.CRITICAL,
-        'ERROR': logging.ERROR,
-        'WARNING': logging.WARNING,
-        'INFO': logging.INFO,
-        'DEBUG': logging.DEBUG,
-        'NOTSET': logging.NOTSET
-    }
+        Args:
+            logger (logging.Logger): Logger to change the log level of.
+            new_log_level: New log level (int or str).
+        """
+        level_name_to_level = {
+            'CRITICAL': logging.CRITICAL,
+            'ERROR': logging.ERROR,
+            'WARNING': logging.WARNING,
+            'INFO': logging.INFO,
+            'DEBUG': logging.DEBUG,
+            'NOTSET': logging.NOTSET
+        }
 
-    if isinstance(new_log_level, str):
-        new_log_level = new_log_level.upper()
-        if new_log_level not in level_name_to_level:
-            raise ValueError(f"Invalid log level name '{new_log_level}'.")
-        new_log_level = level_name_to_level[new_log_level]
+        if isinstance(new_log_level, str):
+            new_log_level = new_log_level.upper()
+            if new_log_level not in level_name_to_level:
+                raise ValueError(f"Invalid log level name '{new_log_level}'.")
+            new_log_level = level_name_to_level[new_log_level]
 
-    if isinstance(new_log_level, int) and (0 <= new_log_level <= 50):
-        logger.setLevel(new_log_level)
-    else:
-        raise ValueError("Invalid log level. Log level must be an integer between 0 and 50 or a valid log level name.")
+        if isinstance(new_log_level, int) and (0 <= new_log_level <= 50):
+            self.setLevel(new_log_level)
+        else:
+            raise ValueError("Invalid log level. Log level must be an integer between 0 and 50 or a valid log"
+                             " level name.")
+
+    def disable_logging(self):
+        self._pre_disabled_methods = {
+            'debug': self.debug,
+            'info': self.info,
+            'warning': self.warning,
+            'error': self.error,
+            'critical': self.critical
+        }
+
+        self.debug = print
+        self.info = print
+        self.warning = print
+        self.error = print
+        self.critical = print
+
+    def enable_logging(self):
+        try:
+            self.debug = self._pre_disabled_methods['debug']
+            self.info = self._pre_disabled_methods['info']
+            self.warning = self._pre_disabled_methods['warning']
+            self.error = self._pre_disabled_methods['error']
+            self.critical = self._pre_disabled_methods['critical']
+        except KeyError:
+            # Ignore since it was not disabled before
+            pass
+
+
+        # return
+log = _Logger('rise')

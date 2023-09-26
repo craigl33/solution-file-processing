@@ -7,8 +7,10 @@ from .solution_files import SolutionFileFramework
 from .properties import properties as p
 from .utils.logger import log
 from .settings import settings as s
+from .constants import VRE_TECHS
 
 print = log.info
+
 
 def variables_caching(func):
     """
@@ -16,11 +18,13 @@ def variables_caching(func):
     """
 
     def _variables_caching(self, *args, **kwargs):
+        if not self.initialized:
+            self.initialize()
         if getattr(self, f'_{func.__name__}') is not None:
             return getattr(self, f'_{func.__name__}')
 
-        path = os.path.join(p.DIR_04_CACHE, 'variables', f'{func.__name__}.parquet')
-        if config.variables_cache and os.path.exists(path):
+        path = os.path.join(self.DIR_04_CACHE, 'variables', f'{func.__name__}.parquet')
+        if s.cfg['run']['variables_cache'] and os.path.exists(path):
             # Check if dask or pandas
             if os.path.isdir(path):
                 print(f"Loading from cache: dd.DataFrame {func.__name__}.")
@@ -30,8 +34,8 @@ def variables_caching(func):
                 call = pd.read_parquet(path)
         else:
             print(f"Computing variable {func.__name__}.")
-            call = func(*args, **kwargs)
-            if config.variables_cache:
+            call = func(self, *args, **kwargs)
+            if s.cfg['run']['variables_cache']:
                 print(f"Saved {func.__name__} to cache.")
                 call.to_parquet(path)
 
