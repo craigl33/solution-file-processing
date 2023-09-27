@@ -1,3 +1,7 @@
+"""
+todo Docstring
+"""
+
 import os
 from pathlib import Path
 
@@ -7,34 +11,60 @@ import julia
 from h5plexos.query import PLEXOSSolution
 
 from .utils.logger import log
-from .utils.utils import get_files, add_df_column, enrich_df
-from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS, FILTER_OUT_OBJS
+from .utils.utils import get_files, add_df_column, enrich_df, silence_prints
+from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from .settings import settings as s
 
 print = log.info
 
-class SolutionFileFramework:
-    def __init__(self):
 
-        self.DIR_04_SOLUTION_FILES = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFiles', s.cfg['model']['soln_choice'])
-        self.DIR_04_CACHE = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFilesCache', s.cfg['model']['soln_choice'])
-        self.DIR_05_DATA_PROCESSING = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'])
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'], 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing', s.cfg['model']['soln_choice'], 'timeseries_out')
+class SolutionFiles:
+    """
+    todo Docstring
+    """
+
+    def __init__(self):
+        self.DIR_04_SOLUTION_FILES = None
+        self.DIR_04_CACHE = None
+        self.DIR_05_DATA_PROCESSING = None
+        self.DIR_05_1_SUMMARY_OUT = None
+        self.DIR_05_2_TS_OUT = None
+        self.soln_idx = None
+
+        self.initialized = False
+
+    def initialize(self):
+        """
+        todo Docstring
+        """
+        # Perform the actual initialization here
+        self.DIR_04_SOLUTION_FILES = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFiles',
+                                                  s.cfg['model']['soln_choice'])
+        self.DIR_04_CACHE = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFilesCache',
+                                         s.cfg['model']['soln_choice'])
+        self.DIR_05_DATA_PROCESSING = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
+                                                   s.cfg['model']['soln_choice'])
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
+                                                 s.cfg['model']['soln_choice'], 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
+                                            s.cfg['model']['soln_choice'], 'timeseries_out')
 
         self.soln_idx = pd.read_excel(s.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
-
-
-class SolutionFileProcessor(SolutionFileFramework):
-
-    def __init__(self):
-        super().__init__()
+        self._initialized = True
 
     @staticmethod
     def install_dependencies():
+        """
+        todo Docstring
+        """
         julia.install()
 
     def convert_solution_files_to_h5(self):
+        """
+        todo Docstring
+        """
+        if not self.initialized:
+            self.initialize()
         from julia.api import Julia
 
         jl = Julia(compiled_modules=False)
@@ -51,98 +81,90 @@ class SolutionFileProcessor(SolutionFileFramework):
             jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
-    def convert_solution_files_to_properties(self, timescale):
+    def _get_object(self, timescale, object):
+        if not self.initialized:
+            self.initialize()
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
 
         _, soln_h5_files = get_files(self.DIR_04_SOLUTION_FILES,
                                      file_type='.h5', id_text='Solution', return_type=1)
 
-        dfs_dict = {}
+        dfs = []
         for file in soln_h5_files:
             # Any spaces in the file will break it
             core_name = file.split('\\')[-1].split('Model ')[-1].split(' Solution.h5')[0]
 
-            print(f'Processing {core_name} ({timescale})...')
-
+            silence_prints(True)
             with PLEXOSSolution(os.path.join(self.DIR_04_SOLUTION_FILES, file)) as db:
-                plexos_objs = [p for p in db.h5file[f'data/ST/{timescale}/'].keys() if
-                               p not in FILTER_OUT_OBJS or timescale == 'year']  # No need to filter annual
+                silence_prints(False)
+                try:
+                    properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
+                except KeyError:
+                    print(f'{object} does not exist')
+                    continue
 
-                plexos_props = {obj: list(db.h5file[f'data/ST/{timescale}/{obj}/'].keys()) for obj in plexos_objs}
+                try:
+                    obj_props = [prop for prop in properties if prop in FILTER_PROPS[object]]
+                except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
+                    obj_props = properties
 
-                for obj in plexos_objs:
-                    # todo this is useless rn, since the saving is done in the loop below, needs to be fixed
-                    # if not overwrite and os.path.exists(os.path.join(self.DIR_04_CACHE,
-                    #                                                  core_name,
-                    #                                                  f'{timescale}-{obj}.parquet')):
-                    #     print(f'{core_name}/{obj}.parquet" already exists. Pass overwrite=True to overwrite.')
-                    #     continue
+                for obj_prop in obj_props:
 
-                    # Filter properties for time-series data
-                    try:
-                        obj_props = [prop for prop in plexos_props[obj] if prop in FILTER_PROPS[obj]]
-                    except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
-                        obj_props = plexos_props[obj]
+                    # Relations (i.e. membership-related props) have underscores in them
+                    if '_' not in object:
+                        db_data = db.query_object_property(
+                            object_class=object[:-1],  # object class is queried without the 's' at the end of its name
+                            # (this may be a bug that is corrected in future versions)
+                            prop=obj_prop,
+                            timescale=timescale,
+                            phase="ST").reset_index(),
 
-                    for obj_prop in obj_props:
+                    else:
+                        db_data = db.query_relation_property(
+                            relation=object,
+                            prop=obj_prop,
+                            timescale=timescale,
+                            phase="ST").reset_index(),
+                    if len(db_data) == 1:
+                        db_data = db_data[0]
+                    else:
+                        raise ValueError('Multiple dataframes returned for {} {}'.format(object, obj_prop))
 
-                        # Relations (i.e. membership-related props) have underscores in them
-                        if '_' not in obj:
-                            db_data = db.query_object_property(
-                                object_class=obj[:-1],  # object class is queried without the 's' at the end of its name
-                                # (this may be a bug that is corrected in future versions)
-                                prop=obj_prop,
-                                timescale=timescale,
-                                phase="ST").reset_index(),
+                    # db_data = pd.DataFrame(db_data)
+                    # db_data['model'] = core_name
+                    db_data = add_df_column(
+                        df=db_data,
+                        column_name='model',
+                        value=core_name)
 
-                        else:
-                            db_data = db.query_relation_property(
-                                relation=obj,
-                                prop=obj_prop,
-                                timescale=timescale,
-                                phase="ST").reset_index(),
-                        if len(db_data) == 1:
-                            db_data = db_data[0]
-                        else:
-                            raise ValueError('Multiple dataframes returned for {} {}'.format(obj, obj_prop))
+                    dfs.append(db_data)
+        return dd.concat(dfs)
 
-                        # db_data = pd.DataFrame(db_data)
-                        # db_data['model'] = core_name
-                        db_data = add_df_column(
-                            df=db_data,
-                            column_name='model',
-                            value=core_name)
-                        if obj in dfs_dict.keys():
-                            dfs_dict[obj].append(db_data)
-                        else:
-                            dfs_dict[obj] = [db_data]
-
-        for obj, dfs in dfs_dict.items():
-            df = dd.concat(dfs)
-            os.makedirs(os.path.join(self.DIR_04_CACHE, 'unprocessed'), exist_ok=True)
-            df.to_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', f'{timescale}-{obj}.parquet'))
-            print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]}.')
-
-    def process_properties(self, overwrite=False):
-
+    def get_process_object(self, timescale, object):
+        """"
+        todo Docstring
+        """
         # Import necessary stuff
+
         # - common_yr
-        model_yrs = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'interval-regions.parquet'))
-        model_yrs = model_yrs.groupby(['model']).first().timestamp.dt.year.values
-        model_yrs = model_yrs.compute()  # Change dd.DataFrame back to pd.DataFrame
+        # todo craig: Can I get the model_yrs info also from other files?
+        model_yrs = self._get_object(timescale='interval', object='regions') \
+            .groupby(['model']) \
+            .first() \
+            .timestamp.dt.year.values.compute()
         if len(model_yrs) > 1:
             common_yr = model_yrs[-1]
         else:
             common_yr = None
+
         # - filter_regs
-        filter_reg_by_gen = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'year-generators.parquet'))
-        filter_reg_by_gen = enrich_df(filter_reg_by_gen,
+        # todo craig: Can I get the model_yrs info also from other files?
+        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators'),
                                       soln_idx=self.soln_idx[
                                           self.soln_idx.Object_type.str.lower() == 'generator'].drop(
                                           columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
-        filter_reg_by_load = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', 'year-nodes.parquet'))
-        filter_reg_by_load = enrich_df(filter_reg_by_load,
+        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes'),
                                        soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'node'].drop(
                                            columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
 
@@ -154,71 +176,56 @@ class SolutionFileProcessor(SolutionFileFramework):
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
-        files = [f for f in os.listdir(os.path.join(self.DIR_04_CACHE, 'unprocessed')) if f.endswith('.parquet')]
-        for file in files:
-            if os.path.exists(os.path.join(self.DIR_04_CACHE, 'processed', file)):
-                if overwrite:
-                    print(f'{file} already exists. Overwriting...')
+        df = self._get_object(timescale=timescale, object=object)
+        df = df.repartition(partition_size="100MB")
+
+        o_key = object.replace('ies', 'ys')
+
+        if timescale == 'interval':
+            if '_' in o_key:
+                # Membership properties can use the generator/battery part which is the second part
+                # Also o_key is for singular form, hence drops s
+                o_key = o_key.split('_')[-1][:-1]
+            else:
+                o_key = o_key[:-1]
+
+                # Remove unnecessary columns, so object_type can be removed for the o_idx
+            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
+                columns='Object_type')
+            if len(o_idx) > 0:
+                if '_' not in object:
+                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
                 else:
-                    print(f'{file} already exists. Pass overwrite=True to overwrite.')
-                    continue
+                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
+                                   pretty_model_names=PRETTY_MODEL_NAMES)
 
-            obj = file.split('-')[-1].split('.parquet')[0]
-            timescale = file.split('-')[0]
-            print(f'Processing {obj} ({timescale})...')
-            df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'unprocessed', file))
-            df = df.repartition(partition_size="100MB")
+                # Filter out regions with no generation nor load
+                if (object == 'nodes') | (object == 'regions'):
+                    df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
-            o_key = obj.replace('ies', 'ys')
+        elif timescale == 'year':
 
-            if timescale == 'interval':
-                if '_' in o_key:
-                    # Membership properties can use the generator/battery part which is the second part
-                    # Also o_key is for singular form, hence drops s
-                    o_key = o_key.split('_')[-1][:-1]
+            if '_' in o_key:
+                # Membership properties can use the generator/battery part which is the second part
+                # Also o_key is for singular form, hence drops s
+                o_key = o_key.split('_')[-1][:-1]
+            else:
+                o_key = o_key[:-1]
+
+            # No need to filter out solnb_idx for the annual data as the size won't be an issue
+            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
+                columns='Object_type')
+            if len(o_idx) > 0:
+                if '_' not in object:
+                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
                 else:
-                    o_key = o_key[:-1]
+                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
+                                   out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
 
-                    # Remove unnecessary columns, so object_type can be removed for the o_idx
-                o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                    columns='Object_type')
-                if len(o_idx) > 0:
-                    if '_' not in obj:
-                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                       out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
-                    else:
-                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
-                                       pretty_model_names=PRETTY_MODEL_NAMES)
+                # Filter out regions with no generation nor load
+                if (object == 'nodes') | (object == 'regions'):
+                    df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
-                    # Filter out regions with no generation nor load
-                    if (obj == 'nodes') | (obj == 'regions'):
-                        df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
-
-            elif timescale == 'year':
-
-                if '_' in o_key:
-                    # Membership properties can use the generator/battery part which is the second part
-                    # Also o_key is for singular form, hence drops s
-                    o_key = o_key.split('_')[-1][:-1]
-                else:
-                    o_key = o_key[:-1]
-
-                # No need to filter out solnb_idx for the annual data as the size won't be an issue
-                o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                    columns='Object_type')
-                if len(o_idx) > 0:
-                    if '_' not in obj:
-                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                       out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
-                    else:
-                        df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                       out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
-
-                    # Filter out regions with no generation nor load
-                    if (obj == 'nodes') | (obj == 'regions'):
-                        df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
-
-            os.makedirs(os.path.join(self.DIR_04_CACHE, 'processed'), exist_ok=True)
-            df.to_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'{timescale}-{obj}.parquet'))
-            print(f'Saved {timescale}-{obj}.parquet in {Path(self.DIR_04_CACHE).parts[-1]} with {df.npartitions} '
-                  f'partitions.')
+        return df

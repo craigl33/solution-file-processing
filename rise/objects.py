@@ -1,32 +1,26 @@
-import os
+""""
+TODO Docstring
+"""
 
 import dask.dataframe as dd
 
-from .solution_files import SolutionFileFramework
+from .solution_files import SolutionFiles
 from .utils.logger import log
+from .utils.utils import caching
 from .constants import PRETTY_MODEL_NAMES
 
 print = log.info
 
-def property_not_found_decorator(func):
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except AttributeError:
-            print(f"Property does not exist for {func.__name__}.")
-            return None
 
-    return wrapper
-
-class _Properties(SolutionFileFramework):
+class _Objects(SolutionFiles):
 
     def __init__(self):
         super().__init__()
 
-        try:
-            self.model_yrs = self.reg_df.groupby(['model']).first().timestamp.dt.year.values
-        except FileNotFoundError:
-            self.model_yrs = None
+        # try:
+        #     self.model_yrs = self.reg_df.groupby(['model']).first().timestamp.dt.year.values
+        # except FileNotFoundError:
+        #     self.model_yrs = None
 
     _gen_yr_df = None
     _em_gen_yr_df = None
@@ -40,19 +34,22 @@ class _Properties(SolutionFileFramework):
     _purch_df = None
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def gen_yr_df(self):
+        """"
+        TODO Docstring
+        """
         if self._gen_yr_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-generators.parquet'))
+            _df = self.get_process_object('year', 'generators')
 
             try:
-                bat_yr_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-batteries.parquet'))
+                bat_yr_df = self.get_process_object('year', 'batteries')
                 _df = dd.concat([_df, bat_yr_df], axis=0)
             except KeyError:
                 print("No batteries for current scenarios")
 
             # For WEO_tech simpl. probably should add something to soln_idx
-            def clean_weo_tech(x):
+            def _clean_weo_tech(x):
                 if isinstance(x, float):
                     return x
                 x = x. \
@@ -64,7 +61,7 @@ class _Properties(SolutionFileFramework):
                     replace(' 5', '')
                 return x
 
-            _df['WEO_Tech_simpl'] = _df['WEO tech'].map(clean_weo_tech)
+            _df['WEO_Tech_simpl'] = _df['WEO tech'].map(_clean_weo_tech)
 
             # todo: Stuff not sure why it exists
             # Cofiring change here!
@@ -75,24 +72,24 @@ class _Properties(SolutionFileFramework):
             # Add category
             # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
             #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def update_category(df):
+            def _update_category(df):
                 condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
                 df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
                 return df
 
             # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(update_category)
+            _df = _df.map_partitions(_update_category)
 
             # And capacity category
             # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
             #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def update_capacity_category(df):
+            def _update_capacity_category(df):
                 condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
                 df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
                 return df
 
             # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(update_capacity_category)
+            _df = _df.map_partitions(_update_capacity_category)
 
             # Drop additional columns for interval df
             _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
@@ -101,45 +98,56 @@ class _Properties(SolutionFileFramework):
         return self._gen_yr_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def em_gen_yr_df(self):
+        """"
+        TODO Docstring
+        """
         if self._em_gen_yr_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-emissions_generators.parquet'))
-            self._em_gen_yr_df = _df
+            self._em_gen_yr_df = self.get_process_object('year', 'emissions_generators')
         return self._em_gen_yr_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def node_yr_df(self):
+        """"
+        TODO Docstring
+        """
         if self._node_yr_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', f'year-nodes.parquet'))
-            self._node_yr_df = _df
+            self._node_yr_df = self.get_process_object('year', 'nodes')
         return self._node_yr_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def line_yr_df(self):
+        """"
+        TODO Docstring
+        """
         if self._line_yr_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-lines.parquet'))
-            self._line_yr_df = _df
+            self._line_yr_df = self.get_process_object('year', 'lines')
         return self._line_yr_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def fuelcontract_yr_df(self):
+        """"
+        TODO Docstring
+        """
         if self.__fuelcontract_yr_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'year-fuelcontracts.parquet'))
-            self.__fuelcontract_yr_df = _df
+            self.__fuelcontract_yr_df = self.get_process_object('year', 'fuelcontracts')
         return self.__fuelcontract_yr_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def gen_df(self):
+        """"
+        TODO Docstring
+        """
         if self._gen_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-generators.parquet'))
+            _df = self.get_process_object('interval', 'generators')
 
             try:
-                bat_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-batteries.parquet'))
+                bat_df = self.get_process_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
             except KeyError:
                 print("No batteries objects")
@@ -153,24 +161,24 @@ class _Properties(SolutionFileFramework):
             # Add category
             # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
             #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def update_category(df):
+            def _update_category(df):
                 condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
                 df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
                 return df
 
             # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(update_category)
+            _df = _df.map_partitions(_update_category)
 
             # And capacity category
             # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
             #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def update_capacity_category(df):
+            def _update_capacity_category(df):
                 condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
                 df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
                 return df
 
             # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(update_capacity_category)
+            _df = _df.map_partitions(_update_capacity_category)
 
             # Drop temp columns for interval df
             _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
@@ -179,29 +187,36 @@ class _Properties(SolutionFileFramework):
         return self._gen_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def node_df(self):
+        """"
+        TODO Docstring
+        """
         if self._node_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-nodes.parquet'))
-            self._node_df = _df
+            self._node_df = self.get_process_object('interval', 'nodes')
         return self._node_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def reg_df(self):
+        """"
+        TODO Docstring
+        """
         if self._reg_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-regions.parquet'))
-            self._reg_df = _df
+            self._reg_df = self.get_process_object('interval', 'regions')
         return self._reg_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def res_gen_df(self):
+        """"
+        TODO Docstring
+        """
         if self._res_gen_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-reserves_generators.parquet'))
+            _df = self.get_process_object('interval', 'reserves_generators')
 
             try:
-                bat_df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-batteries.parquet'))
+                bat_df = self.get_process_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
             except KeyError:
                 print("No batteries objects")
@@ -210,12 +225,14 @@ class _Properties(SolutionFileFramework):
         return self._res_gen_df
 
     @property
-    @property_not_found_decorator
+    @caching('objects')
     def purch_df(self):
+        """"
+        TODO Docstring
+        """
         if self._purch_df is None:
-            _df = dd.read_parquet(os.path.join(self.DIR_04_CACHE, 'processed', 'interval-purchases.parquet'))
-            self._purch_df = _df
+            self._purch_df = self.get_process_object('interval', 'purchases')
         return self._purch_df
 
 
-properties = _Properties()
+objects = _Objects()
