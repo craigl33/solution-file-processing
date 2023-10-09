@@ -26,7 +26,7 @@ class _Objects(SolutionFiles):
     _em_gen_yr_df = None
     _node_yr_df = None
     _line_yr_df = None
-    __fuelcontract_yr_df = None
+    _fuelcontract_yr_df = None
     _gen_df = None
     _node_df = None
     _reg_df = None
@@ -40,10 +40,10 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._gen_yr_df is None:
-            _df = self.get_process_object('year', 'generators')
+            _df = self.get_processed_object('year', 'generators')
 
             try:
-                bat_yr_df = self.get_process_object('year', 'batteries')
+                bat_yr_df = self.get_processed_object('year', 'batteries')
                 _df = dd.concat([_df, bat_yr_df], axis=0)
             except KeyError:
                 print("No batteries for current scenarios")
@@ -104,7 +104,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._em_gen_yr_df is None:
-            self._em_gen_yr_df = self.get_process_object('year', 'emissions_generators')
+            self._em_gen_yr_df = self.get_processed_object('year', 'emissions_generators')
         return self._em_gen_yr_df
 
     @property
@@ -114,7 +114,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._node_yr_df is None:
-            self._node_yr_df = self.get_process_object('year', 'nodes')
+            self._node_yr_df = self.get_processed_object('year', 'nodes')
         return self._node_yr_df
 
     @property
@@ -124,7 +124,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._line_yr_df is None:
-            self._line_yr_df = self.get_process_object('year', 'lines')
+            self._line_yr_df = self.get_processed_object('year', 'lines')
         return self._line_yr_df
 
     @property
@@ -133,9 +133,9 @@ class _Objects(SolutionFiles):
         """"
         TODO Docstring
         """
-        if self.__fuelcontract_yr_df is None:
-            self.__fuelcontract_yr_df = self.get_process_object('year', 'fuelcontracts')
-        return self.__fuelcontract_yr_df
+        if self._fuelcontract_yr_df is None:
+            self._fuelcontract_yr_df = self.get_processed_object('year', 'fuelcontracts')
+        return self._fuelcontract_yr_df
 
     @property
     @caching('objects')
@@ -144,10 +144,10 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._gen_df is None:
-            _df = self.get_process_object('interval', 'generators')
+            _df = self.get_processed_object('interval', 'generators')
 
             try:
-                bat_df = self.get_process_object('interval', 'batteries')
+                bat_df = self.get_processed_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
             except KeyError:
                 print("No batteries objects")
@@ -193,7 +193,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._node_df is None:
-            self._node_df = self.get_process_object('interval', 'nodes')
+            self._node_df = self.get_processed_object('interval', 'nodes')
         return self._node_df
 
     @property
@@ -203,7 +203,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._reg_df is None:
-            self._reg_df = self.get_process_object('interval', 'regions')
+            self._reg_df = self.get_processed_object('interval', 'regions')
         return self._reg_df
 
     @property
@@ -213,10 +213,10 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._res_gen_df is None:
-            _df = self.get_process_object('interval', 'reserves_generators')
+            _df = self.get_processed_object('interval', 'reserves_generators')
 
             try:
-                bat_df = self.get_process_object('interval', 'batteries')
+                bat_df = self.get_processed_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
             except KeyError:
                 print("No batteries objects")
@@ -231,7 +231,7 @@ class _Objects(SolutionFiles):
         TODO Docstring
         """
         if self._purch_df is None:
-            self._purch_df = self.get_process_object('interval', 'purchases')
+            self._purch_df = self.get_processed_object('interval', 'purchases')
         return self._purch_df
 
 

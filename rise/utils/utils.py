@@ -38,6 +38,7 @@ def caching(cache_type):
                 print(f"Computing {cache_type}: {func.__name__}.")
                 call = func(self, *args, **kwargs)
                 if s.cfg['run']['variables_cache']:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
                     call.to_parquet(path)
                     print(f"Saved to {cache_type} cache: {func.__name__}.parquet.")
 
@@ -93,29 +94,6 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
         return searched_files_fullpath
     else:
         return searched_file_paths, searched_files
-
-
-def add_df_column(df, column_name, value, reset_index=True):
-    """
-    TODO docstring
-    """
-    if type(df) == pd.Series:
-        out_df = pd.DataFrame(df)
-    elif type(df) == dd.Series:
-        out_df = df.to_frame()
-    else:
-        out_df = df.copy()
-
-    if column_name in out_df.columns:
-        print('Updating /"{}/" column with new values')
-        out_df.loc[:, column_name] = value
-    else:
-        out_df[column_name] = value
-
-    if reset_index:
-        out_df = out_df.reset_index().rename(columns={0: 'value'})
-
-    return out_df
 
 
 def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_names={}):

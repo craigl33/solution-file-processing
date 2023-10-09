@@ -5,7 +5,7 @@ TODO Docstring
 import pandas as pd
 
 from .solution_files import SolutionFiles
-from .objects import objects as p
+from .objects import objects as o
 from .utils.logger import log
 from .utils.utils import caching
 from .settings import settings as s
@@ -32,26 +32,12 @@ class _Variables(SolutionFiles):
 
     @property
     @caching('variables')
-    def time_idx(self):
-        """"
-        TODO Docstring
-        """
-        if self._time_idx is None:
-            # todo Not sure if that always works
-            # time_idx = db.region("Load").reset_index().timestamp.drop_duplicates()
-            time_idx = p.reg_df.reset_index().timestamp.drop_duplicates().compute()
-
-            self._time_idx = time_idx
-        return self._time_idx
-
-    @property
-    @caching('variables')
     def gen_by_tech_reg_ts(self):
         """"
         TODO Docstring
         """
         if self._gen_by_tech_reg_ts is None:
-            self._gen_by_tech_reg_ts = p.gen_df[p.gen_df.property == 'Generation'] \
+            self._gen_by_tech_reg_ts = o.gen_df[o.gen_df.property == 'Generation'] \
                 .groupby(['model', 'Category'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
@@ -67,7 +53,7 @@ class _Variables(SolutionFiles):
         TODO Docstring
         """
         if self._gen_by_subtech_reg_ts is None:
-            self._gen_by_subtech_reg_ts = p.gen_df[p.gen_df.property == 'Generation'] \
+            self._gen_by_subtech_reg_ts = o.gen_df[o.gen_df.property == 'Generation'] \
                 .groupby(['model', 'CapacityCategory'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
@@ -83,11 +69,13 @@ class _Variables(SolutionFiles):
         TODO Docstring
         """
         if self._customer_load_ts is None:
-            self._customer_load_ts = p.reg_df[(p.reg_df.property == 'Customer Load') |
-                                              (p.reg_df.property == 'Unserved Energy')] \
+            self._customer_load_ts = o.reg_df[(o.reg_df.property == 'Customer Load') |
+                                              (o.reg_df.property == 'Unserved Energy')] \
                 .groupby(['model', 'timestamp']) \
                 .sum() \
-                .value
+                .value \
+                .to_frame() \
+                .compute()
         return self._customer_load_ts
 
     @property
@@ -97,10 +85,10 @@ class _Variables(SolutionFiles):
         TODO Docstring
         """
         if self._vre_av_abs_ts is None:
-            self._vre_av_abs_ts = p.gen_df[(p.gen_df.property == 'Available Capacity') &
-                                           (p.gen_df.Category.isin(VRE_TECHS))] \
+            self._vre_av_abs_ts = o.gen_df[(o.gen_df.property == 'Available Capacity') &
+                                           (o.gen_df.Category.isin(VRE_TECHS))] \
                 .groupby(['model', 'Category', 'timestamp']) \
-                .sum().value.unstack(level='Category').fillna(0)
+                .sum().value.compute().unstack(level='Category').fillna(0)
 
         return self._vre_av_abs_ts
 
@@ -123,15 +111,15 @@ class _Variables(SolutionFiles):
         TODO Docstring
         """
         if self._net_load_reg_ts is None:
-            customer_load_reg_ts = p.node_df[(p.node_df.property == 'Customer Load') |
-                                             (p.node_df.property == 'Unserved Energy')] \
+            customer_load_reg_ts = o.node_df[(o.node_df.property == 'Customer Load') |
+                                             (o.node_df.property == 'Unserved Energy')] \
                 .groupby(['model'] + s.cfg['settings']['geo_cols'] + ['timestamp']) \
                 .sum() \
                 .value \
                 .compute() \
                 .unstack(level=s.cfg['settings']['geo_cols'])
-            vre_av_reg_abs_ts = p.gen_df[(p.gen_df.property == 'Available Capacity') &
-                                         (p.gen_df.Category.isin(VRE_TECHS))] \
+            vre_av_reg_abs_ts = o.gen_df[(o.gen_df.property == 'Available Capacity') &
+                                         (o.gen_df.Category.isin(VRE_TECHS))] \
                 .groupby((['model'] + s.cfg['settings']['geo_cols'] + ['timestamp'])) \
                 .sum() \
                 .value \
@@ -149,24 +137,24 @@ class _Variables(SolutionFiles):
         TODO Docstring
         """
         if self._gen_inertia is None:
-            gen_units_gen = p.gen_df[p.gen_df.property == 'Units Generating'] \
+            gen_units_gen = o.gen_df[o.gen_df.property == 'Units Generating'] \
                 .groupby(['model', 'name', 'timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute()
 
-            gen_units = p.gen_df[p.gen_df.property == 'Units'] \
+            gen_units = o.gen_df[o.gen_df.property == 'Units'] \
                 .groupby(['model', 'name', 'timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute()
 
             # Take only the sum to maintain the capacity value & inertia constant in the dataframe
-            gen_cap = p.gen_df[p.gen_df.property == 'Installed Capacity'] \
+            gen_cap = o.gen_df[o.gen_df.property == 'Installed Capacity'] \
                 .groupby(['model', 'name', 'timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute()
 
             gen_cap = pd.merge(gen_cap.reset_index(),
-                               p.soln_idx[['name', 'InertiaLOW', 'InertiaHI']], on='name', how='left') \
+                               o.soln_idx[['name', 'InertiaLOW', 'InertiaHI']], on='name', how='left') \
                 .set_index(['model', 'name', 'timestamp'])
 
             #  As installed capacity is [Units] * [Max Capacity], we must calculate the unit capacity
@@ -179,7 +167,7 @@ class _Variables(SolutionFiles):
                                    right_index=True)
 
             gen_inertia = pd.merge(gen_inertia.reset_index(),
-                                   p.soln_idx[
+                                   o.soln_idx[
                                        ['name', 'Island', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
                                    on='name')
 

@@ -11,7 +11,7 @@ import julia
 from h5plexos.query import PLEXOSSolution
 
 from .utils.logger import log
-from .utils.utils import get_files, add_df_column, enrich_df, silence_prints
+from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from .settings import settings as s
 
@@ -141,7 +141,7 @@ class SolutionFiles:
                     dfs.append(db_data)
         return dd.concat(dfs)
 
-    def get_process_object(self, timescale, object):
+    def get_processed_object(self, timescale, object):
         """"
         todo Docstring
         """

@@ -32,7 +32,7 @@ class _Settings:
     @config_name.setter
     def config_name(self, value):
         self._config_name = value
-        with open(os.path.join('configurations', value), 'r') as f:
+        with open(os.path.join('configs', value), 'r') as f:
             self.cfg = toml.load(f)
         log.change_log_file_path(os.path.join('logs', self._config_name.replace('.toml', '.log')))
 
