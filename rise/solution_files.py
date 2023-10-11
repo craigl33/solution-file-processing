@@ -3,54 +3,54 @@ todo Docstring
 """
 
 import os
-from pathlib import Path
 
+import toml
 import pandas as pd
 import dask.dataframe as dd
 import julia
 from h5plexos.query import PLEXOSSolution
+import math
 
 from .utils.logger import log
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
-from .settings import settings as s
+from .caching import Objects, Variables
 
 print = log.info
 
 
-class SolutionFiles:
+class SolutionFilesConfig:
     """
     todo Docstring
     """
 
-    def __init__(self):
-        self.DIR_04_SOLUTION_FILES = None
-        self.DIR_04_CACHE = None
-        self.DIR_05_DATA_PROCESSING = None
-        self.DIR_05_1_SUMMARY_OUT = None
-        self.DIR_05_2_TS_OUT = None
-        self.soln_idx = None
+    def __init__(self, config_name):
+        # Apply config_name to relevant settings
+        self.config_name = config_name
+        # Load the configuration
+        with open(os.path.join('configs', config_name), 'r') as f:
+            self.cfg = toml.load(f)
 
-        self.initialized = False
+        # Apply configurations
+        # to log_path
+        log.change_log_file_path(self.cfg['run']['log_file_path'])
 
-    def initialize(self):
-        """
-        todo Docstring
-        """
-        # Perform the actual initialization here
-        self.DIR_04_SOLUTION_FILES = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFiles',
-                                                  s.cfg['model']['soln_choice'])
-        self.DIR_04_CACHE = os.path.join(s.cfg['path']['model_dir'], '04_SolutionFilesCache',
-                                         s.cfg['model']['soln_choice'])
-        self.DIR_05_DATA_PROCESSING = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
-                                                   s.cfg['model']['soln_choice'])
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
-                                                 s.cfg['model']['soln_choice'], 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(s.cfg['path']['model_dir'], '05_DataProcessing',
-                                            s.cfg['model']['soln_choice'], 'timeseries_out')
+        self.soln_idx = pd.read_excel(self.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
-        self.soln_idx = pd.read_excel(s.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
-        self._initialized = True
+        # Load paths from configurations
+        self._DIR_04_SOLUTION_FILES = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFiles',
+                                                   self.cfg['model']['soln_choice'])
+        self._DIR_04_CACHE = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFilesCache',
+                                          self.cfg['model']['soln_choice'])
+        self._DIR_05_DATA_PROCESSING = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
+                                                    self.cfg['model']['soln_choice'])
+        self._DIR_05_1_SUMMARY_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
+                                                  self.cfg['model']['soln_choice'], 'summary_out')
+        self._DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
+                                             self.cfg['model']['soln_choice'], 'timeseries_out')
+
+        self.v = Variables(self)
+        self.o = Objects(self)
 
     @staticmethod
     def install_dependencies():
@@ -63,31 +63,27 @@ class SolutionFiles:
         """
         todo Docstring
         """
-        if not self.initialized:
-            self.initialize()
         from julia.api import Julia
 
         jl = Julia(compiled_modules=False)
         jl.using("H5PLEXOS")
 
-        soln_zip_files = [f for f in os.listdir(self.DIR_04_SOLUTION_FILES)
+        soln_zip_files = [f for f in os.listdir(self._DIR_04_SOLUTION_FILES)
                           if f.endswith('.zip')]
 
         missing_soln_files = [f.split('.')[0] for f in soln_zip_files if f.replace('.zip', '.h5')
-                              not in os.listdir(self.DIR_04_SOLUTION_FILES)]
+                              not in os.listdir(self._DIR_04_SOLUTION_FILES)]
 
         print(f'Found {len(missing_soln_files)} missing h5 files. Starting conversion...')
         for h5_file in missing_soln_files:
-            jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
+            jl.eval("cd(\"{}\")".format(self._DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
     def _get_object(self, timescale, object):
-        if not self.initialized:
-            self.initialize()
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
 
-        _, soln_h5_files = get_files(self.DIR_04_SOLUTION_FILES,
+        _, soln_h5_files = get_files(self._DIR_04_SOLUTION_FILES,
                                      file_type='.h5', id_text='Solution', return_type=1)
 
         dfs = []
@@ -96,7 +92,7 @@ class SolutionFiles:
             core_name = file.split('\\')[-1].split('Model ')[-1].split(' Solution.h5')[0]
 
             silence_prints(True)
-            with PLEXOSSolution(os.path.join(self.DIR_04_SOLUTION_FILES, file)) as db:
+            with PLEXOSSolution(os.path.join(self._DIR_04_SOLUTION_FILES, file)) as db:
                 silence_prints(False)
                 try:
                     properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
@@ -131,12 +127,9 @@ class SolutionFiles:
                     else:
                         raise ValueError('Multiple dataframes returned for {} {}'.format(object, obj_prop))
 
-                    # db_data = pd.DataFrame(db_data)
-                    # db_data['model'] = core_name
-                    db_data = add_df_column(
-                        df=db_data,
-                        column_name='model',
-                        value=core_name)
+                    db_data = dd.from_pandas(db_data, npartitions=1)  # Change to dask to handle cache issues
+                    db_data = db_data.repartition(partition_size="100MB")  # Repartition to most efficient size
+                    db_data = db_data.assign(model=core_name).reset_index()
 
                     dfs.append(db_data)
         return dd.concat(dfs)
@@ -171,13 +164,13 @@ class SolutionFiles:
         # Filter out nodes that have zero load
         filter_reg_by_load = filter_reg_by_load[
             (filter_reg_by_load.property == 'Load') & (filter_reg_by_load.value != 0)]
-        filter_reg_by_gen = filter_reg_by_gen[s.cfg['settings']['geo_cols'][-1]].unique()
-        filter_reg_by_load = filter_reg_by_load[s.cfg['settings']['geo_cols'][-1]].unique()
+        filter_reg_by_gen = filter_reg_by_gen[self.cfg['settings']['geo_cols'][-1]].unique()
+        filter_reg_by_load = filter_reg_by_load[self.cfg['settings']['geo_cols'][-1]].unique()
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
         df = self._get_object(timescale=timescale, object=object)
-        df = df.repartition(partition_size="100MB")
+        df = df.repartition(partition_size="100MB")  # Repartition to most efficient size
 
         o_key = object.replace('ies', 'ys')
 
@@ -202,7 +195,7 @@ class SolutionFiles:
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
         elif timescale == 'year':
 
@@ -226,6 +219,93 @@ class SolutionFiles:
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[s.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
         return df
+
+    @staticmethod
+    def _list_csv_files(root_dir):
+        csv_files = []
+
+        for foldername, subfolders, filenames in os.walk(root_dir):
+            for filename in filenames:
+                if filename.endswith(".csv"):
+                    relative_path = os.path.relpath(os.path.join(foldername, filename), root_dir)
+                    csv_files.append(relative_path)
+
+        return csv_files
+
+
+    def test_output(self, timescale, output_number=None, check_mode='simple'):
+        if timescale == 'year':
+            path = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'summary_out')
+            path_test = os.path.join(self.cfg['path']['model_dir_test'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'summary_out')
+        elif timescale == 'interval':
+            path = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'timeseries_out')
+            path_test = os.path.join(self.cfg['path']['model_dir_test'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'timeseries_out')
+        else:
+            raise Exception('timescale must be either "year" or "interval"')
+
+        if output_number is None:
+            print(f'Start tests for {timescale} output (check_mode={check_mode}).')
+        else:
+            print(f'Start tests for {timescale} output {output_number} (check_mode={check_mode}).')
+
+        # Get all files
+        files = [f for f in self._list_csv_files(path_test)]
+        files.sort()
+
+        for file in files:
+
+            if output_number is not None:
+                if not file.split('\\')[-1].startswith(f'0{output_number}') and \
+                        not file.split('\\')[-1].startswith(f'{output_number}'):
+                    continue
+            try:
+                df = pd.read_csv(os.path.join(path, file), low_memory=False)
+            except FileNotFoundError:
+                # print(f'File was not created: {file}.')
+                continue
+            df_test = pd.read_csv(os.path.join(path_test, file), low_memory=False)
+
+            cols = df.columns.to_list()
+            cols_test = df_test.columns.to_list()
+
+            matched_cols = sorted(list(set(cols) & set(cols_test)))
+            redundant_cols = list(set(cols) - set(cols_test))
+            missing_cols = list(set(cols_test) - set(cols))
+
+            for col in redundant_cols:
+                print(f'Column {col} is redundant.')
+            for col in missing_cols:
+                print(f'Column {col} is missing.')
+
+            # Make columns match
+            df = df[matched_cols]
+            df_test = df_test[matched_cols]
+
+            # Round to avoid floating point errors
+            df = df.round(5)
+            df_test = df_test.round(5)
+
+            test_failed = False
+            if not df_test.equals(df):
+
+                if df_test.shape != df.shape:
+                    print(f'Shape of {file} does not match: {df_test.shape} != {df.shape}.')
+                    test_failed = True
+
+                for col in df.columns:
+                    if pd.to_numeric(df[col], errors='coerce').notna().all():
+                        if not math.isclose(df[col].sum(), df_test[col].sum()):
+                            print(f'Sum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                            test_failed = True
+                    else:
+                        if not set(df[col].unique()) == set(df_test[col].unique()):
+                            print(f'Unique values of {file} column {col} do not match.')
+                            test_failed = True
+
+            if test_failed:
+                print(f'Test failed: {file}.')
+            else:
+                print(f'Test passed: {file}.')

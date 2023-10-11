@@ -1,5 +1,4 @@
 # __init__.py
 
-from .settings import settings
-from .solution_files import SolutionFiles
+from .solution_files import SolutionFilesConfig
 from .outputs import *

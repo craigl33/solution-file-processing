@@ -8,7 +8,6 @@ import sys
 import dask.dataframe as dd
 import pandas as pd
 
-from ..settings import settings as s
 from .logger import log
 
 print = log.info
@@ -20,13 +19,11 @@ def caching(cache_type):
 
     def _caching_decorator(func):
         def _caching_wrapper(self, *args, **kwargs):
-            if not self.initialized:
-                self.initialize()
             if getattr(self, f'_{func.__name__}') is not None:
                 return getattr(self, f'_{func.__name__}')
 
-            path = os.path.join(self.DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
-            if s.cfg['run']['variables_cache'] and os.path.exists(path):
+            path = os.path.join(self.c._DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
+            if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
                 if os.path.isdir(path):
                     print(f"Loading from {cache_type} cache: {func.__name__}.parquet as dask dataframe.")
@@ -37,7 +34,7 @@ def caching(cache_type):
             else:
                 print(f"Computing {cache_type}: {func.__name__}.")
                 call = func(self, *args, **kwargs)
-                if s.cfg['run']['variables_cache']:
+                if self.c.cfg['run']['variables_cache']:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                     call.to_parquet(path)
                     print(f"Saved to {cache_type} cache: {func.__name__}.parquet.")
