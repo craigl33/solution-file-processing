@@ -1,5 +1,6 @@
 """
-todo Docstring
+This module contains the SolutionFilesConfig class, which is the main configuration and utility class for managing
+the output files and plot creation of PLEXOS solution files outputs.
 """
 
 import os
@@ -21,7 +22,56 @@ print = log.info
 
 class SolutionFilesConfig:
     """
-    todo Docstring
+    Main configuration and utility class for managing solution files in Plexos modeling. This class does multiple
+    things:
+    - It loads the configuration file and makes the settings available as attributes for other functions.
+    - It provides methods processing the PLEXOS solution files, uncompressed them and to retrieve processed data for
+        specified objects and timescales.
+    - It initializes the caching system for the solution files, which is used by the other functions. This is done
+        automatically.
+    - It provides a method to test the output files for equality with the older output files.
+
+    But most of it is done automatically, so to use it you only need to do three things:
+    1. Create an instance of the class with the name of the configuration file to use.
+    2. When running the first time:
+        - Make sure that Julia and H5PLEXOS are installed and accessible in your environment and install Julia also with
+        the 'install_dependencies()' method.
+        - Call the 'convert_solution_files_to_h5()' method to convert the solution files to H5 format.
+    3. Pass the object to any output function to create the output files.
+
+    Example:
+    ```
+    import rise
+    config = rise.SolutionFilesConfig('IDN.toml')
+    config.install_dependencies()  # Only when running the first time
+    config.convert_solution_files_to_h5()  # Only when running the first time
+
+    rise.outputs.create_year_output_1(config)
+    ...
+    ```
+
+    Args:
+        config_name (str): The name of the configuration file to use for settings.
+
+    Attributes:
+        config_name (str): The name of the configuration file.
+        cfg (dict): The loaded configuration settings in dictionary format.
+        soln_idx (pandas.DataFrame): DataFrame containing the solution index excel.
+        DIR_04_SOLUTION_FILES (str): Path to the directory containing the uncompressed solution files.
+        DIR_04_CACHE (str): Path to the directory containing the cached solution files.
+        DIR_05_DATA_PROCESSING (str): Path to the directory containing the processed data.
+        DIR_05_1_SUMMARY_OUT (str): Path to the directory containing the summary output files.
+        DIR_05_2_TS_OUT (str): Path to the directory containing the timeseries output files.
+        v (rise.caching.Variables): The caching system for variables. All variables can be accessed via
+            self.v.<variable_name>. For more details see documentation in caching.py.
+        o (rise.caching.Objects): The caching system for objects. All objects can be accessed via
+            self.o.<object_name>. For more details see documentation in caching.py.
+
+    Methods:
+        - install_dependencies(): Install required dependencies for the Julia programming language.
+        - convert_solution_files_to_h5(): Convert solution files in ZIP format to H5 format using the H5PLEXOS Julia library.
+        - get_processed_object(timescale, object): Retrieve processed data for a specified object and timescale.
+        - test_output(timescale, output_number=None, check_mode='simple'): Test the output files for consistency.
     """
 
     def __init__(self, config_name):
@@ -61,13 +111,20 @@ class SolutionFilesConfig:
     @staticmethod
     def install_dependencies():
         """
-        todo Docstring
+        Install required dependencies for the Julia programming language.
+
+        This function uses the `julia.install()` method to install any necessary packages,
+        libraries, or components needed to work with the Julia programming language.
+        Make sure you have the Julia programming language installed before using this function.
         """
         julia.install()
 
     def convert_solution_files_to_h5(self):
         """
-        todo Docstring
+        Converts solution files in ZIP format to H5 format using the H5PLEXOS Julia library.
+        Does that automatically for all ZIP files in the subdirectory "04_SolutionFiles/model_name" in the given main
+        directory. The H5 files are saved in the same directory. Existing H5 files are not overwritten, but skipped.
+        Ensure that Julia and the H5PLEXOS library are installed and accessible in your environment.
         """
         from julia.api import Julia
 
@@ -141,8 +198,19 @@ class SolutionFilesConfig:
         return dd.concat(dfs)
 
     def get_processed_object(self, timescale, object):
-        """"
-        todo Docstring
+        """
+        Retrieve the processed data for a specified object for either the interval or year timescale. It needs
+        the uncompressed Plexos Solution Files in the 04_SolutionFiles folder. It loops through all Solution Files and
+        combines the data for the specified object in a single DataFrame. The DataFrame is then processed very
+        minimally to make it more readable and usable. To allow for huge data sets, the data is processed and returned
+        using Dask DataFrames.
+
+        Parameters:
+        - timescale (str): The timescale for data retrieval ('interval' or 'year').
+        - object (str): The type of object to retrieve data for (e.g., 'nodes', 'generators', 'regions').
+
+        Returns:
+        - dask.DataFrame: A Dask DataFrame containing the requested data.
         """
         # Import necessary stuff
 

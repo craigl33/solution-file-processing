@@ -24,6 +24,9 @@ def create_year_output_1(c):
     """"
     ### Output 1
     ### To allow scaling, the group index is maintained (i.e. as_index=True) before resetting the index
+    Creates following output files:
+    - 01a_load_by_reg.csv
+    - 01b_customer_load_by_reg.csv
     """
     print('Creating output 1...')
 
@@ -51,6 +54,9 @@ def create_year_output_1(c):
 def create_year_output_2(c):
     """
     ### Output 2: USE
+    Creates following output files:
+    - 02a_use_reg.csv
+    - 02b_use_reg_daily_ts.csv
     """
     print('Creating output 2...')
     _node_yr_df = c.o.node_yr_df.compute()  # Change dd.DataFrame back to pd.DataFrame
@@ -73,7 +79,6 @@ def create_year_output_2(c):
 
 def create_year_output_3(c):
     """
-    TODO DOCSTRING
     """
     print('Creating year output 3 is not implemented yet.')
     return
@@ -81,14 +86,15 @@ def create_year_output_3(c):
 
 def create_year_output_4(c):
     """
-    TODO DOCSTRING
+
     """
     pass
 
 
 def create_year_output_5(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 05_unit_starts_by_tech.csv
     """
     print("Creating output 5...")
 
@@ -105,7 +111,8 @@ def create_year_output_5(c):
 
 def create_year_output_6(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 06a_gen_max_by_tech_reg.csv
     """
     print("Creating output 6...")
 
@@ -125,7 +132,8 @@ def create_year_output_6(c):
 
 def create_year_output_7(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 07_tx_losses.csv
     """
     print("Creating output 7...")
 
@@ -142,7 +150,10 @@ def create_year_output_7(c):
 
 def create_year_output_8(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 08a_vre_cap.csv
+    - 08b_vre_daily_abs.csv
+    - 08c_vre_daily_norm.csv
     """
     print("Creating output 8...")
     time_idx = c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
@@ -208,7 +219,11 @@ def create_year_output_8(c):
 
 def create_year_output_9(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 09a_vre_daily_curtailed.csv
+    - 09b_curtailment_rate.csv
+    - 09c_all_RE_daily_curtailed.csv
+    - 09d_all_RE_curtailment_rate.csv
     """
     print("Creating output 9...")
     # todo Not sure if that always works
@@ -343,7 +358,9 @@ def create_year_output_9(c):
 
 def create_year_output_10(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 10a_line_cap.csv
+    - 10b_line_imports_exports.csv
     """
     print("Creating output 10...")
     # Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface
@@ -406,7 +423,12 @@ def create_year_output_10(c):
 
 def create_year_output_11(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 11a_cap_by_tech_reg.csv
+    - 11b_gen_cap_by_subtech_reg.csv
+    - 11c_gen_cap_by_costTech_reg.csv
+    - 11d_gen_cap_by_weoTech_reg.csv
+    - 11d_gen_cap_w_IPPs_by_tech_reg.csv
     """
     print("Creating output 11...")
 
@@ -484,7 +506,9 @@ def create_year_output_11(c):
 
 def create_year_output_12(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 12a_cf_tech_reg.csv
+    - 12c_cf_tech.csv
     """
     print("Creating output 12...")
 
@@ -534,18 +558,20 @@ def create_year_output_12(c):
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='%') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '12a_cf_tech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '12a_cf_tech_reg.csv'), index=False)
     cf_tech \
         .assign(units='%') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '12c_cf_tech.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '12c_cf_tech.csv'), index=False)
 
     print("Done.")
 
 
 def create_year_output_13(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 13a_co2_by_tech_reg.csv
+    - 13b_co2_by_reg.csv
     """
     print("Creating output 14...")
     # Output 14: Emissions
@@ -586,7 +612,15 @@ def create_year_output_13(c):
 
 def create_interval_output_1(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 01a_total_load_ts.csv
+    - 01b_use_ts.csv
+    - 01c_use_dly_ts.csv
+    - 01d_load_w_use_ts.csv
+    - for each geo_col (e.g. isl, reg, sub):
+        - 01x_total_load_{geo_col}_ts.csv
+        - 01x_use_{geo_col}_ts.csv
+        - 01x_use_dly_{geo_col}_ts.csv
     """
     print("Creating interval output 1...")
     # Output 1a-b: Load and USE time-series
@@ -671,7 +705,10 @@ def create_interval_output_1(c):
 
 def create_interval_output_2(c):
     """
-    TODO DOCSTRING
+    Creates following output files:
+    - 02a_gen_by_tech_ts.csv
+    - 02b_gen_by_subtech_ts.csv
+    - 02c_av_cap_by_subtech_ts.csv
     """
     print("Creating interval output 2...")
     # Output 2: Generation
@@ -723,6 +760,16 @@ def create_interval_output_2(c):
 def create_interval_output_3(c):
     """
     Output 3: VRE Time-series
+    Creates following output files:
+    - 03a_vre_available_ts.csv
+    - 03b_vre_gen_ts.csv
+    - 03c_vre_curtailed_ts.csv
+    - 03c_RE_curtailed_ts.csv
+    - for each model in /{model}/:
+        - for each geo_col (e.g. isl, reg, sub):
+            - 03x_vre_available_{geo_col}_ts.csv
+            - 03x_vre_gen_{geo_col}_ts.csv
+            - 03x_vre_curtailed_{geo_col}_ts.csv
     """
     print("Creating interval output 3...")
 
@@ -906,7 +953,7 @@ def create_interval_output_3(c):
 
 def create_interval_output_4(c):
     """
-    Output 4a-b: Generation by region and capacity reserve margin by technology
+    todo not implemented
     """
     print("Creating interval output 4...")
 
@@ -1091,6 +1138,7 @@ def create_interval_output_4(c):
 def create_interval_output_5(c):
     """
     Output 5: to plot undispatched capacity for USE (and maybe other metrics)
+    todo not implemented
     """
     print('Creating interval output 5 is not implemented yet.')
     return
@@ -1098,7 +1146,7 @@ def create_interval_output_5(c):
 
 def create_interval_output_6(c):
     """
-    TODO DOCSTRING
+    todo not implemented
     """
     # todo this one is to wild right now
     print('Creating interval output 6 is not implemented yet.')
@@ -1110,6 +1158,15 @@ def create_interval_output_7(c):
     Output 7 : Daily gap between peak and off-peak net load
 
     This could be future proofed with using the geo_col/suffix approach....
+    Creates following output files:
+    - 07a_dly_gap_reg.csv
+    - 07b_dly_gap_subreg.csv
+    - 07c_dly_gap_isl.csv
+    - 07d_dly_gap.csv
+    - 07e_dly_gap_reg_pc.csv
+    - 07f_dly_gap_subreg_pc.csv
+    - 07g_dly_gap_isl_pc.csv
+    - 07h_dly_gap_pc.csv
     """
     print("Creating interval output 7...")
 
@@ -1230,37 +1287,38 @@ def create_interval_output_7(c):
 def create_interval_output_8i(c):
     """
     # ### Output 8: Inertia (total)
-    TODO DOCSTRING
     """
     print("Creating interval output 8i)...")
 
     inertia_by_tech = c.v.gen_inertia.groupby(['model', 'Category', 'timestamp']).sum()
-    inertia_by_isl = c.v.gen_inertia.groupby(['model', 'Island', 'timestamp']).sum()
+    try:
+        inertia_by_isl = c.v.gen_inertia.groupby(['model', 'Island', 'timestamp']).sum()
+    except KeyError:
+        inertia_by_isl = c.v.gen_inertia.groupby(['model', 'timestamp']).sum()
     inertia_by_reg = c.v.gen_inertia.groupby(['model'] + c.cfg['settings']['geo_cols'] + ['timestamp']).sum()
     total_inertia_ts = c.v.gen_inertia.groupby(['model', 'timestamp']).sum()
 
     inertia_by_tech \
         .assign(units='MWs') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08a_inertia_by_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08a_inertia_by_tech_ts.csv'), index=False)
     inertia_by_isl \
         .assign(units='MWs') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08b_inertia_by_isl_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08b_inertia_by_isl_ts.csv'), index=False)
     inertia_by_reg \
         .assign(units='MWs') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08c_inertia_by_reg_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08c_inertia_by_reg_ts.csv'), index=False)
     total_inertia_ts \
         .assign(units='MWs') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08d_total_inertia_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08d_total_inertia_ts.csv'), index=False)
     print("Done.")
 
 
 def create_interval_output_8ii(c):
     """
-    TODO DOCSTRING
     # Output 9: Ramp time-series
     """
     print("Creating interval output 8ii)...")
@@ -1348,29 +1406,31 @@ def create_interval_output_8ii(c):
     ramp_by_gen_tech_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08e_ramp_by_gen_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08e_ramp_by_gen_tech_ts.csv'), index=False)
     ramp_by_gen_subtech_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08f_ramp_by_gen_subtech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08f_ramp_by_gen_subtech_ts.csv'), index=False)
 
     th_ramp_by_gen_tech_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08g_3hr_ramp_by_gen_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08g_3hr_ramp_by_gen_tech_ts.csv'), index=False)
     th_ramp_by_gen_subtech_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08h_3hr_ramp_by_gen_subtech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08h_3hr_ramp_by_gen_subtech_ts.csv'), index=False)
 
     print("Done.")
 
 
 def create_interval_output_10(c):
     """
-    TODO DOCSTRING
     ### Output 10: Generation out-of-service
     ### Its noted that units out was done per generator. Unsure why, but this may be a more useful output
+    Creates following output files:
+    - 10a_outages_by_tech_ts.csv
+    - 10b_outages_by_outtype_ts.csv
     """
 
     gen_out_tech_ts = c.o.gen_df[(c.o.gen_df.property == 'Forced Outage') |
