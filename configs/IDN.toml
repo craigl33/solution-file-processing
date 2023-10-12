@@ -1,0 +1,18 @@
+[path]
+model_dir = 'U:/Code/dev_dirs/Indonesia/2021_IPSE'
+model_dir_test = 'Y:/RED/Modelling/Indonesia/2021_IPSE'
+soln_idx_path = 'U:/Code/dev_dirs/Indonesia/2022_06_21_generator_parameters_IDN.xlsx'
+
+[model]
+soln_choice = '20230509_IDN_APSvRUPTL_scenario'
+
+[settings]
+geo_cols = ['Island', 'Region', 'Subregion']
+validation = false
+reg_ts = true
+
+[run]
+log_file_path = 'logs/IDN.log'
+variables_cache = true
+
+

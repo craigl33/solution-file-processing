@@ -1,0 +1,8 @@
+h5py
+openpyxl
+dask
+julia
+h5plexos
+pandas
+numpy
+toml
