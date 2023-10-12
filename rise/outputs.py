@@ -38,11 +38,11 @@ def create_year_output_1(c):
     load_by_reg = load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
     customer_load_by_reg = customer_load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
 
-    os.makedirs(c._DIR_05_1_SUMMARY_OUT, exist_ok=True)
+    os.makedirs(c.DIR_05_1_SUMMARY_OUT, exist_ok=True)
     load_by_reg.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '01a_load_by_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01a_load_by_reg.csv'), index=False)
     customer_load_by_reg.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '01b_customer_load_by_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01b_customer_load_by_reg.csv'), index=False)
 
     print(f'Saved file 01a_load_by_reg.csv.')
     print(f'Saved file 01b_customer_load_by_reg.csv.')
@@ -63,9 +63,9 @@ def create_year_output_2(c):
         .agg({'value': 'sum'})
 
     use_by_reg.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '02a_use_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '02a_use_reg.csv'), index=False)
     use_reg_daily_ts.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '02b_use_reg_daily_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '02b_use_reg_daily_ts.csv'), index=False)
 
     print('Saved file 02a_use_reg.csv.')
     print('Saved file 02b_use_reg_daily_ts.csv.')
@@ -99,7 +99,7 @@ def create_year_output_5(c):
         .unstack(level='Category')
 
     unit_starts_by_tech.stack().assign(units='starts').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
     print("Done.")
 
 
@@ -118,7 +118,7 @@ def create_year_output_6(c):
         .fillna(0)
 
     gen_max_by_tech_reg.stack(c.cfg['settings']['geo_cols']).assign(units='MW').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '06a_gen_max_by_tech_reg.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '06a_gen_max_by_tech_reg.csv'), index=False)
 
     print("Done.")
 
@@ -135,7 +135,7 @@ def create_year_output_7(c):
         .compute()
 
     tx_losses.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '07_tx_losses.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '07_tx_losses.csv'), index=False)
 
     print("Done.")
 
@@ -196,12 +196,12 @@ def create_year_output_8(c):
     vre_av_norm = (vre_av_abs / vre_cap / daily_periods).fillna(0)
 
     vre_cap.stack(c.cfg['settings']['geo_cols']).assign(units='MW').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '08a_vre_cap.csv'),
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '08a_vre_cap.csv'),
         index=False)
     vre_av_abs.stack(c.cfg['settings']['geo_cols']).assign(units='GWh').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '08b_vre_daily_abs.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '08b_vre_daily_abs.csv'), index=False)
     vre_av_norm.stack(c.cfg['settings']['geo_cols']).assign(units='-').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '08c_vre_daily_norm.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '08c_vre_daily_norm.csv'), index=False)
 
     print("Done.")
 
@@ -310,24 +310,33 @@ def create_year_output_9(c):
 
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
-    curtailment_rate_isl = (vre_curtailed.groupby('Island', axis=1).sum().groupby(
-        'model').sum() / vre_av_abs.groupby('Island', axis=1).sum().groupby('model').sum()).fillna(0) * 100
+    try:
+        vre_curtailed_grouped = vre_curtailed.groupby('Island', axis=1).sum()
+    except:
+        vre_curtailed_grouped = vre_curtailed
+    try:
+        vre_av_abs_grouped = vre_av_abs.groupby('Island', axis=1).sum()
+    except:
+        vre_av_abs_grouped = vre_av_abs
+
+    curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
+                            vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
 
     curtailment_rate = pd.concat([curtailment_rate_isl, curtailment_rate.rename('IDN')], axis=1)
 
     vre_curtailed.stack(c.cfg['settings']['geo_cols']).assign(units='GWh').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '09a_vre_daily_curtailed.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '09a_vre_daily_curtailed.csv'), index=False)
     curtailment_rate.assign(units='%').reset_index().to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '09b_curtailment_rate.csv'),
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '09b_curtailment_rate.csv'),
         index=False)
     all_re_curtailed.stack(c.cfg['settings']['geo_cols']).assign(units='GWh') \
         .reset_index() \
         .to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '09c_all_RE_daily_curtailed.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '09c_all_RE_daily_curtailed.csv'), index=False)
     pd.DataFrame({'value': re_curtailment_rate, 'model': re_curtailment_rate.index}) \
         .assign(units='%') \
         .to_csv(
-        os.path.join(c._DIR_05_1_SUMMARY_OUT, '09d_all_RE_curtailment_rate.csv'), index=False)
+        os.path.join(c.DIR_05_1_SUMMARY_OUT, '09d_all_RE_curtailment_rate.csv'), index=False)
 
     print("Done.")
 
@@ -386,11 +395,11 @@ def create_year_output_10(c):
     line_cap \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '10a_line_cap.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '10a_line_cap.csv'), index=False)
     line_imp_exp \
         .assign(units='GWh') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '10b_line_imports_exports.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '10b_line_imports_exports.csv'), index=False)
 
     print("Done.")
 
@@ -448,27 +457,27 @@ def create_year_output_11(c):
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '11a_cap_by_tech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11a_cap_by_tech_reg.csv'), index=False)
     gen_cap_subtech_reg \
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
     gen_cap_costTech_reg \
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
     gen_cap_costTech_reg \
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
     gen_cap_tech_reg_IPPs \
         .stack(c.cfg['settings']['geo_cols']) \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '11d_gen_cap_w_IPPs_by_tech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_w_IPPs_by_tech_reg.csv'), index=False)
 
     print("Done.")
 
@@ -565,12 +574,12 @@ def create_year_output_13(c):
         .assign(units='tonnes') \
         .reset_index() \
         .compute() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '13a_co2_by_tech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '13a_co2_by_tech_reg.csv'), index=False)
     co2_by_reg \
         .assign(units='tonnes') \
         .reset_index() \
         .compute() \
-        .to_csv(os.path.join(c._DIR_05_1_SUMMARY_OUT, '13b_co2_by_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '13b_co2_by_reg.csv'), index=False)
 
     print("Done.")
 
@@ -586,14 +595,14 @@ def create_interval_output_1(c):
         .agg({'value': 'sum'})
 
     total_load_ts.assign(units='MW').reset_index().compute() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '01a_total_load_ts.csv'))
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01a_total_load_ts.csv'))
 
     use_ts = c.o.reg_df[c.o.reg_df.property == 'Unserved Energy'] \
         .groupby(['model', 'timestamp']) \
         .agg({'value': 'sum'})
 
     use_ts.assign(units='MW').reset_index().compute() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '01b_use_ts.csv'))
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01b_use_ts.csv'))
 
     # Need to calculate whether its 30mn or 1hr within but for now just assume hourly
     use_dly_ts = c.o.reg_df[c.o.reg_df.property == 'Unserved Energy'] \
@@ -603,7 +612,7 @@ def create_interval_output_1(c):
         .applymap(lambda x: x / 1000 if isinstance(x, float) else x)
 
     use_dly_ts.assign(units='GWh').reset_index().compute().to_csv(
-        os.path.join(c._DIR_05_2_TS_OUT, '01c_use_dly_ts.csv'))
+        os.path.join(c.DIR_05_2_TS_OUT, '01c_use_dly_ts.csv'))
 
     # load_w_use_ts = dd.concat([total_load_ts.rename('Load'), use_ts.rename('USE')])
     #
@@ -636,7 +645,7 @@ def create_interval_output_1(c):
                 .sum() \
                 .assign(units='MW') \
                 .reset_index() \
-                .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)),
+                .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)),
                         index=False)
 
             use_reg_ts \
@@ -644,7 +653,7 @@ def create_interval_output_1(c):
                 .sum() \
                 .assign(units='MW') \
                 .reset_index() \
-                .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '01{}_use_{}_ts.csv'.format(chr(count + 1), geo_suffix)),
+                .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01{}_use_{}_ts.csv'.format(chr(count + 1), geo_suffix)),
                         index=False)
 
             use_dly_reg_ts \
@@ -652,7 +661,7 @@ def create_interval_output_1(c):
                 .sum() \
                 .assign(units='GWh') \
                 .reset_index() \
-                .to_csv(os.path.join(c._DIR_05_2_TS_OUT,
+                .to_csv(os.path.join(c.DIR_05_2_TS_OUT,
                                      '01{}_use_dly_{}_ts.csv'.format(chr(count + 2), geo_suffix)),
                         index=False)
 
@@ -696,17 +705,17 @@ def create_interval_output_2(c):
     gen_by_tech_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '02a_gen_by_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02a_gen_by_tech_ts.csv'), index=False)
 
     gen_by_subtech_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '02b_gen_by_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02b_gen_by_tech_ts.csv'), index=False)
 
     av_cap_by_tech_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '02c_av_cap_by_subtech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02c_av_cap_by_subtech_ts.csv'), index=False)
 
     print("Done.")
 
@@ -754,19 +763,19 @@ def create_interval_output_3(c):
     vre_av_abs_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03a_vre_available_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03a_vre_available_ts.csv'), index=False)
     vre_av_abs_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03b_vre_gen_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03b_vre_gen_ts.csv'), index=False)
     vre_curtailed_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03c_vre_curtailed_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_vre_curtailed_ts.csv'), index=False)
     re_curtailed_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03c_RE_curtailed_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_RE_curtailed_ts.csv'), index=False)
 
     # Due to the size, we do the gen DFs per model
     if c.cfg['settings']['reg_ts']:
@@ -814,7 +823,7 @@ def create_interval_output_3(c):
         model_names = list(np.sort(c.o.reg_df.model.drop_duplicates()))
 
         for m in model_names:
-            save_dir_model = os.path.join(c._DIR_05_2_TS_OUT, m)
+            save_dir_model = os.path.join(c.DIR_05_2_TS_OUT, m)
             if os.path.exists(save_dir_model) is False:
                 os.mkdir(save_dir_model)
 
@@ -885,12 +894,12 @@ def create_interval_output_3(c):
         res_w_load_by_reg_ts \
             .assign(units='MW') \
             .reset_index() \
-            .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03a_cap_reserve_w_load_by_reg_ts.csv'), index=False)
+            .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03a_cap_reserve_w_load_by_reg_ts.csv'), index=False)
 
         res_margin_by_reg_ts \
             .assign(units='%') \
             .reset_index() \
-            .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '03b_reserve_margin_by_reg_ts.csv'), index=False)
+            .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03b_reserve_margin_by_reg_ts.csv'), index=False)
 
         print("Done.")
 
@@ -907,7 +916,7 @@ def create_interval_output_4(c):
 
         model_names = list(np.sort(c.o.reg_df.model.drop_duplicates()))
         for m in model_names:
-            save_dir_model = os.path.join(c._DIR_05_2_TS_OUT, m)
+            save_dir_model = os.path.join(c.DIR_05_2_TS_OUT, m)
             if os.path.exists(save_dir_model) is False:
                 os.mkdir(save_dir_model)
 
@@ -924,6 +933,7 @@ def create_interval_output_4(c):
                 .reset_index() \
                 .to_csv(os.path.join(save_dir_model, '04_gen_by_subtech_reg_ts.csv'), index=False)
             print(f'Model {m} done.')
+    return
 
     # Ouput 4: Costs and savings.
 
@@ -1014,7 +1024,7 @@ def create_interval_output_4(c):
         .set_index(['model', 'name'] + c.cfg['settings']['geo_cols'] + ['Category', 'timestamp']) \
         .value
     ramp_by_gen_name = (gen_by_name_ts - gen_by_name_ts.shift(1)).fillna(0)
-    ramp_costs_by_gen_name = pd.merge(ramp_by_gen_name.reset_index(), c.o.soln_idx[['name', 'RampCost']], on='name',
+    ramp_costs_by_gen_name = pd.merge(ramp_by_gen_name.reset_index(), c.soln_idx[['name', 'RampCost']], on='name',
                                       how='left').set_index(
         ['model', 'name'] + c.cfg['settings']['geo_cols'] + ['Category', 'timestamp'])
     ramp_costs_by_gen_name.loc[:, 'value'] = (
@@ -1053,27 +1063,27 @@ def create_interval_output_4(c):
     gen_op_costs_by_reg \
         .assign(units='USDm') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04a_gen_op_costs_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04a_gen_op_costs_reg.csv'), index=False)
     gen_op_and_vio_costs_reg \
         .assign(units='USDm') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04b_gen_op_and_vio_costs_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04b_gen_op_and_vio_costs_reg.csv'), index=False)
     gen_total_costs_by_reg \
         .assign(units='USDm') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04c_gen_total_costs_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04c_gen_total_costs_reg.csv'), index=False)
     gen_total_costs_by_reg_w_pen \
         .assign(units='USDm') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04d_gen_total_costs_reg_w_penalty_costs.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04d_gen_total_costs_reg_w_penalty_costs.csv'), index=False)
     lcoe_by_tech_reg \
         .assign(units='USD/MWh') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04e_lcoe_tech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04e_lcoe_tech_reg.csv'), index=False)
     lcoe_tech \
         .assign(units='USD/MWh') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '04f_lcoe_tech.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '04f_lcoe_tech.csv'), index=False)
 
     print("Done.")
 
@@ -1130,11 +1140,16 @@ def create_interval_output_7(c):
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
-    nl_max_dly_isl = net_load_reg_ts \
-        .groupby('Island', axis=1) \
-        .sum() \
-        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .max()
+    try:
+        nl_max_dly_isl = net_load_reg_ts \
+            .groupby('Island', axis=1) \
+            .sum() \
+            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
+            .max()
+    except KeyError:
+        nl_max_dly_isl = net_load_reg_ts \
+            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
+            .max()
     nl_max_dly = net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
@@ -1150,11 +1165,17 @@ def create_interval_output_7(c):
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .min()
-    nl_min_dly_isl = net_load_reg_ts \
-        .groupby('Island', axis=1) \
-        .sum() \
-        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .min()
+    try:
+        nl_min_dly_isl = net_load_reg_ts \
+            .groupby('Island', axis=1) \
+            .sum() \
+            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
+            .min()
+    except KeyError:
+        nl_min_dly_isl = net_load_reg_ts \
+            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
+            .min()
+
     nl_min_dly = net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
@@ -1173,35 +1194,35 @@ def create_interval_output_7(c):
     nl_dly_gap_reg \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07a_dly_gap_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07a_dly_gap_reg.csv'), index=False)
     nl_dly_gap_subreg \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07b_dly_gap_subreg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07b_dly_gap_subreg.csv'), index=False)
     nl_dly_gap_isl \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07c_dly_gap_isl.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07c_dly_gap_isl.csv'), index=False)
     nl_dly_gap \
         .reset_index() \
         .assign(units='MW') \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07d_dly_gap.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07d_dly_gap.csv'), index=False)
     nl_dly_gap_reg_pc \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07e_dly_gap_reg_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07e_dly_gap_reg_pc.csv'), index=False)
     nl_dly_gap_subreg_pc \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07f_dly_gap_subreg_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07f_dly_gap_subreg_pc.csv'), index=False)
     nl_dly_gap_isl_pc \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07g_dly_gap_isl_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07g_dly_gap_isl_pc.csv'), index=False)
     nl_dly_gap_pc \
         .reset_index() \
         .assign(units='MW') \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '07h_dly_gap_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07h_dly_gap_pc.csv'), index=False)
 
     print("Done.")
 
@@ -1305,19 +1326,19 @@ def create_interval_output_8ii(c):
     ramp_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08a_ramp_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08a_ramp_ts.csv'), index=False)
     th_ramp_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08b_3hr_ramp_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08b_3hr_ramp_ts.csv'), index=False)
     ramp_pc_ts \
         .reset_index() \
         .assign(units='MW.hr-1') \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08c_ramp_pc_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08c_ramp_pc_ts.csv'), index=False)
     th_ramp_pc_ts \
-        .assign(units='MW.hr-1') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '08d_3hr_ramp_pc_ts.csv'), index=False)
+        .assign(units='MW.hr-1') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08d_3hr_ramp_pc_ts.csv'), index=False)
 
     ramp_by_gen_tech_ts = ramp_by_gen_tech_ts.droplevel(0, axis=1)
     ramp_by_gen_subtech_ts = ramp_by_gen_subtech_ts.droplevel(0, axis=1)
@@ -1372,8 +1393,8 @@ def create_interval_output_10(c):
     gen_out_tech_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '10a_outages_by_tech_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10a_outages_by_tech_ts.csv'), index=False)
     gen_out_by_type_ts \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c._DIR_05_2_TS_OUT, '10b_outages_by_outtype_ts.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10b_outages_by_outtype_ts.csv'), index=False)

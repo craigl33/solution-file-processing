@@ -3,7 +3,7 @@ todo Docstring
 """
 
 import os
-
+import re
 import toml
 import pandas as pd
 import dask.dataframe as dd
@@ -25,6 +25,7 @@ class SolutionFilesConfig:
     """
 
     def __init__(self, config_name):
+        print(f'Initializing {config_name} Solution Files Config...')
         # Apply config_name to relevant settings
         self.config_name = config_name
         # Load the configuration
@@ -38,16 +39,21 @@ class SolutionFilesConfig:
         self.soln_idx = pd.read_excel(self.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
         # Load paths from configurations
-        self._DIR_04_SOLUTION_FILES = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFiles',
+        self.DIR_04_SOLUTION_FILES = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFiles',
+                                                  self.cfg['model']['soln_choice'])
+        self.DIR_04_CACHE = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFilesCache',
+                                         self.cfg['model']['soln_choice'])
+        self.DIR_05_DATA_PROCESSING = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
                                                    self.cfg['model']['soln_choice'])
-        self._DIR_04_CACHE = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFilesCache',
-                                          self.cfg['model']['soln_choice'])
-        self._DIR_05_DATA_PROCESSING = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                                    self.cfg['model']['soln_choice'])
-        self._DIR_05_1_SUMMARY_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                                  self.cfg['model']['soln_choice'], 'summary_out')
-        self._DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                             self.cfg['model']['soln_choice'], 'timeseries_out')
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
+                                                 self.cfg['model']['soln_choice'], 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
+                                            self.cfg['model']['soln_choice'], 'timeseries_out')
+
+        os.makedirs(self.DIR_04_CACHE, exist_ok=True)
+        os.makedirs(self.DIR_05_DATA_PROCESSING, exist_ok=True)
+        os.makedirs(self.DIR_05_1_SUMMARY_OUT, exist_ok=True)
+        os.makedirs(self.DIR_05_2_TS_OUT, exist_ok=True)
 
         self.v = Variables(self)
         self.o = Objects(self)
@@ -68,22 +74,22 @@ class SolutionFilesConfig:
         jl = Julia(compiled_modules=False)
         jl.using("H5PLEXOS")
 
-        soln_zip_files = [f for f in os.listdir(self._DIR_04_SOLUTION_FILES)
+        soln_zip_files = [f for f in os.listdir(self.DIR_04_SOLUTION_FILES)
                           if f.endswith('.zip')]
 
         missing_soln_files = [f.split('.')[0] for f in soln_zip_files if f.replace('.zip', '.h5')
-                              not in os.listdir(self._DIR_04_SOLUTION_FILES)]
+                              not in os.listdir(self.DIR_04_SOLUTION_FILES)]
 
         print(f'Found {len(missing_soln_files)} missing h5 files. Starting conversion...')
         for h5_file in missing_soln_files:
-            jl.eval("cd(\"{}\")".format(self._DIR_04_SOLUTION_FILES.replace('\\', '/')))
+            jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
     def _get_object(self, timescale, object):
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
 
-        _, soln_h5_files = get_files(self._DIR_04_SOLUTION_FILES,
+        _, soln_h5_files = get_files(self.DIR_04_SOLUTION_FILES,
                                      file_type='.h5', id_text='Solution', return_type=1)
 
         dfs = []
@@ -92,7 +98,7 @@ class SolutionFilesConfig:
             core_name = file.split('\\')[-1].split('Model ')[-1].split(' Solution.h5')[0]
 
             silence_prints(True)
-            with PLEXOSSolution(os.path.join(self._DIR_04_SOLUTION_FILES, file)) as db:
+            with PLEXOSSolution(os.path.join(self.DIR_04_SOLUTION_FILES, file)) as db:
                 silence_prints(False)
                 try:
                     properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
@@ -258,13 +264,12 @@ class SolutionFilesConfig:
         for file in files:
 
             if output_number is not None:
-                if not file.split('\\')[-1].startswith(f'0{output_number}') and \
-                        not file.split('\\')[-1].startswith(f'{output_number}'):
+                if not re.match(f'0?{output_number}([a-z]*_)', file.split('\\')[-1]):
                     continue
             try:
                 df = pd.read_csv(os.path.join(path, file), low_memory=False)
             except FileNotFoundError:
-                # print(f'File was not created: {file}.')
+                print(f'File missing: {file}.')
                 continue
             df_test = pd.read_csv(os.path.join(path_test, file), low_memory=False)
 
@@ -276,9 +281,9 @@ class SolutionFilesConfig:
             missing_cols = list(set(cols_test) - set(cols))
 
             for col in redundant_cols:
-                print(f'Column {col} is redundant.')
+                print(f'\tColumn {col} is redundant.')
             for col in missing_cols:
-                print(f'Column {col} is missing.')
+                print(f'\tColumn {col} is missing.')
 
             # Make columns match
             df = df[matched_cols]
@@ -292,17 +297,17 @@ class SolutionFilesConfig:
             if not df_test.equals(df):
 
                 if df_test.shape != df.shape:
-                    print(f'Shape of {file} does not match: {df_test.shape} != {df.shape}.')
+                    print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
                     test_failed = True
 
                 for col in df.columns:
                     if pd.to_numeric(df[col], errors='coerce').notna().all():
                         if not math.isclose(df[col].sum(), df_test[col].sum()):
-                            print(f'Sum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                            print(f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
                             test_failed = True
                     else:
                         if not set(df[col].unique()) == set(df_test[col].unique()):
-                            print(f'Unique values of {file} column {col} do not match.')
+                            print(f'\tUnique values of {file} column {col} do not match.')
                             test_failed = True
 
             if test_failed:

@@ -22,7 +22,7 @@ def caching(cache_type):
             if getattr(self, f'_{func.__name__}') is not None:
                 return getattr(self, f'_{func.__name__}')
 
-            path = os.path.join(self.c._DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
+            path = os.path.join(self.c.DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
             if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
                 if os.path.isdir(path):
