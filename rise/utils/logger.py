@@ -1,6 +1,7 @@
 """
 Contains a custom logger class which uses some extra filters and handlers.
 """
+import os
 import datetime as dt
 import logging
 
@@ -70,11 +71,16 @@ class _Logger(logging.Logger):
             logger (logging.Logger): Logger to change the log file path of.
             new_log_file (str): New log file path.
         """
+        # Remove old file handler
         for handler in self.handlers:
             if isinstance(handler, logging.FileHandler):
                 self.removeHandler(handler)
                 break
+        # If new_log_file is given, create a new file handler with it
         if new_log_file:
+            # Create the directory if it does not exist
+            os.makedirs(os.path.dirname(new_log_file), exist_ok=True)
+
             new_file_handler = logging.FileHandler(new_log_file)
             new_file_handler.setLevel(logging.DEBUG)
             new_file_handler.setFormatter(self._fmt_file)

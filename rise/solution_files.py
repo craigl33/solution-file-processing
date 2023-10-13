@@ -69,18 +69,32 @@ class SolutionFilesConfig:
 
     Methods:
         - install_dependencies(): Install required dependencies for the Julia programming language.
-        - convert_solution_files_to_h5(): Convert solution files in ZIP format to H5 format using the H5PLEXOS Julia library.
+        - convert_solution_files_to_h5(): Convert solution files in ZIP format to H5 format using the H5PLEXOS Julia
+            library.
         - get_processed_object(timescale, object): Retrieve processed data for a specified object and timescale.
         - test_output(timescale, output_number=None, check_mode='simple'): Test the output files for consistency.
     """
 
     def __init__(self, config_name):
-        print(f'Initializing {config_name} Solution Files Config...')
         # Apply config_name to relevant settings
         self.config_name = config_name
         # Load the configuration
-        with open(os.path.join('configs', config_name), 'r') as f:
-            self.cfg = toml.load(f)
+        try:
+            # Check if config_name is absolute path
+            if os.path.isabs(config_name):
+                with open(config_name, 'r') as f:
+                    self.cfg = toml.load(f)
+            else:
+                with open(os.path.join('configs', config_name), 'r') as f:
+                    self.cfg = toml.load(f)
+        except FileNotFoundError:
+            if os.path.isabs(config_name):
+                config_dir_path = os.path.dirname(config_name)
+            else:
+                # Get absolute path to dir
+                config_dir_path = os.path.dirname(os.path.abspath(os.path.join('configs', config_name)))
+            raise FileNotFoundError(f'Could not find configuration file {os.path.basename(config_name)} in '
+                                    f'{config_dir_path}.')
 
         # Apply configurations
         # to log_path
@@ -108,10 +122,13 @@ class SolutionFilesConfig:
         self.v = Variables(self)
         self.o = Objects(self)
 
+        print(f'Initialized SolutionFilesConfig for {self.config_name}.')
+
     @staticmethod
     def install_dependencies():
         """
-        Install required dependencies for the Julia programming language.
+        Install required dependencies for the Julia programming language. This is only needed to run the
+        `convert_solution_files_to_h5()` method.
 
         This function uses the `julia.install()` method to install any necessary packages,
         libraries, or components needed to work with the Julia programming language.

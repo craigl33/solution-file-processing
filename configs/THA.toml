@@ -9,8 +9,8 @@ soln_choice = '20230626_THA_Base_LowerCO2p'
 [settings]
 geo_cols = ['Region', 'Subregion']
 validation = false
-reg_ts  = true
+reg_ts = true
 
 [run]
-log_file_path = 'logs/THA.log'
+log_file_path = 'U:/Code/rise/logs/THA.log'
 variables_cache = true
