@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="rise",
+    name="iea_rise",
     version="0.1.0",
     author="Lukas Trippe",
     author_email="lkstrp@pm.me",

@@ -1,4 +1,4 @@
-name: rise
+name: iea_rise
 channels:
   - defaults
   - conda-forge
