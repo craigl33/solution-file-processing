@@ -50,8 +50,8 @@ class Objects:
             try:
                 bat_yr_df = self.c.get_processed_object('year', 'batteries')
                 _df = dd.concat([_df, bat_yr_df], axis=0)
-            except KeyError:
-                print("No batteries for current scenarios")
+            except ValueError:
+                print("No batteries object exists. Will not be added to generators year dataframe.")
 
             # For WEO_tech simpl. probably should add something to soln_idx
             def _clean_weo_tech(x):
@@ -226,8 +226,8 @@ class Objects:
             try:
                 bat_df = self.c.get_processed_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
-            except KeyError:
-                print("No batteries objects")
+            except ValueError:
+                print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
 
             self._res_gen_df = _df
         return self._res_gen_df
@@ -239,7 +239,7 @@ class Objects:
         TODO Docstring
         """
         if self._purch_df is None:
-            self._purch_df = self.c.get_processed_object('interval', 'purchases')
+            self._purch_df = self.c.get_processed_object('interval', 'purchasers')
         return self._purch_df
 
 

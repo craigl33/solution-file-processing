@@ -1,6 +1,5 @@
 [path]
 model_dir = 'U:/Code/dev_dirs/Thailand/2022-3_next_step_modelling'
-model_dir_test = 'Y:/RED/Modelling/Thailand/2022-3_next_step_modelling'
 soln_idx_path = 'U:/Code/dev_dirs/Thailand/2023_03_14_generator_parameters_THA.xlsx'
 
 [model]
@@ -13,4 +12,9 @@ reg_ts = true
 
 [run]
 log_file_path = 'U:/Code/rise/logs/THA.log'
+log_timestamp = true
 variables_cache = true
+
+[testing]
+baseline_output_dir = 'Y:/RED/Modelling/Thailand/2022-3_next_step_modelling/05_DataProcessing/20230626_THA_Base_LowerCO2p/'
+similar_output_dirs = false

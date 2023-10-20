@@ -36,6 +36,7 @@ def caching(cache_type):
                 call = func(self, *args, **kwargs)
                 if self.c.cfg['run']['variables_cache']:
                     os.makedirs(os.path.dirname(path), exist_ok=True)
+                    call.columns = call.columns.astype(str)  # Parquet doesn't like int column names
                     call.to_parquet(path)
                     print(f"Saved to {cache_type} cache: {func.__name__}.parquet.")
 

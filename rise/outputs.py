@@ -1146,11 +1146,129 @@ def create_interval_output_5(c):
 
 def create_interval_output_6(c):
     """
-    todo not implemented
+    Output 6: Net-load timeseries and LDCs
+    Creates following output files:
+    - 06a_net_load_ts.csv
+    - 06b_ldc.csv
+    - 06c_net_ldc.csv
+    - 06d_net_ldc_curtail.csv
+    - 06e_net_load_orig_ts.csv
+    - 06f_ldc_orig.csv
+    - 06g_net_ldc_orig.csv
     """
-    # todo this one is to wild right now
-    print('Creating interval output 6 is not implemented yet.')
-    return
+    print("Creating interval output 6...")
+
+    # So that we can see the total load before USE and pump load
+    customer_load_ts = c.o.reg_df[
+        (c.o.reg_df.property == 'Customer Load') | (c.o.reg_df.property == 'Unserved Energy')].groupby(
+        ['model', 'timestamp']).sum().value.compute()
+
+    ######
+    # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+    # Series with indices matching the columns of the DF for filling in missing columns
+    model_names = list(np.sort(c.o.reg_df.model.drop_duplicates()))
+    model_filler = pd.Series(data=[1] * len(model_names), index=model_names).rename_axis('model')
+
+    purch_df = c.o.purch_df.compute()
+    if purch_df.shape[0] > 0:
+        ev_profiles_ts = purch_df[
+            purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(
+            ['model', 'timestamp']).sum().value
+        ev_profiles_orig_ts = purch_df[
+            purch_df.name.str.contains('_EV') & (purch_df.property == 'x')].groupby(
+            ['model', 'timestamp']).sum().value
+        if not ev_profiles_ts.shape[0] == 0:
+            ev_profiles_orig_ts = (ev_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
+                'model').reorder_levels(['model', 'timestamp'])
+
+        dsm_profiles_ts = purch_df[
+            purch_df.name.str.contains('_Shift') & (purch_df.property == 'Load')].groupby(
+            ['model', 'timestamp']).sum().value
+        dsm_profiles_orig_ts = purch_df[
+            purch_df.name.str.contains('_Shift') & (purch_df.property == 'x')].groupby(
+            ['model', 'timestamp']).sum().value
+        if not dsm_profiles_ts.shape[0] == 0:
+            dsm_profiles_orig_ts = (dsm_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
+                'model').reorder_levels(['model', 'timestamp'])
+
+        electr_profiles_ts = purch_df[
+            purch_df.name.str.contains('_Elec') & (purch_df.property == 'Load')].groupby(
+            ['model', 'timestamp']).sum().value
+        electr_profiles_orig_ts = purch_df[
+            purch_df.name.str.contains('_Elec') & (purch_df.property == 'x')].groupby(
+            ['model', 'timestamp']).sum().value
+        if electr_profiles_ts.shape[0] == 0:
+            electr_profiles_orig_ts = pd.Series(data=[0] * len(customer_load_ts.index),
+                                                index=customer_load_ts.index)
+        else:
+            electr_profiles_orig_ts = (electr_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
+                'model').reorder_levels(['model', 'timestamp'])
+
+        native_load_ts = c.o.node_df[c.o.node_df.property == 'Native Load'].groupby(['model', 'timestamp']).sum().value.compute()
+
+        customer_load_orig_ts = (native_load_ts + ev_profiles_orig_ts + dsm_profiles_orig_ts + electr_profiles_orig_ts)
+        # .fillna(customer_load_ts) ### For those profiles where EVs are missing, for e.g. ... other DSM to be added
+    else:
+        customer_load_orig_ts = customer_load_ts
+
+    vre_av_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
+        .groupby(['model', 'Category', 'timestamp']) \
+        .agg({'value': 'sum'}) \
+        .compute() \
+        .unstack(level='Category') \
+        .fillna(0)
+    vre_gen_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Generation') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
+        .groupby(['model', 'Category', 'timestamp']) \
+        .agg({'value': 'sum'}) \
+        .compute() \
+        .unstack(level='Category') \
+        .fillna(0)
+
+    #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
+    #  of vre_abs)
+    net_load_ts = pd.DataFrame(
+        customer_load_ts - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(), columns=['value'])
+    net_load_curtail_ts = pd.DataFrame(
+        customer_load_ts - vre_gen_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
+        columns=['value'])
+    net_load_orig_ts = pd.DataFrame(
+        customer_load_orig_ts - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
+        columns=['value'])
+
+    # Calculation of all the different variations of LDC for later comparison
+    ldc = customer_load_ts.unstack('model')
+    ldc = pd.DataFrame(np.flipud(np.sort(ldc.values, axis=0)), index=ldc.index, columns=ldc.columns)
+
+    ldc_orig = customer_load_orig_ts.unstack('model')
+    ldc_orig = pd.DataFrame(np.flipud(np.sort(ldc_orig.values, axis=0)), index=ldc_orig.index, columns=ldc_orig.columns)
+
+    nldc = net_load_ts.value.unstack('model')
+    nldc = pd.DataFrame(np.flipud(np.sort(nldc.values, axis=0)), index=nldc.index, columns=nldc.columns)
+
+    nldc_orig = net_load_orig_ts.value.unstack('model')
+    nldc_orig = pd.DataFrame(np.flipud(np.sort(nldc_orig.values, axis=0)), index=nldc_orig.index,
+                             columns=nldc_orig.columns)
+
+    nldc_curtail = net_load_curtail_ts.value.unstack('model')
+    nldc_curtail = pd.DataFrame(np.flipud(np.sort(nldc_curtail.values, axis=0)), index=nldc_curtail.index,
+                                columns=nldc_curtail.columns)
+
+    net_load_ts.value.unstack('model').assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06a_net_load_ts.csv'), index=True)
+    ldc.reset_index(drop=True).assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06b_ldc.csv'), index=True)
+    nldc.reset_index(drop=True).assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06c_net_ldc.csv'), index=True)
+    nldc_curtail.reset_index(drop=True).assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06d_net_ldc_curtail.csv'), index=True)
+    net_load_orig_ts.value.unstack('model').assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06e_net_load_orig_ts.csv'), index=True)
+    ldc_orig.reset_index(drop=True).assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06f_ldc_orig.csv'), index=True)
+    nldc_orig.reset_index(drop=True).assign(units='MW') \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06g_net_ldc_orig.csv'), index=True)
+
+    print("Done.")
 
 
 def create_interval_output_7(c):
