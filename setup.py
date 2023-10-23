@@ -11,7 +11,7 @@ setuptools.setup(
     description="tbd.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/lkstrp/rise",
+    url="https://github.com/lkstrp/iea-rise",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",

@@ -11,7 +11,7 @@ validation = false
 reg_ts = true
 
 [run]
-log_file_path = 'U:/Code/rise/logs/CHN.log'
+log_file_path = 'U:/Code/iea-rise/logs/CHN.log'
 log_timestamp = true
 variables_cache = true
 
