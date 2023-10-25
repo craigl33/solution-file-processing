@@ -10,8 +10,9 @@ All the documentation is located in the `docs` folder. Next to that there are do
 
 #### Knowledge Database
 
-- [Setup](docs/Knowledge%20database/Setup.md)
-- [IDEs](docs/Knowledge%20database/IDEs.md)
-- [Version Control (Git)](docs/Knowledge%20database/Version-Control.md)
+- [Outline](docs/Knowledge%20database/outline.md)
+  - [Setup](docs/Knowledge%20database/Setup.md)
+  - [Version Control (Git)](docs/Knowledge%20database/Version-Control.md)
+    - [Git Cheat Sheet](docs/Knowledge%20database/Git-Cheat-Sheet.md)
 
 ## Usage
