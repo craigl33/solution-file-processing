@@ -365,6 +365,9 @@ def create_year_output_10(c):
     print("Creating output 10...")
     # Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface
     # (as % of capacity?)
+    if not {'islFrom', 'nodeTo'}.issubset(set(c.soln_idx.columns)):
+        print("No islFrom and nodeTo columns in soln_idx. Skipping output 10.")
+        return
 
     line_cap = c.o.line_yr_df[(c.o.line_yr_df.property == 'Import Limit') | \
                               (c.o.line_yr_df.property == 'Export Limit')] \
@@ -432,6 +435,9 @@ def create_year_output_11(c):
     """
     print("Creating output 11...")
 
+    if not {'IPP'}.issubset(set(c.soln_idx.columns)):
+        print("No IPP column in soln_idx. Skipping output 11.")
+        return
     # Output 11 & 12 : a) capacity & CFs per technology/region b) CFs per tech only
 
     gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \

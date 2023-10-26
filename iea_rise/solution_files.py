@@ -299,9 +299,13 @@ class SolutionFilesConfig:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
                                    pretty_model_names=PRETTY_MODEL_NAMES)
 
+                # Check if df is empty (faster way for dask, instead of df.empty)
+                assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
+
                 # Filter out regions with no generation nor load
-                if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                # todo commented that out for now, since it was createing empty dataframes
+                # if (object == 'nodes') | (object == 'regions'):
+                #     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
         elif timescale == 'year':
 
@@ -344,11 +348,11 @@ class SolutionFilesConfig:
 
         return csv_files
 
-    def test_output(self, timescale, output_number=None):
-        if output_number is None:
+    def test_output(self, timescale, output_numbers: list = None):
+        if output_numbers is None:
             print(f'Start tests for {timescale} output.')
         else:
-            print(f'Start tests for {timescale} output {output_number}.')
+            print(f'Start tests for {timescale} output {output_numbers}.')
 
         if timescale == 'year':
             subfolder_name = 'summary_out'
@@ -377,8 +381,8 @@ class SolutionFilesConfig:
 
             for file in files:
 
-                if output_number is not None:
-                    if not re.match(f'0?{output_number}([a-z]*_)', file.split('\\')[-1]):
+                if output_numbers is not None:
+                    if not any([re.match(f'0?{n}([a-z]*_)', file.split('\\')[-1]) for n in output_numbers]):
                         continue
                 try:
                     df = pd.read_csv(os.path.join(output_path, file), low_memory=False)
@@ -451,8 +455,8 @@ class SolutionFilesConfig:
 
                 for file in files:
 
-                    if output_number is not None:
-                        if not re.match(f'0?{output_number}([a-z]*_)', file.split('\\')[-1]):
+                    if output_numbers is not None:
+                        if not any([re.match(f'0?{n}([a-z]*_)', file.split('\\')[-1]) for n in output_numbers]):
                             continue
                     try:
                         df = pd.read_csv(os.path.join(output_path, file), low_memory=False)
@@ -495,7 +499,7 @@ class SolutionFilesConfig:
                                 0 < (df[col].isna().sum() / len(df[col])) < 1):
                             print(f'\tRatio of nans of {file} column {col} does not match: '
                                   f'{df[col].isna().sum() / len(df[col])} != '
-                                    f'{df_test[col].isna().sum() / len(df_test[col])}.')
+                                  f'{df_test[col].isna().sum() / len(df_test[col])}.')
                             test_failed = True
                             continue
 
