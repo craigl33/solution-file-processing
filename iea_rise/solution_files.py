@@ -41,12 +41,12 @@ class SolutionFilesConfig:
 
     Example:
     ```
-    import rise
-    config = rise.SolutionFilesConfig('IDN.toml')
+    import iea_rise
+    config = iea_rise.SolutionFilesConfig('IDN.toml')
     config.install_dependencies()  # Only when running the first time
     config.convert_solution_files_to_h5()  # Only when running the first time
 
-    rise.outputs.create_year_output_1(config)
+    iea_rise.outputs.create_year_output_1(config)
     ...
     ```
 
@@ -96,10 +96,18 @@ class SolutionFilesConfig:
             raise FileNotFoundError(f'Could not find configuration file {os.path.basename(config_name)} in '
                                     f'{config_dir_path}.')
 
-        # Apply configurations
-        # to log_path
-        log.change_log_file_path(self.cfg['run']['log_file_path'])
+        ## Apply configurations
+        # For logging
+        if self.cfg['run']['log_file_path']:
+            log_file_path = self.cfg['run']['log_file_path']
+            if self.cfg['run']['log_timestamp']:
+                timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                log_file_path = os.path.join(os.path.dirname(log_file_path),
+                                             f'{timestamp}-{os.path.basename(log_file_path)}')
+            log.change_log_file_path(log_file_path)
+            print(f'Logging to {log_file_path}.')
 
+        # Load soln_idx table
         self.soln_idx = pd.read_excel(self.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
         # Load paths from configurations
@@ -114,11 +122,13 @@ class SolutionFilesConfig:
         self.DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
                                             self.cfg['model']['soln_choice'], 'timeseries_out')
 
+        # Create all necessary directories
         os.makedirs(self.DIR_04_CACHE, exist_ok=True)
         os.makedirs(self.DIR_05_DATA_PROCESSING, exist_ok=True)
         os.makedirs(self.DIR_05_1_SUMMARY_OUT, exist_ok=True)
         os.makedirs(self.DIR_05_2_TS_OUT, exist_ok=True)
 
+        # Initialize caching system
         self.v = Variables(self)
         self.o = Objects(self)
 
@@ -160,6 +170,9 @@ class SolutionFilesConfig:
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
     def _get_object(self, timescale, object):
+        """
+        TODO DOCSTRING
+        """
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
 
@@ -177,7 +190,6 @@ class SolutionFilesConfig:
                 try:
                     properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
                 except KeyError:
-                    print(f'{object} does not exist')
                     continue
 
                 try:
@@ -212,6 +224,9 @@ class SolutionFilesConfig:
                     db_data = db_data.assign(model=core_name).reset_index()
 
                     dfs.append(db_data)
+        if not dfs:
+            raise ValueError(f'No data found for {object} object in {timescale} timescale in any of the '
+                             f'{len(soln_h5_files)} solution files.')
         return dd.concat(dfs)
 
     def get_processed_object(self, timescale, object):
@@ -284,9 +299,13 @@ class SolutionFilesConfig:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
                                    pretty_model_names=PRETTY_MODEL_NAMES)
 
+                # Check if df is empty (faster way for dask, instead of df.empty)
+                assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
+
                 # Filter out regions with no generation nor load
-                if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                # todo commented that out for now, since it was createing empty dataframes
+                # if (object == 'nodes') | (object == 'regions'):
+                #     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
 
         elif timescale == 'year':
 
@@ -311,6 +330,9 @@ class SolutionFilesConfig:
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
                     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+            else:
+                # todo make this a hard error, this should never happen
+                print(f"No generator parameters added for {object}. Could not find {o_key} in soln_idx['Object_type'].")
 
         return df
 
@@ -326,76 +348,166 @@ class SolutionFilesConfig:
 
         return csv_files
 
+    def test_output(self, timescale, output_numbers: list = None):
+        if output_numbers is None:
+            print(f'Start tests for {timescale} output.')
+        else:
+            print(f'Start tests for {timescale} output {output_numbers}.')
 
-    def test_output(self, timescale, output_number=None, check_mode='simple'):
         if timescale == 'year':
-            path = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'summary_out')
-            path_test = os.path.join(self.cfg['path']['model_dir_test'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'summary_out')
+            subfolder_name = 'summary_out'
         elif timescale == 'interval':
-            path = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'timeseries_out')
-            path_test = os.path.join(self.cfg['path']['model_dir_test'], '05_DataProcessing', self.cfg['model']['soln_choice'], 'timeseries_out')
+            subfolder_name = 'timeseries_out'
         else:
             raise Exception('timescale must be either "year" or "interval"')
 
-        if output_number is None:
-            print(f'Start tests for {timescale} output (check_mode={check_mode}).')
-        else:
-            print(f'Start tests for {timescale} output {output_number} (check_mode={check_mode}).')
+        output_path = os.path.join(self.cfg['path']['model_dir'],
+                                   '05_DataProcessing',
+                                   self.cfg['model']['soln_choice'],
+                                   subfolder_name)
 
-        # Get all files
-        files = [f for f in self._list_csv_files(path_test)]
-        files.sort()
+        ## Run tests with baseline path if given
+        if self.cfg['testing']['baseline_output_dir']:
+            print(f'\n\nRunning baseline tests with {self.cfg["testing"]["baseline_output_dir"]}.\n')
 
-        for file in files:
+            output_path_test_baseline = os.path.join(self.cfg['testing']['baseline_output_dir'],
+                                                     subfolder_name)
 
-            if output_number is not None:
-                if not re.match(f'0?{output_number}([a-z]*_)', file.split('\\')[-1]):
+            # Get all files, sort and remove duplicates
+            files = ([f for f in self._list_csv_files(output_path)] +
+                     [f for f in self._list_csv_files(output_path_test_baseline)])
+            files = list(set(files))
+            files.sort()
+
+            for file in files:
+
+                if output_numbers is not None:
+                    if not any([re.match(f'0?{n}([a-z]*_)', file.split('\\')[-1]) for n in output_numbers]):
+                        continue
+                try:
+                    df = pd.read_csv(os.path.join(output_path, file), low_memory=False)
+                except FileNotFoundError:
+                    print(f'Implementation missing: {file}.')
                     continue
-            try:
-                df = pd.read_csv(os.path.join(path, file), low_memory=False)
-            except FileNotFoundError:
-                print(f'File missing: {file}.')
-                continue
-            df_test = pd.read_csv(os.path.join(path_test, file), low_memory=False)
+                try:
+                    df_test = pd.read_csv(os.path.join(output_path_test_baseline, file), low_memory=False)
+                except FileNotFoundError:
+                    print(f'Test file missing: {file}.')
+                    continue
 
-            cols = df.columns.to_list()
-            cols_test = df_test.columns.to_list()
+                cols = df.columns.to_list()
+                cols_test = df_test.columns.to_list()
 
-            matched_cols = sorted(list(set(cols) & set(cols_test)))
-            redundant_cols = list(set(cols) - set(cols_test))
-            missing_cols = list(set(cols_test) - set(cols))
+                matched_cols = sorted(list(set(cols) & set(cols_test)))
+                redundant_cols = list(set(cols) - set(cols_test))
+                missing_cols = list(set(cols_test) - set(cols))
 
-            for col in redundant_cols:
-                print(f'\tColumn {col} is redundant.')
-            for col in missing_cols:
-                print(f'\tColumn {col} is missing.')
+                for col in redundant_cols:
+                    print(f'\tColumn {col} is redundant.')
+                for col in missing_cols:
+                    print(f'\tColumn {col} is missing.')
 
-            # Make columns match
-            df = df[matched_cols]
-            df_test = df_test[matched_cols]
+                # Make columns match
+                df = df[matched_cols]
+                df_test = df_test[matched_cols]
 
-            # Round to avoid floating point errors
-            df = df.round(5)
-            df_test = df_test.round(5)
+                # Round to avoid floating point errors
+                df = df.round(5)
+                df_test = df_test.round(5)
 
-            test_failed = False
-            if not df_test.equals(df):
+                test_failed = False
+                if not df_test.equals(df):
 
-                if df_test.shape != df.shape:
-                    print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
-                    test_failed = True
+                    if df_test.shape != df.shape:
+                        print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
+                        test_failed = True
 
-                for col in df.columns:
-                    if pd.to_numeric(df[col], errors='coerce').notna().all():
-                        if not math.isclose(df[col].sum(), df_test[col].sum()):
-                            print(f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                    for col in df.columns:
+                        if pd.to_numeric(df[col], errors='coerce').notna().all():
+                            if not math.isclose(df[col].sum(), df_test[col].sum()):
+                                print(
+                                    f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                                test_failed = True
+                        else:
+                            if not set(df[col].unique()) == set(df_test[col].unique()):
+                                print(f'\tUnique values of {file} column {col} do not match.')
+                                test_failed = True
+
+                if test_failed:
+                    print(f'Test failed: {file}.')
+                else:
+                    print(f'Test passed: {file}.')
+        else:
+            print(f'cfg.testing.baseline_output_dir not set. Skipping baseline tests.')
+
+        ## Run tests with similar outputs to check for consistency, if given
+        if self.cfg['testing']['similar_output_dirs']:
+            for similar_output_dir in self.cfg['testing']['similar_output_dirs']:
+                print(f'\n\nRunning similarity tests with {similar_output_dir}.\n')
+                output_path_test_similar = os.path.join(similar_output_dir,
+                                                        subfolder_name)
+
+                # Get all files, sort and remove duplicates
+                files = ([f for f in self._list_csv_files(output_path)] +
+                         [f for f in self._list_csv_files(output_path_test_similar)])
+                files = list(set(files))
+                files.sort()
+
+                for file in files:
+
+                    if output_numbers is not None:
+                        if not any([re.match(f'0?{n}([a-z]*_)', file.split('\\')[-1]) for n in output_numbers]):
+                            continue
+                    try:
+                        df = pd.read_csv(os.path.join(output_path, file), low_memory=False)
+                    except FileNotFoundError:
+                        print(f'Implementation missing: {file}.')
+                        continue
+                    try:
+                        df_test = pd.read_csv(os.path.join(output_path_test_similar, file), low_memory=False)
+                    except FileNotFoundError:
+                        print(f'Test file missing: {file}.')
+                        continue
+
+                    cols = df.columns.to_list()
+                    cols_test = df_test.columns.to_list()
+
+                    matched_cols = sorted(list(set(cols) & set(cols_test)))
+                    redundant_cols = list(set(cols) - set(cols_test))
+                    missing_cols = list(set(cols_test) - set(cols))
+
+                    for col in redundant_cols:
+                        print(f'\tColumn {col} is redundant.')
+                    for col in missing_cols:
+                        print(f'\tColumn {col} is missing.')
+
+                    # Make columns match
+                    df = df[matched_cols]
+                    df_test = df_test[matched_cols]
+
+                    test_failed = False
+                    for col in df.columns:
+                        # Check if dtype of columns match
+                        if df[col].dtype != df_test[col].dtype:
+                            print(f'\tDtype of {file} column {col} does not match: {df[col].dtype} != '
+                                  f'{df_test[col].dtype}.')
                             test_failed = True
+                            continue
+
+                        # Check if ratio of nans is either 0, 1, or inbetween for both
+                        if ((df[col].isna().sum() / len(df[col])) != (df_test[col].isna().sum() / len(df_test[col])) and
+                                0 < (df[col].isna().sum() / len(df[col])) < 1):
+                            print(f'\tRatio of nans of {file} column {col} does not match: '
+                                  f'{df[col].isna().sum() / len(df[col])} != '
+                                  f'{df_test[col].isna().sum() / len(df_test[col])}.')
+                            test_failed = True
+                            continue
+
+                    if test_failed:
+                        print(f'Test failed: {file}.')
                     else:
-                        if not set(df[col].unique()) == set(df_test[col].unique()):
-                            print(f'\tUnique values of {file} column {col} do not match.')
-                            test_failed = True
+                        print(f'Test passed: {file}.')
 
-            if test_failed:
-                print(f'Test failed: {file}.')
-            else:
-                print(f'Test passed: {file}.')
+                print('Tests done.')
+        else:
+            print(f'cfg.testing.similar_output_dirs not set. Skipping similar tests.')

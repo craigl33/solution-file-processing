@@ -1,0 +1,28 @@
+[path]
+model_dir = 'U:/Code/dev_dirs/China/China proj 2023'
+soln_idx_path = 'U:/Code/dev_dirs/China/2023_02_03_generator_parameters_China_ETP_v1.5_separate_biomass_operational_class.xlsx'
+
+[model]
+soln_choice = '2023_03_05_pFLHnew'
+
+[settings]
+geo_cols = ['Region', 'Subregion']
+validation = false
+reg_ts = true
+
+[run]
+log_file_path = 'U:/Code/iea-rise/logs/CHN.log'
+log_timestamp = true
+variables_cache = true
+
+[testing]
+baseline_output_dir = false # There is no baseline output directory for China, was created with older R code
+similar_output_dirs = [
+    'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/',
+    'Y:/RED/Modelling/Thailand/2022-3_next_step_modelling/05_DataProcessing/20230626_THA_Base_LowerCO2p',
+]
+
+
+
+
+

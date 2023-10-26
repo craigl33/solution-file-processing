@@ -50,8 +50,8 @@ class Objects:
             try:
                 bat_yr_df = self.c.get_processed_object('year', 'batteries')
                 _df = dd.concat([_df, bat_yr_df], axis=0)
-            except KeyError:
-                print("No batteries for current scenarios")
+            except ValueError:
+                print("No batteries object exists. Will not be added to generators year dataframe.")
 
             # For WEO_tech simpl. probably should add something to soln_idx
             def _clean_weo_tech(x):
@@ -71,36 +71,39 @@ class Objects:
             except KeyError:
                 print("No WEO tech column")
 
-            # todo: Stuff not sure why it exists
-            # Cofiring change here!
-            # Due to memory allocation errors, additional columns from soln_idx are used and then discarded
-            cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
-                              ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
+            #
+            # Cofiring change: Update Category and CapacityCategory with data from Cofiring and CofiringCategory
+            #
 
-            # Add category
-            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
-            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def _update_category(df):
-                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
-                df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
-                return df
+            # todo not sure if this is always working
+            # todo why do we not merge Cofiring and CofiringCategory from soln_idx here similar to gen_df?
+            #   Harmonization with gen_df would be nice
 
-            # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(_update_category)
+            # Only add cofiring columns if they exist gen_yr_df
+            if 'Cofiring' in _df.columns and 'CofiringCategory' in _df.columns:
+                cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
+                                  ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
 
-            # And capacity category
-            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def _update_capacity_category(df):
-                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
-                df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
-                return df
+                def _update_category(df):
+                    condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                    df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
+                    return df
 
-            # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(_update_capacity_category)
+                # Update Category
+                _df = _df.map_partitions(_update_category)
 
-            # Drop additional columns for interval df
-            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+                def _update_capacity_category(df):
+                    condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                    df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
+                    return df
+
+                # Update CapacityCategory
+                _df = _df.map_partitions(_update_capacity_category)
+                # Drop both columns, since they are no longer needed
+                _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+
+            else:
+                print("No cofiring column in gen_yr_df. Skipping category and capacity category update.")
 
             self._gen_yr_df = _df
         return self._gen_yr_df
@@ -157,39 +160,44 @@ class Objects:
             try:
                 bat_df = self.c.get_processed_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
-            except KeyError:
-                print("No batteries objects")
+            except ValueError:
+                print("No batteries object exists. Will not be added to generators interval dataframe.")
 
-            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
-            _df = dd.merge(_df, self.c.soln_idx[['name', 'Cofiring', 'CofiringCategory']], on='name', how='left')
+            #
+            # Cofiring change: Update Category and CapacityCategory with data from Cofiring and CofiringCategory
+            #
 
-            cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
-                              ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
+            # todo not sure if this is always working
+            # Todo might should not be optional (China) and always be added to soln_idx
 
-            # Add category
-            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'Category'] = \
-            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def _update_category(df):
-                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
-                df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
-                return df
+            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'], errors='ignore')
+            # Only add cofiring columns if they exist in soln_idx
+            if 'Cofiring' in self.c.soln_idx.columns and 'CofiringCategory' in self.c.soln_idx.columns:
+                _df = dd.merge(_df, self.c.soln_idx[['name', 'Cofiring', 'CofiringCategory']], on='name', how='left')
+                cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
+                                  ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
 
-            # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(_update_category)
+                def _update_category(df):
+                    condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                    df.loc[condition, 'Category'] = df.loc[condition, 'CofiringCategory']
+                    return df
 
-            # And capacity category
-            # _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CapacityCategory'] = \
-            #     _df.loc[(_df.Cofiring == 'Y') & (_df.model.isin(cofiring_scens)), 'CofiringCategory']
-            def _update_capacity_category(df):
-                condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
-                df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
-                return df
+                # Update Category
+                _df = _df.map_partitions(_update_category)
 
-            # Use map_partitions to apply the function to each partition
-            _df = _df.map_partitions(_update_capacity_category)
+                def _update_capacity_category(df):
+                    condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
+                    df.loc[condition, 'CapacityCategory'] = df.loc[condition, 'CofiringCategory']
+                    return df
 
-            # Drop temp columns for interval df
-            _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+                # Update CapacityCategory
+                _df = _df.map_partitions(_update_capacity_category)
+
+                # Drop both columns, since they are no longer needed
+                _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
+
+            else:
+                print("No cofiring column in soln_idx. Skipping.")
 
             self._gen_df = _df
         return self._gen_df
@@ -226,8 +234,8 @@ class Objects:
             try:
                 bat_df = self.c.get_processed_object('interval', 'batteries')
                 _df = dd.concat([_df, bat_df], axis=0)
-            except KeyError:
-                print("No batteries objects")
+            except ValueError:
+                print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
 
             self._res_gen_df = _df
         return self._res_gen_df
@@ -239,7 +247,7 @@ class Objects:
         TODO Docstring
         """
         if self._purch_df is None:
-            self._purch_df = self.c.get_processed_object('interval', 'purchases')
+            self._purch_df = self.c.get_processed_object('interval', 'purchasers')
         return self._purch_df
 
 

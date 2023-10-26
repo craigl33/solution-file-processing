@@ -145,4 +145,4 @@ class _Logger(logging.Logger):
 
 
         # return
-log = _Logger('rise')
+log = _Logger('iea_rise')
