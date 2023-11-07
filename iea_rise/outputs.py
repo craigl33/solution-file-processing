@@ -1,5 +1,26 @@
 """
-TODO DOCSTRING
+This module, `outputs.py`, is responsible for all output files from the processed data. Those functions can be
+accessed from the package level, e.g. `iea_rise.outputs.create_year_output_1(c)`. They all need a `config` object as
+input, which has to be created first, e.g. `c = iea_rise.config.SolutionFilesConfig('path/to/config.yaml')`. 
+All underlying functions and data structures are accessed via the passed configuration object. See the class 
+documentation in solution_files.py for more information.
+
+Based on the settings in cfg['run']['catch_errors'], the functions will either raise an error or log a warning if
+something goes wrong.
+
+All functions in this file are completely independent from each other. They can be run in any order or skipped if
+not necessary for the analysis. Adding any new functions in any form can be done without impacting any other
+functionality. But keeping a similar structure is recommended. Also make sure to add the function to the list of
+functions below and add a Docstring to the function itself.
+
+The functions are split into two groups: year outputs and interval outputs. The year outputs are based on the 
+yearly aggregated data, while the interval outputs are based on the interval (hourly) data, which makes their
+underlying data structures much larger and their processing time much longer.
+
+More details on each function in the its Docstring, which can be accessed via `help(iea_rise.outputs.func_name)`.
+
+Year outputs:
+# todo needs list with short description and better docstrings for all functions
 """
 
 import os

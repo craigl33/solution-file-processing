@@ -1,5 +1,5 @@
-""""
-TODO docstring
+"""
+This module, 'utils.py', contains a collection of functions that are used in the other modules of the iea_rise package.
 """
 
 import os
@@ -14,7 +14,20 @@ print = log.info
 
 def caching(cache_type):
     """
-    TODO docstring
+    This is a decorator for caching the results of a function. It's specially designed for the methods in the
+    Objects and Variables classes in the caching.py file. This function can just be used as a decorator for any
+    of those methods (actually properties). The decorator will then cache the results of the function in a parquet
+    and load the results from the cache if the function is called again, instead of running the function again.
+    
+    The cache can be either a pandas DataFrame or a dask DataFrame, depending on whether the cache directory 
+    is a directory or a file.
+
+    Args:
+        cache_type (str): The type of cache to use. This is used to determine the subdirectory in the cache directory
+         where the results are stored. This can be either 'variables' or 'objects'.
+
+    Returns:
+        function: The wrapped function.
     """
 
     def _caching_decorator(func):
@@ -96,7 +109,7 @@ def silence_prints(enable: bool):
 
 def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
     """Basic function to walk through folder and return all files of a certain type containing specific text in its
-    name. Can return either a list of full paths or two lkists odf directories and filenames seperately depending on
+    name. Can return either a list of full paths or two lists odf directories and filenames separately depending on
      the argument return type =0/1"""
 
     searched_files = []
@@ -120,7 +133,7 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
 
 def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_names={}):
     """
-    TODO docstring
+    # todo this can probably be done more efficiently and completely removed
     """
 
     # Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)

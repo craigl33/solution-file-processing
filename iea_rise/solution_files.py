@@ -176,7 +176,20 @@ class SolutionFilesConfig:
 
     def _get_object(self, timescale, object):
         """
-        TODO DOCSTRING
+        Retrieves a specific object based on the provided timescale.
+        Does that by looping through all solution files (.h5) files in the 04_SolutionFiles folder and combining the
+        data for the specified object in a single DataFrame. The DataFrame is then processed very minimally to make it
+        more readable and usable. To allow for huge data sets, the data is processed and returned using Dask DataFrames.
+
+        Parameters:
+        timescale (str): The timescale to use when retrieving the object. Either 'interval' or 'year'.
+        object (str): The name of the object to retrieve. E.g., 'nodes', 'generators', 'regions'.
+
+        Returns:
+        dd.DataFrame: The retrieved data.
+
+        Raises:
+        ValueError: If no data is found for the specified object in any of the solution files.
         """
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
@@ -308,7 +321,7 @@ class SolutionFilesConfig:
                 assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
 
                 # Filter out regions with no generation nor load
-                # todo commented that out for now, since it was createing empty dataframes
+                # todo commented that out for now, since it was creating empty dataframes
                 # if (object == 'nodes') | (object == 'regions'):
                 #     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
             else:
