@@ -127,6 +127,10 @@ class SolutionFilesConfig:
         os.makedirs(self.DIR_05_DATA_PROCESSING, exist_ok=True)
         os.makedirs(self.DIR_05_1_SUMMARY_OUT, exist_ok=True)
         os.makedirs(self.DIR_05_2_TS_OUT, exist_ok=True)
+        os.makedirs(self.DIR_05_3_PLOTS, exist_ok=True)
+
+        # Define some constants for easier access
+        self.GEO_COLS = self.cfg['settings']['geo_cols']
 
         # Initialize caching system
         self.v = Variables(self)
@@ -153,6 +157,7 @@ class SolutionFilesConfig:
         directory. The H5 files are saved in the same directory. Existing H5 files are not overwritten, but skipped.
         Ensure that Julia and the H5PLEXOS library are installed and accessible in your environment.
         """
+        # todo maybe also allow .zips in nested folders to be converted
         from julia.api import Julia
 
         jl = Julia(compiled_modules=False)
@@ -270,8 +275,8 @@ class SolutionFilesConfig:
         # Filter out nodes that have zero load
         filter_reg_by_load = filter_reg_by_load[
             (filter_reg_by_load.property == 'Load') & (filter_reg_by_load.value != 0)]
-        filter_reg_by_gen = filter_reg_by_gen[self.cfg['settings']['geo_cols'][-1]].unique()
-        filter_reg_by_load = filter_reg_by_load[self.cfg['settings']['geo_cols'][-1]].unique()
+        filter_reg_by_gen = filter_reg_by_gen[self.GEO_COLS[-1]].unique()
+        filter_reg_by_load = filter_reg_by_load[self.GEO_COLS[-1]].unique()
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
@@ -289,8 +294,8 @@ class SolutionFilesConfig:
                 o_key = o_key[:-1]
 
                 # Remove unnecessary columns, so object_type can be removed for the o_idx
-            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
+            o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
+                     .drop(columns='Object_type'))
             if len(o_idx) > 0:
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
@@ -306,6 +311,9 @@ class SolutionFilesConfig:
                 # todo commented that out for now, since it was createing empty dataframes
                 # if (object == 'nodes') | (object == 'regions'):
                 #     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+            else:
+                raise ValueError(f'No generator parameters added for {object}. Could not find "{o_key}" in '
+                                 f'soln_idx.Object_type. Please add it to the SolutionIndex excel sheet.')
 
         elif timescale == 'year':
 
@@ -317,8 +325,8 @@ class SolutionFilesConfig:
                 o_key = o_key[:-1]
 
             # No need to filter out solnb_idx for the annual data as the size won't be an issue
-            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
+            o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
+                     .drop(columns='Object_type'))
             if len(o_idx) > 0:
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
@@ -329,10 +337,10 @@ class SolutionFilesConfig:
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                    df = df[df[self.GEO_COLS[-1]].isin(filter_regs)]
             else:
-                # todo make this a hard error, this should never happen
-                print(f"No generator parameters added for {object}. Could not find {o_key} in soln_idx['Object_type'].")
+                raise ValueError(f'No generator parameters added for {object}. Could not find "{o_key}" in '
+                                 f'soln_idx.Object_type. Please add it to the SolutionIndex excel sheet.')
 
         return df
 

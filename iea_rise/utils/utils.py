@@ -48,6 +48,29 @@ def caching(cache_type):
 
     return _caching_decorator
 
+def catch_errors(func):
+    """
+    Decorator to catch errors in functions and log them instead of crashing the program. This decorator can only be
+    used on functions that have a configuration object as the first argument. This is because the decorator needs to
+    access the configuration object (e.g. create output and create plot functions) to check if error catching is
+    enabled in the configuration file.
+    """
+
+    def _catch_errors_wrapper(*args, **kwargs):
+        # Extract the configuration object "c" from the arguments
+        c = args[0] if args else kwargs.get('c')
+
+        if c.cfg['run']['catch_errors']:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                log.error(f'Function {func.__name__} failed, because of {e}.', exc_info=True)
+
+        else:
+            return func(*args, **kwargs)
+
+    return _catch_errors_wrapper
+
 
 def silence_prints(enable: bool):
     """
@@ -99,15 +122,6 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
     """
     TODO docstring
     """
-    def _convert_to_datetime(partition, common_yr):
-        partition['timestamp'] = pd.to_datetime({
-            'Year': [common_yr] * len(partition),
-            'Month': partition.timestamp.dt.month.values,
-            'Day': partition.timestamp.dt.day.values,
-            'Hour': partition.timestamp.dt.hour.values,
-            'Minute': partition.timestamp.dt.minute.values
-        })
-        return partition
 
     # Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)
     if out_type == 'rel':
@@ -120,7 +134,7 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         df = dd.merge(df, soln_idx, left_on='name', right_on='name')
 
     if common_yr:
-        df = df.map_partitions(_convert_to_datetime, common_yr=common_yr)
+        df.Year = common_yr
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]

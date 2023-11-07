@@ -276,7 +276,7 @@ class Variables:
         """
         if self._gen_by_tech_reg_ts is None:
             self._gen_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'Category'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='Category') \
@@ -292,7 +292,7 @@ class Variables:
         """
         if self._gen_by_subtech_reg_ts is None:
             self._gen_by_subtech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'CapacityCategory'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model', 'CapacityCategory'] + self.c.GEO_COLS + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='CapacityCategory') \
@@ -351,18 +351,18 @@ class Variables:
         if self._net_load_reg_ts is None:
             customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
                                                     (self.c.o.node_df.property == 'Unserved Energy')] \
-                .groupby(['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
                 .sum() \
                 .value \
                 .compute() \
-                .unstack(level=self.c.cfg['settings']['geo_cols'])
+                .unstack(level=self.c.GEO_COLS)
             vre_av_reg_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
                                                 (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .groupby((['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp'])) \
+                .groupby((['model'] + self.c.GEO_COLS + ['timestamp'])) \
                 .sum() \
                 .value \
                 .compute() \
-                .unstack(level=self.c.cfg['settings']['geo_cols']).fillna(0)
+                .unstack(level=self.c.GEO_COLS).fillna(0)
 
             self._net_load_reg_ts = customer_load_reg_ts - vre_av_reg_abs_ts
 
