@@ -1,5 +1,5 @@
 """
-This module, 'utils.py', contains a collection of functions that are used in the other modules of the iea_rise package.
+This module, 'utils.py', contains a collection of functions that are used in the other modules of the solution_file_processing package.
 """
 
 import os

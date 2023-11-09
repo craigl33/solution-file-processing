@@ -1,4 +1,4 @@
-name: iea-rise
+name: solution-file-processing
 channels:
   - defaults
 dependencies:

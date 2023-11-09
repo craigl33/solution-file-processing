@@ -1,7 +1,7 @@
 """
 This module, `outputs.py`, is responsible for all output files from the processed data. Those functions can be
-accessed from the package level, e.g. `iea_rise.outputs.create_year_output_1(c)`. They all need a `config` object as
-input, which has to be created first, e.g. `c = iea_rise.config.SolutionFilesConfig('path/to/config.yaml')`. 
+accessed from the package level, e.g. `solution_file_processing.outputs.create_year_output_1(c)`. They all need a `config` object as
+input, which has to be created first, e.g. `c = solution_file_processing.config.SolutionFilesConfig('path/to/config.yaml')`.
 All underlying functions and data structures are accessed via the passed configuration object. See the class 
 documentation in solution_files.py for more information.
 
@@ -17,7 +17,7 @@ The functions are split into two groups: year outputs and interval outputs. The 
 yearly aggregated data, while the interval outputs are based on the interval (hourly) data, which makes their
 underlying data structures much larger and their processing time much longer.
 
-More details on each function in the its Docstring, which can be accessed via `help(iea_rise.outputs.func_name)`.
+More details on each function in the its Docstring, which can be accessed via `help(solution_file_processing.outputs.func_name)`.
 
 Year outputs:
 # todo needs list with short description and better docstrings for all functions

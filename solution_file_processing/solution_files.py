@@ -41,12 +41,12 @@ class SolutionFilesConfig:
 
     Example:
     ```
-    import iea_rise
-    config = iea_rise.SolutionFilesConfig('IDN.toml')
+    import solution_file_processing
+    config = solution_file_processing.SolutionFilesConfig('IDN.toml')
     config.install_dependencies()  # Only when running the first time
     config.convert_solution_files_to_h5()  # Only when running the first time
 
-    iea_rise.outputs.create_year_output_1(config)
+    solution_file_processing.outputs.create_year_output_1(config)
     ...
     ```
 
