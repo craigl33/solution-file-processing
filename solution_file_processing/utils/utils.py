@@ -1,5 +1,5 @@
-""""
-TODO docstring
+"""
+This module, 'utils.py', contains a collection of functions that are used in the other modules of the solution_file_processing package.
 """
 
 import os
@@ -14,7 +14,20 @@ print = log.info
 
 def caching(cache_type):
     """
-    TODO docstring
+    This is a decorator for caching the results of a function. It's specially designed for the methods in the
+    Objects and Variables classes in the caching.py file. This function can just be used as a decorator for any
+    of those methods (actually properties). The decorator will then cache the results of the function in a parquet
+    and load the results from the cache if the function is called again, instead of running the function again.
+    
+    The cache can be either a pandas DataFrame or a dask DataFrame, depending on whether the cache directory 
+    is a directory or a file.
+
+    Args:
+        cache_type (str): The type of cache to use. This is used to determine the subdirectory in the cache directory
+         where the results are stored. This can be either 'variables' or 'objects'.
+
+    Returns:
+        function: The wrapped function.
     """
 
     def _caching_decorator(func):
@@ -48,6 +61,29 @@ def caching(cache_type):
 
     return _caching_decorator
 
+def catch_errors(func):
+    """
+    Decorator to catch errors in functions and log them instead of crashing the program. This decorator can only be
+    used on functions that have a configuration object as the first argument. This is because the decorator needs to
+    access the configuration object (e.g. create output and create plot functions) to check if error catching is
+    enabled in the configuration file.
+    """
+
+    def _catch_errors_wrapper(*args, **kwargs):
+        # Extract the configuration object "c" from the arguments
+        c = args[0] if args else kwargs.get('c')
+
+        if c.cfg['run']['catch_errors']:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                log.error(f'{e.__class__.__name__} in {func.__name__}: {e}', exc_info=True)
+
+        else:
+            return func(*args, **kwargs)
+
+    return _catch_errors_wrapper
+
 
 def silence_prints(enable: bool):
     """
@@ -73,7 +109,7 @@ def silence_prints(enable: bool):
 
 def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
     """Basic function to walk through folder and return all files of a certain type containing specific text in its
-    name. Can return either a list of full paths or two lkists odf directories and filenames seperately depending on
+    name. Can return either a list of full paths or two lists odf directories and filenames separately depending on
      the argument return type =0/1"""
 
     searched_files = []
@@ -97,17 +133,8 @@ def get_files(root_folder, file_type, id_text, subfolder="", return_type=0):
 
 def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_names={}):
     """
-    TODO docstring
+    # todo this can probably be done more efficiently and completely removed
     """
-    def _convert_to_datetime(partition, common_yr):
-        partition['timestamp'] = pd.to_datetime({
-            'Year': [common_yr] * len(partition),
-            'Month': partition.timestamp.dt.month.values,
-            'Day': partition.timestamp.dt.day.values,
-            'Hour': partition.timestamp.dt.hour.values,
-            'Minute': partition.timestamp.dt.minute.values
-        })
-        return partition
 
     # Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)
     if out_type == 'rel':
@@ -119,8 +146,9 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         # Add soln idx
         df = dd.merge(df, soln_idx, left_on='name', right_on='name')
 
+    # Replace timestamp year with common year if provided
     if common_yr:
-        df = df.map_partitions(_convert_to_datetime, common_yr=common_yr)
+        df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]

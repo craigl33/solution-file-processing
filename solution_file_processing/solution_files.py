@@ -41,12 +41,12 @@ class SolutionFilesConfig:
 
     Example:
     ```
-    import iea_rise
-    config = iea_rise.SolutionFilesConfig('IDN.toml')
+    import solution_file_processing
+    config = solution_file_processing.SolutionFilesConfig('IDN.toml')
     config.install_dependencies()  # Only when running the first time
     config.convert_solution_files_to_h5()  # Only when running the first time
 
-    iea_rise.outputs.create_year_output_1(config)
+    solution_file_processing.outputs.create_year_output_1(config)
     ...
     ```
 
@@ -117,16 +117,19 @@ class SolutionFilesConfig:
                                          self.cfg['model']['soln_choice'])
         self.DIR_05_DATA_PROCESSING = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
                                                    self.cfg['model']['soln_choice'])
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                                 self.cfg['model']['soln_choice'], 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                            self.cfg['model']['soln_choice'], 'timeseries_out')
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'timeseries_out')
+        self.DIR_05_3_PLOTS = os.path.join(self.DIR_05_DATA_PROCESSING, 'plots')
 
         # Create all necessary directories
         os.makedirs(self.DIR_04_CACHE, exist_ok=True)
         os.makedirs(self.DIR_05_DATA_PROCESSING, exist_ok=True)
         os.makedirs(self.DIR_05_1_SUMMARY_OUT, exist_ok=True)
         os.makedirs(self.DIR_05_2_TS_OUT, exist_ok=True)
+        os.makedirs(self.DIR_05_3_PLOTS, exist_ok=True)
+
+        # Define some constants for easier access
+        self.GEO_COLS = self.cfg['settings']['geo_cols']
 
         # Initialize caching system
         self.v = Variables(self)
@@ -153,6 +156,7 @@ class SolutionFilesConfig:
         directory. The H5 files are saved in the same directory. Existing H5 files are not overwritten, but skipped.
         Ensure that Julia and the H5PLEXOS library are installed and accessible in your environment.
         """
+        # todo maybe also allow .zips in nested folders to be converted
         from julia.api import Julia
 
         jl = Julia(compiled_modules=False)
@@ -171,7 +175,20 @@ class SolutionFilesConfig:
 
     def _get_object(self, timescale, object):
         """
-        TODO DOCSTRING
+        Retrieves a specific object based on the provided timescale.
+        Does that by looping through all solution files (.h5) files in the 04_SolutionFiles folder and combining the
+        data for the specified object in a single DataFrame. The DataFrame is then processed very minimally to make it
+        more readable and usable. To allow for huge data sets, the data is processed and returned using Dask DataFrames.
+
+        Parameters:
+        timescale (str): The timescale to use when retrieving the object. Either 'interval' or 'year'.
+        object (str): The name of the object to retrieve. E.g., 'nodes', 'generators', 'regions'.
+
+        Returns:
+        dd.DataFrame: The retrieved data.
+
+        Raises:
+        ValueError: If no data is found for the specified object in any of the solution files.
         """
         if timescale not in ['interval', 'year']:
             raise ValueError('type must be either "interval" or "year"')
@@ -270,8 +287,8 @@ class SolutionFilesConfig:
         # Filter out nodes that have zero load
         filter_reg_by_load = filter_reg_by_load[
             (filter_reg_by_load.property == 'Load') & (filter_reg_by_load.value != 0)]
-        filter_reg_by_gen = filter_reg_by_gen[self.cfg['settings']['geo_cols'][-1]].unique()
-        filter_reg_by_load = filter_reg_by_load[self.cfg['settings']['geo_cols'][-1]].unique()
+        filter_reg_by_gen = filter_reg_by_gen[self.GEO_COLS[-1]].unique()
+        filter_reg_by_load = filter_reg_by_load[self.GEO_COLS[-1]].unique()
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
@@ -289,8 +306,8 @@ class SolutionFilesConfig:
                 o_key = o_key[:-1]
 
                 # Remove unnecessary columns, so object_type can be removed for the o_idx
-            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
+            o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
+                     .drop(columns='Object_type'))
             if len(o_idx) > 0:
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
@@ -303,9 +320,12 @@ class SolutionFilesConfig:
                 assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
 
                 # Filter out regions with no generation nor load
-                # todo commented that out for now, since it was createing empty dataframes
+                # todo commented that out for now, since it was creating empty dataframes
                 # if (object == 'nodes') | (object == 'regions'):
                 #     df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+            else:
+                raise ValueError(f'No generator parameters added for {object}. Could not find "{o_key}" in '
+                                 f'soln_idx.Object_type. Please add it to the SolutionIndex excel sheet.')
 
         elif timescale == 'year':
 
@@ -317,8 +337,8 @@ class SolutionFilesConfig:
                 o_key = o_key[:-1]
 
             # No need to filter out solnb_idx for the annual data as the size won't be an issue
-            o_idx = self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key].drop(
-                columns='Object_type')
+            o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
+                     .drop(columns='Object_type'))
             if len(o_idx) > 0:
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
@@ -329,10 +349,10 @@ class SolutionFilesConfig:
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
-                    df = df[df[self.cfg['settings']['geo_cols'][-1]].isin(filter_regs)]
+                    df = df[df[self.GEO_COLS[-1]].isin(filter_regs)]
             else:
-                # todo make this a hard error, this should never happen
-                print(f"No generator parameters added for {object}. Could not find {o_key} in soln_idx['Object_type'].")
+                raise ValueError(f'No generator parameters added for {object}. Could not find "{o_key}" in '
+                                 f'soln_idx.Object_type. Please add it to the SolutionIndex excel sheet.')
 
         return df
 

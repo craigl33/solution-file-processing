@@ -1,9 +1,9 @@
 [path]
-model_dir = 'U:/data/China/China proj 2023'
-soln_idx_path = 'U:/data/China/2023_02_03_generator_parameters_China_ETP_v1.5_separate_biomass_operational_class.xlsx'
+model_dir = 'U:/data/Korea/Market design 2021'
+soln_idx_path = 'U:/data/Korea/2022_07_22_generator_parameters_for_stochastic_2035_APS_cost_stochastic.xlsx'
 
 [model]
-soln_choice = '2023_03_05_pFLHnew'
+soln_choice = '2023_06_02_main_reproc'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
@@ -11,7 +11,7 @@ validation = false
 reg_ts = true
 
 [run]
-log_file_path = 'U:/code/solution-file-processing/logs/CHN.log'
+log_file_path = 'U:/code/solution-file-processing/logs/KOR.log'
 log_timestamp = true
 variables_cache = true
 catch_errors = true

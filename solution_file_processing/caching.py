@@ -15,7 +15,37 @@ print = log.info
 
 class Objects:
     """
-    TODO Docstring
+    This is class handles the complete data access to any Object of the SolutionFile data.
+    
+    It provides various functionality and the only thing to be done to retrieve the relevant data is to call the
+    corresponding property. To retrieve the annual generator data, just call the gen_yr_df property of the 
+    class (e.g. o.gen_yr_df).
+
+    If this is the first time the property is called, the data is loaded from the SolutionFiles (h5) based on the 
+    configuration. And sometimes also processed based on the provided code below. The processed data is then stored 
+    in the cache folder (04_SolutionFilesCache/<soln_choice>/objects/) and the next time the property is called, 
+    the data is loaded from the cache folder and not processed again. If the data in the cache folder is deleted, 
+    the data is processed again. To reprocess the data, just delete the data in the cache folder.
+    
+    If other or new objects are needed, just add them to the class in a similar way as the existing properties.
+    There just needs to be a corresponding property in the SolutionFiles (.h5 files). Also add them to the
+    list below and provide a docstring for the property.
+
+    To get more information about the Objects, please also refer to the properties docstring.
+    
+    Currently, the following properties are available:
+
+    gen_yr_df: Annual generator data
+    em_gen_yr_df: Annual emissions generator data
+    node_yr_df: Annual node data
+    line_yr_df: Annual line data
+    fuelcontract_yr_df: Annual fuel contract data
+    gen_df: Interval generator data
+    node_df: Interval node data
+    reg_df: Interval region data
+    res_gen_df: Interval reserves generator data
+    purch_df: Interval purchaser data
+
     """
 
     def __init__(self, configuration_object):
@@ -252,8 +282,40 @@ class Objects:
 
 
 class Variables:
-    """"
-    TODO Docstring
+    """
+    This is class handles the complete data access to any Variable and works very similar to the Objects class.
+
+    A variable is an optional data object that can but must not be used. It is just an option to cache any processing
+    steps which are taken on a single or multiple objects. 
+    
+    This could be also be done over and over again in the code of the calling function (e.g. create outputs or 
+    plots functions in outputs.py and plots.py). But this needs a lot of processing time, specially during the 
+    development phase of new output and plot functions. To avoid this, the processing steps can be added to this
+    Variables class and the result is cached in the cache folder (04_SolutionFilesCache/<soln_choice>/variables/).
+    
+    Similar to the Object class, the data is loaded from the cache folder if it exists and not processed again. If
+    the data in the cache folder is deleted, the data is processed again. To reprocess the data, just delete the
+    data in the cache folder.
+
+    Again any new variables can be added to the class in a similar way as the existing properties. There is also no 
+    limitation, any processing steps can be added. And the underlying objects must exist in the Objects class. Since 
+    the full data is stored in the cache folder for each variable, selecting code parts which are added to this class
+    must be done thoughtfully. If a variable (the specific code) is only used for a single output or plot function and
+    the caching functionality is not needed, it should be added to the output or plot function directly.
+
+    To get more information about the Variables, please also refer to the properties docstring.
+    
+    Currently, the following properties are available:
+
+    time_idx: # todo
+    gen_by_tech_reg_ts: # todo 
+    gen_by_subtech_reg_ts: # todo
+    customer_load_ts: # todo
+    vre_av_abs_ts: # todo
+    net_load_ts: # todo 
+    net_load_reg_ts: # todo
+    gen_inertia: # todo
+
     """
 
     def __init__(self, configuration_object):
@@ -276,7 +338,7 @@ class Variables:
         """
         if self._gen_by_tech_reg_ts is None:
             self._gen_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'Category'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='Category') \
@@ -292,7 +354,7 @@ class Variables:
         """
         if self._gen_by_subtech_reg_ts is None:
             self._gen_by_subtech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'CapacityCategory'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model', 'CapacityCategory'] + self.c.GEO_COLS + ['timestamp']) \
                 .agg({'value': 'sum'}) \
                 .compute() \
                 .unstack(level='CapacityCategory') \
@@ -351,18 +413,18 @@ class Variables:
         if self._net_load_reg_ts is None:
             customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
                                                     (self.c.o.node_df.property == 'Unserved Energy')] \
-                .groupby(['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']) \
+                .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
                 .sum() \
                 .value \
                 .compute() \
-                .unstack(level=self.c.cfg['settings']['geo_cols'])
+                .unstack(level=self.c.GEO_COLS)
             vre_av_reg_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
                                                 (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .groupby((['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp'])) \
+                .groupby((['model'] + self.c.GEO_COLS + ['timestamp'])) \
                 .sum() \
                 .value \
                 .compute() \
-                .unstack(level=self.c.cfg['settings']['geo_cols']).fillna(0)
+                .unstack(level=self.c.GEO_COLS).fillna(0)
 
             self._net_load_reg_ts = customer_load_reg_ts - vre_av_reg_abs_ts
 
