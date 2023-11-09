@@ -77,7 +77,7 @@ def catch_errors(func):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log.error(f'Function {func.__name__} failed, because of {e}.', exc_info=True)
+                log.error(f'{e.__class__.__name__} in {func.__name__}: {e}', exc_info=True)
 
         else:
             return func(*args, **kwargs)
@@ -146,8 +146,9 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         # Add soln idx
         df = dd.merge(df, soln_idx, left_on='name', right_on='name')
 
+    # Replace timestamp year with common year if provided
     if common_yr:
-        df.Year = common_yr
+        df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]

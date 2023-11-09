@@ -64,10 +64,16 @@ def create_year_output_1(c):
     customer_load_by_reg = customer_load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
 
     os.makedirs(c.DIR_05_1_SUMMARY_OUT, exist_ok=True)
-    load_by_reg.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01a_load_by_reg.csv'), index=False)
-    customer_load_by_reg.assign(units='GWh').reset_index() \
-        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01b_customer_load_by_reg.csv'), index=False)
+
+    (load_by_reg.assign(units='GWh')
+     .reset_index()
+     .sort_values(by=['model'])
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01a_load_by_reg.csv'), index=False))
+
+    (customer_load_by_reg.assign(units='GWh')
+     .reset_index()
+     .sort_values(by=['model'])
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '01b_customer_load_by_reg.csv'), index=False))
 
     print(f'Saved file 01a_load_by_reg.csv.')
     print(f'Saved file 01b_customer_load_by_reg.csv.')

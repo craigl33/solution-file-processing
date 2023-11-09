@@ -117,10 +117,9 @@ class SolutionFilesConfig:
                                          self.cfg['model']['soln_choice'])
         self.DIR_05_DATA_PROCESSING = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
                                                    self.cfg['model']['soln_choice'])
-        self.DIR_05_1_SUMMARY_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                                 self.cfg['model']['soln_choice'], 'summary_out')
-        self.DIR_05_2_TS_OUT = os.path.join(self.cfg['path']['model_dir'], '05_DataProcessing',
-                                            self.cfg['model']['soln_choice'], 'timeseries_out')
+        self.DIR_05_1_SUMMARY_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'summary_out')
+        self.DIR_05_2_TS_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'timeseries_out')
+        self.DIR_05_3_PLOTS = os.path.join(self.DIR_05_DATA_PROCESSING, 'plots')
 
         # Create all necessary directories
         os.makedirs(self.DIR_04_CACHE, exist_ok=True)
