@@ -51,7 +51,8 @@ class SolutionFilesConfig:
     ```
 
     Args:
-        config_name (str): The name of the configuration file to use for settings.
+        config_name (str): The name of the configuration file to use for settings. This can be a relative path to the
+            file or an absolute path.
 
     Attributes:
         config_name (str): The name of the configuration file.
@@ -80,21 +81,11 @@ class SolutionFilesConfig:
         self.config_name = config_name
         # Load the configuration
         try:
-            # Check if config_name is absolute path
-            if os.path.isabs(config_name):
-                with open(config_name, 'r') as f:
-                    self.cfg = toml.load(f)
-            else:
-                with open(os.path.join('configs', config_name), 'r') as f:
-                    self.cfg = toml.load(f)
+            with open(config_name, 'r') as f:
+                self.cfg = toml.load(f)
         except FileNotFoundError:
-            if os.path.isabs(config_name):
-                config_dir_path = os.path.dirname(config_name)
-            else:
-                # Get absolute path to dir
-                config_dir_path = os.path.dirname(os.path.abspath(os.path.join('configs', config_name)))
             raise FileNotFoundError(f'Could not find configuration file {os.path.basename(config_name)} in '
-                                    f'{config_dir_path}.')
+                                    f'{os.path.abspath(config_name)}.')
 
         ## Apply configurations
         # For logging
@@ -104,6 +95,7 @@ class SolutionFilesConfig:
                 timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
                 log_file_path = os.path.join(os.path.dirname(log_file_path),
                                              f'{timestamp}-{os.path.basename(log_file_path)}')
+                log_file_path = os.path.normpath(log_file_path)
             log.change_log_file_path(log_file_path)
             print(f'Logging to {log_file_path}.')
 
@@ -386,7 +378,7 @@ class SolutionFilesConfig:
                                    self.cfg['model']['soln_choice'],
                                    subfolder_name)
 
-        ## Run tests with baseline path if given
+        # Run tests with baseline path if given
         if self.cfg['testing']['baseline_output_dir']:
             print(f'\n\nRunning baseline tests with {self.cfg["testing"]["baseline_output_dir"]}.\n')
 
@@ -460,7 +452,7 @@ class SolutionFilesConfig:
         else:
             print(f'cfg.testing.baseline_output_dir not set. Skipping baseline tests.')
 
-        ## Run tests with similar outputs to check for consistency, if given
+        # Run tests with similar outputs to check for consistency, if given
         if self.cfg['testing']['similar_output_dirs']:
             for similar_output_dir in self.cfg['testing']['similar_output_dirs']:
                 print(f'\n\nRunning similarity tests with {similar_output_dir}.\n')
