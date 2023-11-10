@@ -1,3 +1,5 @@
+# The paths are based on the personal U: drive and will need to be changed for other users
+
 [path]
 model_dir = 'U:/data/Korea/Market design 2021'
 soln_idx_path = 'U:/data/Korea/2022_07_22_generator_parameters_for_stochastic_2035_APS_cost_stochastic.xlsx'
@@ -11,6 +13,7 @@ validation = false
 reg_ts = true
 
 [run]
+working_dir = 'U:/code/solution-file-processing'
 log_file_path = 'U:/code/solution-file-processing/logs/KOR.log'
 log_timestamp = true
 variables_cache = true
@@ -22,8 +25,3 @@ similar_output_dirs = [
     'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/',
     'Y:/RED/Modelling/Thailand/2022-3_next_step_modelling/05_DataProcessing/20230626_THA_Base_LowerCO2p',
 ]
-
-
-
-
-

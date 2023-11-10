@@ -1,3 +1,5 @@
+# The paths are based on the personal U: drive and will need to be changed for other users
+
 [path]
 model_dir = 'U:/data/Thailand/2022-3_next_step_modelling'
 soln_idx_path = 'U:/data/Thailand/2023_03_14_generator_parameters_THA.xlsx'
@@ -11,6 +13,7 @@ validation = false
 reg_ts = true
 
 [run]
+working_dir = 'U:/code/solution-file-processing'
 log_file_path = 'U:/code/solution-file-processing/logs/THA.log'
 log_timestamp = true
 variables_cache = true

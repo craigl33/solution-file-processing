@@ -1,11 +1,23 @@
-# solution-file processing
+# solution-file-processing
 A package for easier processing of the PLEXOS solution files.
 
-## Table of Contents
+## Description
+This package is used to process the PLEXOS solution files. It can be used to unarchive the created .zip files, convert them to .h5 files and create outputs and plots from them. Since those files can be quite large, the code uses a caching system to process and save needed objects and variables. Variables is just data from objects which have been processed. All those potentially massive data objects are processed with [dask](https://www.dask.org/) for to avoid any memory overflow and better efficency. In the respective functions to create plots and outputs, these are transformed back into pandas DataFrames. 
 
-- [Setup](#setup)
-- [Usage](#usage)
-- [Troubleshooting](#troubleshooting)
+## Documentation
+- [General project information](docs/Documentation.md#general-project-information)
+   - [Project structure](docs/Documentation.md#project-structure)
+   - [Configuration file](docs/Documentation.md#configuration-file)
+   - [Model directory](docs/Documentation.md#model-directory)
+
+- [Contribution](docs/Documentation.md#contribution)
+   - [Add new variables and objects](docs/Documentation.md#add-new-variables-and-objects)
+      - [Objects](docs/Documentation.md#objects)
+      - [Variables](docs/Documentation.md#variables)
+   - [Add new outputs](docs/Documentation.md#add-new-outputs)
+   
+- [Setup process](docs/Documentation.md#setup-process)
+   - [Troubleshooting](docs/Documentation.md#troubleshooting)
 
 ## Setup
 Just clone the repository to create a local copy:
@@ -24,7 +36,7 @@ This creates a conda environment named `solution-file-processing` and installs a
 
 That's it. Julia needs also to be installed on the system and if Julia should be used within python (only for unpacking the .zips to .h5 files) it also has to be initialized within python. There is a function for that in the code.
 
-If problems occur, see the [Troubleshooting](#troubleshooting) section below.
+If problems occur, see the [Troubleshooting](/docs/Troubleshooting.md) page for more information.
 
 ## Usage
 In the same project folder, create a new python file and import the package:
@@ -43,31 +55,3 @@ To create new outputs or plots run any function from `plots.py` or `outputs.py` 
     
     sfp.plots.create_year_output_1(config)
     sfp.outputs.create_plot_1(config)
-
-## Needs documentation
-#todo A list of things to write documentation for. Could also be moved to docs folder:
-
-- Project structure
-- Config file explanation
-- How to add new outputs
-
-
-## Troubleshooting
-#todo put that in docs folder
-The process above should work usually. But in case it does not, here are some things to check:
-1. IEA Proxy
-   - Pip, Conda and also Julia need the IEA proxy to install packages.
-   - For pip: You always have to pass the proxy as an argument: `python -m pip install --proxy http://proxy.iea.org:8080 <package>`
-   - For conda: You can set them up globally: `conda config --set proxy_servers.http http://proxy.iea.org:8080` and `conda config --set proxy_servers.https http://proxy.iea.org:8080`
-   - For julia: Open the julia console and run `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"` and `ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
-2. Julia PATH variable
-   - Julia needs to be installed on the system, so it can be called from python.
-   - If it is installed but python can not find it, it is most likely not in the PATH variable. Add the bin/julia.exe folder to the PATH variable (e.g. `C:\Users\TRIPPE_L\AppData\Local\Programs\Julia\Julia-1.4.2\bin`). See [here](https://www.java.com/en/download/help/path.html) for how se tup a PATH variable in windows.
-3. Julia registry/ packages missing
-   - Sometimes the Julia registry is not linked or there are packages missing. To check or install them run:
-     - Open julia console and run pkg mode: press `]`
-     - `registry add https://github.com/NREL/JuliaRegistry.git`
-     - `add H5PLEXOS`
-     - `add ZipFile`
-
-Also check the [Knowledge Database](https://github.com/rise-iea/knowledge-database) for more information.
