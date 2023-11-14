@@ -60,9 +60,6 @@ def create_year_output_1(c):
         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
         .agg({'value': 'sum'})
 
-    load_by_reg = load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
-    customer_load_by_reg = customer_load_by_reg.compute()  # Change dd.DataFrame back to pd.DataFrame
-
     os.makedirs(c.DIR_05_1_SUMMARY_OUT, exist_ok=True)
 
     (load_by_reg.assign(units='GWh')
@@ -88,12 +85,11 @@ def create_year_output_2(c):
     - 02b_use_reg_daily_ts.csv
     """
     print('Creating output 2...')
-    _node_yr_df = c.o.node_yr_df.compute()  # Change dd.DataFrame back to pd.DataFrame
 
-    use_by_reg = _node_yr_df[_node_yr_df.property == 'Unserved Energy'] \
+    use_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Unserved Energy'] \
         .groupby(['model'] + c.GEO_COLS) \
         .agg({'value': 'sum'})
-    use_reg_daily_ts = _node_yr_df[_node_yr_df.property == 'Unserved Energy'] \
+    use_reg_daily_ts = c.o.node_yr_df[c.o.node_yr_df.property == 'Unserved Energy'] \
         .groupby(['model'] + c.GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]) \
         .agg({'value': 'sum'})
 
@@ -133,7 +129,6 @@ def create_year_output_5(c):
     unit_starts_by_tech = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Units Started'] \
         .groupby(['model', 'Category']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level='Category')
 
     unit_starts_by_tech.stack().assign(units='starts').reset_index().to_csv(
@@ -174,7 +169,6 @@ def create_year_output_7(c):
     tx_losses = c.o.line_yr_df[c.o.line_yr_df.property == 'Loss'] \
         .groupby(['model', 'timestamp', 'name']) \
         .agg({'value': 'sum'}) \
-        .compute()
 
     tx_losses.assign(units='GWh').reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '07_tx_losses.csv'), index=False)
@@ -212,7 +206,6 @@ def create_year_output_8(c):
                             (c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
         .groupby(['model', 'Category'] + c.GEO_COLS) \
         .agg({'value': 'max'}) \
-        .compute() \
         .unstack('Category') \
         .fillna(0) \
         .stack('Category') \
@@ -233,8 +226,8 @@ def create_year_output_8(c):
         .apply(lambda x: x * hour_corr)
 
     # ### Add zero values to regions without VRE
-    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(c.GEO_COLS).columns)),
-                               index=load_by_reg.compute().unstack(c.GEO_COLS).columns)
+    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(c.GEO_COLS).columns)),
+                               index=load_by_reg.unstack(c.GEO_COLS).columns)
     vre_cap = (vre_cap * geo_col_filler).fillna(0)
     vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
 
@@ -309,8 +302,8 @@ def create_year_output_9(c):
         .apply(lambda x: x * hour_corr)
 
     # Add zero values to regions without VRE
-    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.compute().unstack(c.GEO_COLS).columns)),
-                               index=load_by_reg.compute().unstack(c.GEO_COLS).columns)
+    geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(c.GEO_COLS).columns)),
+                               index=load_by_reg.unstack(c.GEO_COLS).columns)
     vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
     vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
 
@@ -361,14 +354,9 @@ def create_year_output_9(c):
 
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
-    try:
-        vre_curtailed_grouped = vre_curtailed.groupby('Island', axis=1).sum()
-    except:
-        vre_curtailed_grouped = vre_curtailed
-    try:
-        vre_av_abs_grouped = vre_av_abs.groupby('Island', axis=1).sum()
-    except:
-        vre_av_abs_grouped = vre_av_abs
+
+    vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
+    vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
 
     curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
                             vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
@@ -410,14 +398,13 @@ def create_year_output_10(c):
                               (c.o.line_yr_df.property == 'Export Limit')] \
         .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level='property')
 
     line_imp_exp = c.o.line_yr_df[(c.o.line_yr_df.property == 'Flow') | \
                                   (c.o.line_yr_df.property == 'Flow Back')] \
         .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
         .agg({'value': 'sum'}) \
-        .compute().unstack(level='property')
+        .unstack(level='property')
 
     ####
     line_cap_isl = line_cap.reset_index()
@@ -481,14 +468,12 @@ def create_year_output_11(c):
     gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
         .groupby(['model'] + c.GEO_COLS + ['Category']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
     gen_cap_tech_reg_IPPs = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
         .groupby(['model'] + c.GEO_COLS + ['IPP', 'Category']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
@@ -498,7 +483,6 @@ def create_year_output_11(c):
     gen_cap_subtech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
         .groupby(['model'] + c.GEO_COLS + ['CapacityCategory']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
@@ -506,7 +490,6 @@ def create_year_output_11(c):
     gen_cap_costTech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
         .groupby(['model'] + c.GEO_COLS + ['CostCategory']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
@@ -568,7 +551,6 @@ def create_year_output_12(c):
     gen_by_tech_reg_orig = gen_by_tech_reg_orig \
         .groupby(['model'] + c.GEO_COLS + ['Category']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
@@ -577,7 +559,6 @@ def create_year_output_12(c):
     gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
         .groupby(['model'] + c.GEO_COLS + ['Category']) \
         .agg({'value': 'sum'}) \
-        .compute() \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
@@ -630,7 +611,7 @@ def create_year_output_13(c):
     def get_parent(x):
         return x if '_' not in x else x.split('_')[0]
 
-    em_by_type_tech_reg.parent = em_by_type_tech_reg.parent.apply(get_parent, meta=('parent', 'object'))
+    em_by_type_tech_reg.parent = em_by_type_tech_reg.parent.apply(get_parent)
 
     co2_by_tech_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2') &
                                        (c.o.em_gen_yr_df.property == 'Production')] \
@@ -645,12 +626,10 @@ def create_year_output_13(c):
     co2_by_tech_reg \
         .assign(units='tonnes') \
         .reset_index() \
-        .compute() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '13a_co2_by_tech_reg.csv'), index=False)
     co2_by_reg \
         .assign(units='tonnes') \
         .reset_index() \
-        .compute() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '13b_co2_by_reg.csv'), index=False)
 
     print("Done.")
@@ -1460,6 +1439,11 @@ def create_interval_output_7(c):
 def create_interval_output_8i(c):
     """
     # ### Output 8: Inertia (total)
+    Creates following output files:
+    - 08a_inertia_by_tech_ts.csv
+    - 08b_inertia_by_isl_ts.csv
+    - 08c_inertia_by_reg_ts.csv
+    - 08d_total_inertia_ts.csv
     """
     print("Creating interval output 8i)...")
 
@@ -1494,6 +1478,15 @@ def create_interval_output_8i(c):
 def create_interval_output_8ii(c):
     """
     # Output 9: Ramp time-series
+    Creates following output files:
+    - 08a_ramp_ts.csv
+    - 08b_3hr_ramp_ts.csv
+    - 08c_ramp_pc_ts.csv
+    - 08d_3hr_ramp_pc_ts.csv
+    - 08e_ramp_by_gen_tech_ts.csv
+    - 08f_ramp_by_gen_subtech_ts.csv
+    - 08g_3hr_ramp_by_gen_tech_ts.csv
+    - 08g_3hr_ramp_reg_pc_ts.csv
     """
     print("Creating interval output 8ii)...")
     customer_load_ts = c.o.reg_df[

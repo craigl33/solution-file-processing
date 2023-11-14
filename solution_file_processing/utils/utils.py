@@ -148,7 +148,11 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
 
     # Replace timestamp year with common year if provided
     if common_yr:
-        df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
+        if isinstance(df, dd.DataFrame):
+            df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
+        else:
+            df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr))
+
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]
@@ -161,6 +165,10 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
             x.split('Model ')[-1].split(' Solution.h5')[0])
         return partition
 
-    df = df.map_partitions(_prettify_model_names)
+    # Check if df is pandas or dask
+    if isinstance(df, pd.DataFrame):
+        df = _prettify_model_names(df)
+    elif isinstance(df, dd.DataFrame):
+        df = df.map_partitions(_prettify_model_names)
 
     return df

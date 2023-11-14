@@ -75,11 +75,11 @@ class Objects:
         TODO Docstring
         """
         if self._gen_yr_df is None:
-            _df = self.c.get_processed_object('year', 'generators')
+            _df = self.c.get_processed_object('year', 'generators', return_type='pandas')
 
             try:
-                bat_yr_df = self.c.get_processed_object('year', 'batteries')
-                _df = dd.concat([_df, bat_yr_df], axis=0)
+                bat_yr_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+                _df = pd.concat([_df, bat_yr_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to generators year dataframe.")
 
@@ -120,7 +120,10 @@ class Objects:
                     return df
 
                 # Update Category
-                _df = _df.map_partitions(_update_category)
+                if isinstance(_df, pd.DataFrame):
+                    _df = _update_category(_df)
+                else:
+                    _df = _df.map_partitions(_update_category)
 
                 def _update_capacity_category(df):
                     condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
@@ -128,7 +131,11 @@ class Objects:
                     return df
 
                 # Update CapacityCategory
-                _df = _df.map_partitions(_update_capacity_category)
+                if isinstance(_df, dd.DataFrame):
+                    _df = _df.map_partitions(_update_capacity_category)
+                else:
+                    _df = _update_capacity_category(_df)
+
                 # Drop both columns, since they are no longer needed
                 _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
 
@@ -145,7 +152,7 @@ class Objects:
         TODO Docstring
         """
         if self._em_gen_yr_df is None:
-            self._em_gen_yr_df = self.c.get_processed_object('year', 'emissions_generators')
+            self._em_gen_yr_df = self.c.get_processed_object('year', 'emissions_generators', return_type='pandas')
         return self._em_gen_yr_df
 
     @property
@@ -155,7 +162,7 @@ class Objects:
         TODO Docstring
         """
         if self._node_yr_df is None:
-            self._node_yr_df = self.c.get_processed_object('year', 'nodes')
+            self._node_yr_df = self.c.get_processed_object('year', 'nodes', return_type='pandas')
         return self._node_yr_df
 
     @property
@@ -165,7 +172,7 @@ class Objects:
         TODO Docstring
         """
         if self._line_yr_df is None:
-            self._line_yr_df = self.c.get_processed_object('year', 'lines')
+            self._line_yr_df = self.c.get_processed_object('year', 'lines', return_type='pandas')
         return self._line_yr_df
 
     @property
@@ -175,7 +182,7 @@ class Objects:
         TODO Docstring
         """
         if self._fuelcontract_yr_df is None:
-            self._fuelcontract_yr_df = self.c.get_processed_object('year', 'fuelcontracts')
+            self._fuelcontract_yr_df = self.c.get_processed_object('year', 'fuelcontracts', return_type='pandas')
         return self._fuelcontract_yr_df
 
     @property
@@ -185,10 +192,10 @@ class Objects:
         TODO Docstring
         """
         if self._gen_df is None:
-            _df = self.c.get_processed_object('interval', 'generators')
+            _df = self.c.get_processed_object('interval', 'generators', return_type='dask')
 
             try:
-                bat_df = self.c.get_processed_object('interval', 'batteries')
+                bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
                 _df = dd.concat([_df, bat_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to generators interval dataframe.")
@@ -239,7 +246,7 @@ class Objects:
         TODO Docstring
         """
         if self._node_df is None:
-            self._node_df = self.c.get_processed_object('interval', 'nodes')
+            self._node_df = self.c.get_processed_object('interval', 'nodes', return_type='dask')
         return self._node_df
 
     @property
@@ -249,7 +256,7 @@ class Objects:
         TODO Docstring
         """
         if self._reg_df is None:
-            self._reg_df = self.c.get_processed_object('interval', 'regions')
+            self._reg_df = self.c.get_processed_object('interval', 'regions', return_type='dask')
         return self._reg_df
 
     @property
@@ -259,10 +266,10 @@ class Objects:
         TODO Docstring
         """
         if self._res_gen_df is None:
-            _df = self.c.get_processed_object('interval', 'reserves_generators')
+            _df = self.c.get_processed_object('interval', 'reserves_generators', return_type='dask')
 
             try:
-                bat_df = self.c.get_processed_object('interval', 'batteries')
+                bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
                 _df = dd.concat([_df, bat_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
@@ -277,7 +284,7 @@ class Objects:
         TODO Docstring
         """
         if self._purch_df is None:
-            self._purch_df = self.c.get_processed_object('interval', 'purchasers')
+            self._purch_df = self.c.get_processed_object('interval', 'purchasers', return_type='dask')
         return self._purch_df
 
 
