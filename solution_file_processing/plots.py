@@ -12,6 +12,11 @@ from matplotlib.lines import Line2D
 from matplotlib import colors
 
 from .constants import VRE_TECHS
+from .utils.logger import Logger
+
+log = Logger('solution_file_processing')
+
+print = log.info
 
 np.random.seed(sum(map(ord, 'calplot')))
 

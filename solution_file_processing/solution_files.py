@@ -12,10 +12,12 @@ import julia
 from h5plexos.query import PLEXOSSolution
 import math
 
-from .utils.logger import log
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from .caching import Objects, Variables
+from .utils.logger import Logger
+
+log = Logger('solution_file_processing')
 
 print = log.info
 

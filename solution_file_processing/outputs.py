@@ -29,11 +29,11 @@ import pandas as pd
 import dask.dataframe as dd
 import numpy as np
 
-from .utils.logger import log
 from .utils.utils import catch_errors
 from .constants import VRE_TECHS
+from .utils.logger import Logger
 
-print = log.info
+log = Logger('solution_file_processing')
 
 # todo needs fix
 idn_actuals_2019 = pd.read_excel('R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/\

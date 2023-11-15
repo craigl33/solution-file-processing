@@ -8,7 +8,9 @@ import sys
 import dask.dataframe as dd
 import pandas as pd
 
-from .logger import log
+from .logger import Logger
+
+log = Logger('solution_file_processing')
 
 print = log.info
 
@@ -77,7 +79,7 @@ def catch_errors(func):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log.error(f'{e.__class__.__name__} in {func.__name__}: {e}', exc_info=True)
+                log.exception(f'{e.__class__.__name__} in {func.__name__}:')
 
         else:
             return func(*args, **kwargs)

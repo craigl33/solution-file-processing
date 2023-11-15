@@ -6,9 +6,11 @@ import dask.dataframe as dd
 
 from .constants import VRE_TECHS
 
-from .utils.logger import log
 from .utils.utils import caching
 from .constants import PRETTY_MODEL_NAMES
+from .utils.logger import Logger
+
+log = Logger('solution_file_processing')
 
 print = log.info
 
