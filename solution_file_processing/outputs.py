@@ -35,10 +35,7 @@ from .utils.logger import Logger
 
 log = Logger('solution_file_processing')
 
-# todo needs fix
-idn_actuals_2019 = pd.read_excel('R:/RISE/DOCS/04 PROJECTS/COUNTRIES/INDONESIA/Power system enhancement 2020_21/\
-Modelling/01 InputData/01 Generation/20220201_generator_capacity_v23_NZE.xlsx',
-                                 sheet_name='IDN_Summary_per_tech', usecols='A:T', engine='openpyxl')
+print = log.info
 
 
 @catch_errors
@@ -105,9 +102,82 @@ def create_year_output_2(c):
 @catch_errors
 def create_year_output_3(c):
     """
+    Creates following output files:
+    - 03a_gen_by_tech_reg.csv
+    - 03a_gen_by_tech_reg_orig.csv
+    - 03c_gen_by_costTech_reg.csv
+    - 03d_gen_by_weoTech_reg.csv
+    - 03e_gen_by_plants.csv
     """
-    print('Creating year output 3 is not implemented yet.')
-    return
+    print("Creating output 3...")
+    # Standard
+    gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
+    gen_by_tech_reg_orig = gen_by_tech_reg.copy()  # For not seperating cofiring. good for CF comparison
+    gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
+
+    # This will need to be updated for NZE
+    if 'Cofiring' in gen_techs:
+        bio_ratio = 0.1
+        gen_by_cofiring_bio = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+        gen_by_cofiring_coal = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+        gen_by_tech_reg = gen_by_tech_reg[gen_by_tech_reg.Category != 'Cofiring']
+
+        gen_by_cofiring_bio.loc[:, 'value'] = gen_by_cofiring_bio.value * bio_ratio
+        gen_by_cofiring_bio = gen_by_cofiring_bio.replace('Cofiring', 'Bioenergy')
+
+        gen_by_cofiring_coal.loc[:, 'value'] = gen_by_cofiring_coal.value * (1 - bio_ratio)
+        gen_by_cofiring_coal = gen_by_cofiring_coal.replace('Cofiring', 'Coal')
+
+        gen_by_tech_reg = pd.concat([gen_by_tech_reg, gen_by_cofiring_bio, gen_by_cofiring_coal], axis=0)
+
+    gen_by_plant = (gen_by_tech_reg
+                    .groupby(['model', 'name'])
+                    .agg({'value': 'sum'})
+                    .unstack(level='model')
+                    .fillna(0))
+    gen_by_costTech_reg = (gen_by_tech_reg
+                           .groupby(['model'] + c.GEO_COLS + ['CostCategory'])
+                           .agg({'value': 'sum'})
+                           .unstack(level=c.GEO_COLS)
+                           .fillna(0))
+    gen_by_tech_reg = (gen_by_tech_reg
+                       .groupby(['model'] + c.GEO_COLS + ['Category'])
+                       .agg({'value': 'sum'})
+                       .unstack(level=c.GEO_COLS)
+                       .fillna(0))
+    gen_by_tech_reg_orig = (gen_by_tech_reg_orig
+                            .groupby(['model'] + c.GEO_COLS + ['Category'])
+                            .agg({'value': 'sum'})
+                            .unstack(level=c.GEO_COLS)
+                            .fillna(0))
+    gen_by_weoTech_reg = (c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
+                          .groupby(['model'] + c.GEO_COLS + ['WEO_Tech_simpl'])
+                          .agg({'value': 'sum'})
+                          .unstack(level=c.GEO_COLS)
+                          .fillna(0))
+
+    print("Done.")
+
+    (gen_by_tech_reg
+     .stack(c.GEO_COLS)
+     .assign(units='GWh')
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03a_gen_by_tech_reg.csv'), index=True))
+    (gen_by_tech_reg_orig
+     .stack(c.GEO_COLS)
+     .assign(units='GWh')
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03a_gen_by_tech_reg_orig.csv'), index=True))
+    (gen_by_costTech_reg
+     .stack(c.GEO_COLS)
+     .assign(units='GWh')
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03c_gen_by_costTech_reg.csv'), index=True))
+    (gen_by_weoTech_reg
+     .stack(c.GEO_COLS)
+     .assign(units='GWh')
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03d_gen_by_weoTech_reg.csv'), index=True))
+    (gen_by_plant
+     .droplevel(level=0, axis=1)
+     .assign(units='GWh')
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03e_gen_by_plants.csv'), index=True))
 
 
 @catch_errors
@@ -169,7 +239,7 @@ def create_year_output_7(c):
     tx_losses = c.o.line_yr_df[c.o.line_yr_df.property == 'Loss'] \
         .groupby(['model', 'timestamp', 'name']) \
         .agg({'value': 'sum'}) \
-
+ \
     tx_losses.assign(units='GWh').reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '07_tx_losses.csv'), index=False)
 
@@ -493,15 +563,6 @@ def create_year_output_11(c):
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
 
-    if c.cfg['settings']['validation']:
-        idn_cap_actuals_by_tech_reg = idn_actuals_2019 \
-            .groupby(['model'] + c.GEO_COLS + ['CapacityCategory']) \
-            .agg({'SummaryCap_MW': 'sum'}) \
-            .compute() \
-            .unstack(level=c.GEO_COLS) \
-            .fillna(0)
-        gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
-
     gen_cap_tech_reg \
         .stack(c.GEO_COLS) \
         .assign(units='MW') \
@@ -561,15 +622,6 @@ def create_year_output_12(c):
         .agg({'value': 'sum'}) \
         .unstack(level=c.GEO_COLS) \
         .fillna(0)
-
-    if c.cfg['settings']['validation']:
-        idn_cap_actuals_by_tech_reg = idn_actuals_2019 \
-            .groupby(['model'] + c.GEO_COLS + ['CapacityCategory']) \
-            .agg({'SummaryCap_MW': 'sum'}) \
-            .compute() \
-            .unstack(level=c.GEO_COLS) \
-            .fillna(0)
-        gen_cap_tech_reg = pd.concat([gen_cap_tech_reg, idn_cap_actuals_by_tech_reg], axis=0)
 
     # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
     # Standard
