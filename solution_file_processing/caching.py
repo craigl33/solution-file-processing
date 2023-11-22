@@ -1,6 +1,7 @@
 """"
 TODO Docstring
 """
+import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 
@@ -292,6 +293,7 @@ class Objects:
 
 class Variables:
     """
+    # todo needs to be updated with non cached variables
     This is class handles the complete data access to any Variable and works very similar to the Objects class.
 
     A variable is an optional data object that can but must not be used. It is just an option to cache any processing
@@ -330,14 +332,36 @@ class Variables:
     def __init__(self, configuration_object):
         self.c = configuration_object
 
+    # Uncached variables
+    _model_names = None
+
+    # Cached variables
     _time_idx = None
     _gen_by_tech_reg_ts = None
     _gen_by_subtech_reg_ts = None
     _customer_load_ts = None
     _vre_av_abs_ts = None
     _net_load_ts = None
+    _net_load_sto_ts = None
     _net_load_reg_ts = None
     _gen_inertia = None
+
+    # -----
+    # Uncached variables
+    # -----
+
+    @property
+    def model_names(self):
+        """"
+        TODO Docstring
+        """
+        if self._model_names is None:
+            self._model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
+        return self._model_names
+
+    # -----
+    # Cached variables
+    # -----
 
     @property
     @caching('variables')
@@ -409,9 +433,57 @@ class Variables:
         """
         if self._net_load_ts is None:
             self._net_load_ts = pd.DataFrame(
-                self.customer_load_ts - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
+                self.customer_load_ts.value - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
+                    ['model', 'timestamp']).sum(),
                 columns=['value'])
         return self._net_load_ts
+
+    @property
+    @caching('variables')
+    def net_load_sto_ts(self):
+        """
+        TODO Docstring
+        """
+        if self._net_load_sto_ts is None:
+            customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
+                                                (self.c.o.reg_df.property == 'Unserved Energy')]
+                                .groupby(['model', 'timestamp'])
+                                .agg({'value': 'sum'})
+                                .compute())
+            storage_load_ts = self.c.o.reg_df[
+                (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+            vre_av_abs_ts = self.c.o.gen_df[
+                (self.c.o.gen_df.property == 'Available Capacity') & (
+                    self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
+                ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
+                level='Category').fillna(0)
+            gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
+                              .groupby(['model', 'Category', 'timestamp'])
+                              .agg({'value': 'sum'})
+                              .compute()
+                              .unstack(level='Category')
+                              .fillna(0)
+                              .droplevel(0, axis=1))
+            storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
+
+            print(storage_load_ts)
+            print(vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp'])
+                  .sum().rename('value').to_frame())
+
+            _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (vre_av_abs_ts
+                                                      .fillna(0)
+                                                      .sum(axis=1)
+                                                      .groupby(['model', 'timestamp'])
+                                                      .sum()
+                                                      .rename('value'))
+
+            self._net_load_sto_ts = pd.DataFrame(_data,
+                                                 columns=['value'])
+
+            print(self._net_load_sto_ts)
+
+        return self._net_load_sto_ts
 
     @property
     @caching('variables')

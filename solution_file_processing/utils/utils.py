@@ -41,10 +41,10 @@ def caching(cache_type):
             if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
                 if os.path.isdir(path):
-                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet as dask dataframe.")
+                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet (dd.DataFrame).")
                     call = dd.read_parquet(path)
                 else:
-                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet as pandas dataframe.")
+                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet (pd.DataFrame).")
                     call = pd.read_parquet(path)
             else:
                 print(f"Computing {cache_type}: {func.__name__}.")
