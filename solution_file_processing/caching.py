@@ -467,10 +467,6 @@ class Variables:
                               .droplevel(0, axis=1))
             storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
 
-            print(storage_load_ts)
-            print(vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp'])
-                  .sum().rename('value').to_frame())
-
             _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (vre_av_abs_ts
                                                       .fillna(0)
                                                       .sum(axis=1)
@@ -480,8 +476,6 @@ class Variables:
 
             self._net_load_sto_ts = pd.DataFrame(_data,
                                                  columns=['value'])
-
-            print(self._net_load_sto_ts)
 
         return self._net_load_sto_ts
 
