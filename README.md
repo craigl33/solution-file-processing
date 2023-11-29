@@ -53,5 +53,6 @@ Then initialize a new configuration based on a configuration file:
 
 To create new outputs or plots run any function from `plots.py` or `outputs.py` and pass the configuration as an argument. For example:
     
-    sfp.plots.create_year_output_1(config)
+    sfp.summary.create_output_1(config)
+    sfp.timeseries.create_output_1(config)
     sfp.outputs.create_plot_1(config)
