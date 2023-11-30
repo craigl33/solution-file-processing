@@ -15,9 +15,7 @@ import math
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from .caching import Objects, Variables
-from .utils.logger import Logger
-
-log = Logger('solution_file_processing')
+from . import log
 
 print = log.info
 

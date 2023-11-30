@@ -9,9 +9,7 @@ from .constants import VRE_TECHS
 
 from .utils.utils import caching
 from .constants import PRETTY_MODEL_NAMES
-from .utils.logger import Logger
-
-log = Logger('solution_file_processing')
+from . import log
 
 print = log.info
 

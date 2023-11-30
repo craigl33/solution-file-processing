@@ -1,5 +1,9 @@
 # __init__.py
 
+# Declare package wide logger
+from .utils.logger import CustomLogger
+log = CustomLogger('solution_file_processing')
+
 # Adjust some dependency settings
 import pandas as pd
 pd.set_option('display.max_columns', None)  # Show all columns when printing

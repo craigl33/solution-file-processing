@@ -8,9 +8,7 @@ import sys
 import dask.dataframe as dd
 import pandas as pd
 
-from .logger import Logger
-
-log = Logger('solution_file_processing')
+from .. import log
 
 print = log.info
 

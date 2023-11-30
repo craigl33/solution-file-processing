@@ -10,9 +10,7 @@ import numpy as np
 
 from .utils.utils import catch_errors
 from .constants import VRE_TECHS
-from .utils.logger import Logger
-
-log = Logger('solution_file_processing')
+from . import log
 
 print = log.info
 
