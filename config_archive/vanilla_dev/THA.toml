@@ -9,7 +9,6 @@ soln_choice = '20230626_THA_Base_LowerCO2p'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
-validation = false
 reg_ts = true
 
 [run]

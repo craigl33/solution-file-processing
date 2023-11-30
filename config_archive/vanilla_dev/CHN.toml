@@ -9,7 +9,6 @@ soln_choice = '2023_03_05_pFLHnew'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
-validation = false
 reg_ts = true
 
 [run]

@@ -8,7 +8,7 @@ import sys
 import dask.dataframe as dd
 import pandas as pd
 
-from .logger import log
+from .. import log
 
 print = log.info
 
@@ -39,10 +39,10 @@ def caching(cache_type):
             if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
                 if os.path.isdir(path):
-                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet as dask dataframe.")
+                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet (dd.DataFrame).")
                     call = dd.read_parquet(path)
                 else:
-                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet as pandas dataframe.")
+                    print(f"Loading from {cache_type} cache: {func.__name__}.parquet (pd.DataFrame).")
                     call = pd.read_parquet(path)
             else:
                 print(f"Computing {cache_type}: {func.__name__}.")
@@ -77,7 +77,7 @@ def catch_errors(func):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log.error(f'{e.__class__.__name__} in {func.__name__}: {e}', exc_info=True)
+                log.exception(f'{e.__class__.__name__} in {func.__name__}:')
 
         else:
             return func(*args, **kwargs)
@@ -148,7 +148,11 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
 
     # Replace timestamp year with common year if provided
     if common_yr:
-        df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
+        if isinstance(df, dd.DataFrame):
+            df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
+        else:
+            df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr))
+
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]
@@ -161,6 +165,10 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
             x.split('Model ')[-1].split(' Solution.h5')[0])
         return partition
 
-    df = df.map_partitions(_prettify_model_names)
+    # Check if df is pandas or dask
+    if isinstance(df, pd.DataFrame):
+        df = _prettify_model_names(df)
+    elif isinstance(df, dd.DataFrame):
+        df = df.map_partitions(_prettify_model_names)
 
     return df

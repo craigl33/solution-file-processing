@@ -1,5 +1,16 @@
 """
-Contains a custom logger class which uses some extra filters and handlers.
+Contains a custom logger class which uses some extra filters, handlers and adjustments.
+
+The main initialization of the logger is done in the __init__.py file of the package. This way the logger is same logger
+is used throughout the package and now reinitializing issues occur.
+
+To use the logger just import it from the package:
+>>> from solution_file_processing import log
+>>> from . import log  # If you are in a module of the package
+
+Then you can simply use the logger as you would use the standard python logger:
+>>> log.debug('This is a debug message.')
+>>> log.info('This is an info message.')
 """
 import os
 import datetime as dt
@@ -7,13 +18,26 @@ import logging
 
 logging.addLevelName(logging.DEBUG, 'D')
 logging.addLevelName(logging.INFO, 'I')
+logging.captureWarnings(True)
 
 # noinspection PyUnresolvedReferences,PyAttributeOutsideInit
 class FilterTimeTaker(logging.Filter):
-    """Filter that takes the time since the last log message. This can be used as 'time_relative' in the log format."""
+    """
+    This class is a custom filter for the logging module. It calculates the time difference between the current log
+    record and the last one, and adds this information to the log record.
+    """
 
     def filter(self, record):
-        """Overwrites the filter method to take the time since the last log message."""
+        """
+        This method is called for each log record and modifies the record in place by adding a new attribute
+        'time_relative' which contains the time difference between the current log record and the last one.
+
+        Args:
+            record (logging.LogRecord): The log record to be modified.
+
+        Returns:
+            bool: Always returns True so that the log record is not filtered out.
+        """
         try:
             last = self.last
         except AttributeError:
@@ -30,8 +54,25 @@ class FilterTimeTaker(logging.Filter):
 
         return True
 
-class _Logger(logging.Logger):
-    def __init__(self, name, path='logs/logs.log'):
+
+# noinspection PyAttributeOutsideInit
+class CustomLogger(logging.Logger):
+    """
+    This class is a custom logger that extends the built-in Logger class from the logging module.
+    It provides additional functionality such as changing the log file path, changing the log level,
+    and enabling/disabling logging in general.
+    """
+
+    def __init__(self, name, path='logs.log', stream_level='DEBUG', file_level='INFO'):
+        """
+        Initializes the Logger with a name and a path for the log file.
+
+        Args:
+            name (str): The name of the logger.
+            path (str, optional): The path to the log file. Defaults to 'logs.log'.
+            stream_level (str or int, optional): The log level for the stream handler. Defaults to 'DEBUG'.
+            file_level (str or int, optional): The log level for the file handler. Defaults to 'INFO'.
+        """
         self.name = name
         super().__init__(self.name)
         self.setLevel(logging.DEBUG)
@@ -46,14 +87,14 @@ class _Logger(logging.Logger):
 
         # Create stream handler
         h_stream = logging.StreamHandler()
-        h_stream.setLevel(logging.DEBUG)
+        h_stream.setLevel(stream_level)
         h_stream.setFormatter(self._fmt_stream)
         h_stream.addFilter(FilterTimeTaker())
         self.addHandler(h_stream)
 
         # Create file handler
         h_file = logging.FileHandler(path, delay=True)
-        h_file.setLevel(logging.DEBUG)
+        h_file.setLevel(file_level)
         h_file.setFormatter(self._fmt_file)
         h_file.addFilter(FilterTimeTaker())
         self.addHandler(h_file)
@@ -63,13 +104,9 @@ class _Logger(logging.Logger):
 
     def change_log_file_path(self, new_log_file: str):
         """
-        todo docstring not up to date
-        Changes the log file path of the given logger. If the logger does not have a file handler, a new one
-        is created.
-
+        Changes the path of the log file to the given path.
         Args:
-            logger (logging.Logger): Logger to change the log file path of.
-            new_log_file (str): New log file path.
+            new_log_file (str): The new path for the log file.
         """
         # Remove old file handler
         for handler in self.handlers:
@@ -88,14 +125,12 @@ class _Logger(logging.Logger):
 
     def change_log_level(self, new_log_level):
         """
-        todo docstring not up to date
-        Changes the log level of the given logger. If the logger does not have a level set, the new level will be applied.
-        The new_log_level can be provided as an integer or a string representing the log level name.
+        Changes the log level to the given level.
 
         Args:
-            logger (logging.Logger): Logger to change the log level of.
-            new_log_level: New log level (int or str).
+            new_log_level (str or int): The new log level. Can be a string (e.g., 'DEBUG', 'INFO') or an integer (0-50).
         """
+
         level_name_to_level = {
             'CRITICAL': logging.CRITICAL,
             'ERROR': logging.ERROR,
@@ -118,6 +153,9 @@ class _Logger(logging.Logger):
                              " level name.")
 
     def disable_logging(self):
+        """
+        Disables logging by replacing the logging methods with the standard python print function.
+        """
         self._pre_disabled_methods = {
             'debug': self.debug,
             'info': self.info,
@@ -133,6 +171,9 @@ class _Logger(logging.Logger):
         self.critical = print
 
     def enable_logging(self):
+        """
+        Enables logging by restoring the original logging methods.
+        """
         try:
             self.debug = self._pre_disabled_methods['debug']
             self.info = self._pre_disabled_methods['info']
@@ -142,7 +183,3 @@ class _Logger(logging.Logger):
         except KeyError:
             # Ignore since it was not disabled before
             pass
-
-
-        # return
-log = _Logger('solution_file_processing')

@@ -12,10 +12,10 @@ import julia
 from h5plexos.query import PLEXOSSolution
 import math
 
-from .utils.logger import log
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from .caching import Objects, Variables
+from . import log
 
 print = log.info
 
@@ -146,7 +146,7 @@ class SolutionFilesConfig:
         Converts solution files in ZIP format to H5 format using the H5PLEXOS Julia library.
         Does that automatically for all ZIP files in the subdirectory "04_SolutionFiles/model_name" in the given main
         directory. The H5 files are saved in the same directory. Existing H5 files are not overwritten, but skipped.
-        Ensure that Julia and the H5PLEXOS library are installed and accessible in your environment.
+        Ensure that Julia and the H5PLEXOS library are installed and are accessible in your environment.
         """
         # todo maybe also allow .zips in nested folders to be converted
         from julia.api import Julia
@@ -165,7 +165,7 @@ class SolutionFilesConfig:
             jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
-    def _get_object(self, timescale, object):
+    def _get_object(self, timescale, object, return_type):
         """
         Retrieves a specific object based on the provided timescale.
         Does that by looping through all solution files (.h5) files in the 04_SolutionFiles folder and combining the
@@ -228,17 +228,22 @@ class SolutionFilesConfig:
                     else:
                         raise ValueError('Multiple dataframes returned for {} {}'.format(object, obj_prop))
 
-                    db_data = dd.from_pandas(db_data, npartitions=1)  # Change to dask to handle cache issues
-                    db_data = db_data.repartition(partition_size="100MB")  # Repartition to most efficient size
+                    if return_type == 'dask':
+                        db_data = dd.from_pandas(db_data, npartitions=1)  # Change to dask to handle cache issues
+                        db_data = db_data.repartition(partition_size="100MB")  # Repartition to most efficient size
                     db_data = db_data.assign(model=core_name).reset_index()
 
                     dfs.append(db_data)
         if not dfs:
             raise ValueError(f'No data found for {object} object in {timescale} timescale in any of the '
                              f'{len(soln_h5_files)} solution files.')
-        return dd.concat(dfs)
 
-    def get_processed_object(self, timescale, object):
+        if return_type == 'dask':
+            return dd.concat(dfs)
+        else:
+            return pd.concat(dfs)
+
+    def get_processed_object(self, timescale, object, return_type):
         """
         Retrieve the processed data for a specified object for either the interval or year timescale. It needs
         the uncompressed Plexos Solution Files in the 04_SolutionFiles folder. It loops through all Solution Files and
@@ -249,15 +254,19 @@ class SolutionFilesConfig:
         Parameters:
         - timescale (str): The timescale for data retrieval ('interval' or 'year').
         - object (str): The type of object to retrieve data for (e.g., 'nodes', 'generators', 'regions').
+        - return_type (str): The type of DataFrame to return ('dask' or 'pandas').
 
         Returns:
-        - dask.DataFrame: A Dask DataFrame containing the requested data.
+        - dask.DataFrame or pandas.DataFrame: The retrieved data. Type depends on the return_type parameter.
         """
-        # Import necessary stuff
+        if timescale not in ['interval', 'year']:
+            raise ValueError('type must be either "interval" or "year"')
+        if return_type not in ['dask', 'pandas']:
+            raise ValueError('return_type must be either "dask" or "pandas"')
 
         # - common_yr
         # todo craig: Can I get the model_yrs info also from other files?
-        model_yrs = self._get_object(timescale='interval', object='regions') \
+        model_yrs = self._get_object(timescale='interval', object='regions', return_type='dask') \
             .groupby(['model']) \
             .first() \
             .timestamp.dt.year.values.compute()
@@ -268,11 +277,11 @@ class SolutionFilesConfig:
 
         # - filter_regs
         # todo craig: Can I get the model_yrs info also from other files?
-        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators'),
+        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators', return_type=return_type),
                                       soln_idx=self.soln_idx[
                                           self.soln_idx.Object_type.str.lower() == 'generator'].drop(
                                           columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
-        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes'),
+        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes', return_type=return_type),
                                        soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'node'].drop(
                                            columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
 
@@ -284,8 +293,9 @@ class SolutionFilesConfig:
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
-        df = self._get_object(timescale=timescale, object=object)
-        df = df.repartition(partition_size="100MB")  # Repartition to most efficient size
+        df = self._get_object(timescale=timescale, object=object, return_type=return_type)
+        if return_type == 'dask':
+            df = df.repartition(partition_size="100MB")  # Repartition to most efficient size
 
         o_key = object.replace('ies', 'ys')
 

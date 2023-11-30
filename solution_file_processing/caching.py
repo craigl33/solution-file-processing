@@ -1,14 +1,15 @@
 """"
 TODO Docstring
 """
+import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 
 from .constants import VRE_TECHS
 
-from .utils.logger import log
 from .utils.utils import caching
 from .constants import PRETTY_MODEL_NAMES
+from . import log
 
 print = log.info
 
@@ -75,11 +76,11 @@ class Objects:
         TODO Docstring
         """
         if self._gen_yr_df is None:
-            _df = self.c.get_processed_object('year', 'generators')
+            _df = self.c.get_processed_object('year', 'generators', return_type='pandas')
 
             try:
-                bat_yr_df = self.c.get_processed_object('year', 'batteries')
-                _df = dd.concat([_df, bat_yr_df], axis=0)
+                bat_yr_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+                _df = pd.concat([_df, bat_yr_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to generators year dataframe.")
 
@@ -120,7 +121,10 @@ class Objects:
                     return df
 
                 # Update Category
-                _df = _df.map_partitions(_update_category)
+                if isinstance(_df, pd.DataFrame):
+                    _df = _update_category(_df)
+                else:
+                    _df = _df.map_partitions(_update_category)
 
                 def _update_capacity_category(df):
                     condition = (df['Cofiring'] == 'Y') & (df['model'].isin(cofiring_scens))
@@ -128,7 +132,11 @@ class Objects:
                     return df
 
                 # Update CapacityCategory
-                _df = _df.map_partitions(_update_capacity_category)
+                if isinstance(_df, dd.DataFrame):
+                    _df = _df.map_partitions(_update_capacity_category)
+                else:
+                    _df = _update_capacity_category(_df)
+
                 # Drop both columns, since they are no longer needed
                 _df = _df.drop(columns=['Cofiring', 'CofiringCategory'])
 
@@ -145,7 +153,7 @@ class Objects:
         TODO Docstring
         """
         if self._em_gen_yr_df is None:
-            self._em_gen_yr_df = self.c.get_processed_object('year', 'emissions_generators')
+            self._em_gen_yr_df = self.c.get_processed_object('year', 'emissions_generators', return_type='pandas')
         return self._em_gen_yr_df
 
     @property
@@ -155,7 +163,7 @@ class Objects:
         TODO Docstring
         """
         if self._node_yr_df is None:
-            self._node_yr_df = self.c.get_processed_object('year', 'nodes')
+            self._node_yr_df = self.c.get_processed_object('year', 'nodes', return_type='pandas')
         return self._node_yr_df
 
     @property
@@ -165,7 +173,7 @@ class Objects:
         TODO Docstring
         """
         if self._line_yr_df is None:
-            self._line_yr_df = self.c.get_processed_object('year', 'lines')
+            self._line_yr_df = self.c.get_processed_object('year', 'lines', return_type='pandas')
         return self._line_yr_df
 
     @property
@@ -175,7 +183,7 @@ class Objects:
         TODO Docstring
         """
         if self._fuelcontract_yr_df is None:
-            self._fuelcontract_yr_df = self.c.get_processed_object('year', 'fuelcontracts')
+            self._fuelcontract_yr_df = self.c.get_processed_object('year', 'fuelcontracts', return_type='pandas')
         return self._fuelcontract_yr_df
 
     @property
@@ -185,10 +193,10 @@ class Objects:
         TODO Docstring
         """
         if self._gen_df is None:
-            _df = self.c.get_processed_object('interval', 'generators')
+            _df = self.c.get_processed_object('interval', 'generators', return_type='dask')
 
             try:
-                bat_df = self.c.get_processed_object('interval', 'batteries')
+                bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
                 _df = dd.concat([_df, bat_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to generators interval dataframe.")
@@ -239,7 +247,7 @@ class Objects:
         TODO Docstring
         """
         if self._node_df is None:
-            self._node_df = self.c.get_processed_object('interval', 'nodes')
+            self._node_df = self.c.get_processed_object('interval', 'nodes', return_type='dask')
         return self._node_df
 
     @property
@@ -249,7 +257,7 @@ class Objects:
         TODO Docstring
         """
         if self._reg_df is None:
-            self._reg_df = self.c.get_processed_object('interval', 'regions')
+            self._reg_df = self.c.get_processed_object('interval', 'regions', return_type='dask')
         return self._reg_df
 
     @property
@@ -259,10 +267,10 @@ class Objects:
         TODO Docstring
         """
         if self._res_gen_df is None:
-            _df = self.c.get_processed_object('interval', 'reserves_generators')
+            _df = self.c.get_processed_object('interval', 'reserves_generators', return_type='dask')
 
             try:
-                bat_df = self.c.get_processed_object('interval', 'batteries')
+                bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
                 _df = dd.concat([_df, bat_df], axis=0)
             except ValueError:
                 print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
@@ -277,20 +285,21 @@ class Objects:
         TODO Docstring
         """
         if self._purch_df is None:
-            self._purch_df = self.c.get_processed_object('interval', 'purchasers')
+            self._purch_df = self.c.get_processed_object('interval', 'purchasers', return_type='dask')
         return self._purch_df
 
 
 class Variables:
     """
+    # todo needs to be updated with non cached variables
     This is class handles the complete data access to any Variable and works very similar to the Objects class.
 
     A variable is an optional data object that can but must not be used. It is just an option to cache any processing
     steps which are taken on a single or multiple objects. 
     
     This could be also be done over and over again in the code of the calling function (e.g. create outputs or 
-    plots functions in outputs.py and plots.py). But this needs a lot of processing time, specially during the 
-    development phase of new output and plot functions. To avoid this, the processing steps can be added to this
+    plots functions in summary.py, timeseries.py or plots.py). But this needs a lot of processing time, specially during
+    the development phase of new output and plot functions. To avoid this, the processing steps can be added to this
     Variables class and the result is cached in the cache folder (04_SolutionFilesCache/<soln_choice>/variables/).
     
     Similar to the Object class, the data is loaded from the cache folder if it exists and not processed again. If
@@ -321,14 +330,36 @@ class Variables:
     def __init__(self, configuration_object):
         self.c = configuration_object
 
+    # Uncached variables
+    _model_names = None
+
+    # Cached variables
     _time_idx = None
     _gen_by_tech_reg_ts = None
     _gen_by_subtech_reg_ts = None
     _customer_load_ts = None
     _vre_av_abs_ts = None
     _net_load_ts = None
+    _net_load_sto_ts = None
     _net_load_reg_ts = None
     _gen_inertia = None
+
+    # -----
+    # Uncached variables
+    # -----
+
+    @property
+    def model_names(self):
+        """"
+        TODO Docstring
+        """
+        if self._model_names is None:
+            self._model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
+        return self._model_names
+
+    # -----
+    # Cached variables
+    # -----
 
     @property
     @caching('variables')
@@ -400,9 +431,51 @@ class Variables:
         """
         if self._net_load_ts is None:
             self._net_load_ts = pd.DataFrame(
-                self.customer_load_ts - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
+                self.customer_load_ts.value - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
+                    ['model', 'timestamp']).sum(),
                 columns=['value'])
         return self._net_load_ts
+
+    @property
+    @caching('variables')
+    def net_load_sto_ts(self):
+        """
+        TODO Docstring
+        """
+        if self._net_load_sto_ts is None:
+            customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
+                                                (self.c.o.reg_df.property == 'Unserved Energy')]
+                                .groupby(['model', 'timestamp'])
+                                .agg({'value': 'sum'})
+                                .compute())
+            storage_load_ts = self.c.o.reg_df[
+                (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+            vre_av_abs_ts = self.c.o.gen_df[
+                (self.c.o.gen_df.property == 'Available Capacity') & (
+                    self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
+                ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
+                level='Category').fillna(0)
+            gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
+                              .groupby(['model', 'Category', 'timestamp'])
+                              .agg({'value': 'sum'})
+                              .compute()
+                              .unstack(level='Category')
+                              .fillna(0)
+                              .droplevel(0, axis=1))
+            storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
+
+            _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (vre_av_abs_ts
+                                                      .fillna(0)
+                                                      .sum(axis=1)
+                                                      .groupby(['model', 'timestamp'])
+                                                      .sum()
+                                                      .rename('value'))
+
+            self._net_load_sto_ts = pd.DataFrame(_data,
+                                                 columns=['value'])
+
+        return self._net_load_sto_ts
 
     @property
     @caching('variables')

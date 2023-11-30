@@ -9,7 +9,6 @@ soln_choice = '2023_06_02_main_reproc'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
-validation = false
 reg_ts = true
 
 [run]
