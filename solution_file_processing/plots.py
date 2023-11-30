@@ -933,26 +933,134 @@ def write_xlsx_line(
         worksheet.insert_chart("K2", chart)
 
 
-def plot_1a(c):
+@catch_errors
+def create_plot_1a(c):
     ### Plot 1: Generation stacks for national days of interest
 
+    load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'] \
+        .groupby(['model', 'timestamp'] + c.GEO_COLS) \
+        .agg({'value': 'sum'})
+
+    # Get gen_by_tech_reg
+    gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
+    gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
+    if 'Cofiring' in gen_techs:
+        bio_ratio = 0.1
+        gen_by_cofiring_bio = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+        gen_by_cofiring_coal = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+        gen_by_tech_reg = gen_by_tech_reg[gen_by_tech_reg.Category != 'Cofiring']
+
+        gen_by_cofiring_bio.loc[:, 'value'] = gen_by_cofiring_bio.value * bio_ratio
+        gen_by_cofiring_bio = gen_by_cofiring_bio.replace('Cofiring', 'Bioenergy')
+
+        gen_by_cofiring_coal.loc[:, 'value'] = gen_by_cofiring_coal.value * (1 - bio_ratio)
+        gen_by_cofiring_coal = gen_by_cofiring_coal.replace('Cofiring', 'Coal')
+
+        gen_by_tech_reg = pd.concat([gen_by_tech_reg, gen_by_cofiring_bio, gen_by_cofiring_coal], axis=0)
+
+    gen_by_tech_reg = (gen_by_tech_reg
+                       .groupby(['model'] + c.GEO_COLS + ['Category'])
+                       .agg({'value': 'sum'})
+                       .unstack(level=c.GEO_COLS)
+                       .fillna(0))
+
+    reg_ids = list(np.unique(np.append(
+        load_by_reg.unstack(c.GEO_COLS).droplevel(level=[region for region in c.GEO_COLS if region != 'Region'],
+                                                  axis=1).replace(0,
+                                                                  np.nan).dropna(
+            how='all', axis=1).columns,
+        gen_by_tech_reg.droplevel(level=[region for region in c.GEO_COLS if region != 'Region'], axis=1).replace(0,
+                                                                                                                 np.nan).dropna(
+            how='all', axis=1).columns)))
+    # Make reg_ids flat list ('value', 'Region') -> 'Region'
+    reg_ids = [x[1] for x in reg_ids]
     model_regs = reg_ids + ["JVB", "SUM", "IDN"]
 
-    ####
+    doi_summary = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'),
+                              index_col=0,
+                              parse_dates=True)
+
     doi_periods = [doi for doi in doi_summary.index if "time" in doi]
     doi_names = [doi for doi in doi_summary.index if "time" not in doi]
 
-    for i, p in enumerate(doi_periods):
+    # Get needed variables
+    load_by_reg_ts = c.o.node_df[c.o.node_df.property == 'Load'].groupby(
+        ['model'] + c.GEO_COLS + ['timestamp']).sum().value.compute().unstack(
+        level='timestamp').fillna(0).stack('timestamp')
+
+    pumpload_reg_ts = (c.o.node_df[(c.o.node_df.property == 'Pump Load') |
+                                   (c.o.node_df.property == 'Battery Load')]
+                       .groupby(['model'] + c.GEO_COLS + ['timestamp'])
+                       .sum().value.rename('Storage Load')
+                       .compute())
+    underlying_load_reg = (load_by_reg_ts - pumpload_reg_ts).rename('Underlying Load')
+    net_load_reg_sto_ts = (c.v.net_load_reg_ts.stack(c.GEO_COLS).reorder_levels(
+        ['model'] + c.GEO_COLS + ['timestamp']) + pumpload_reg_ts).rename('Net Load')
+
+    use_reg_ts = c.o.node_df[c.o.node_df.property == 'Unserved Energy'].groupby(
+        ['model'] + c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
+        level=c.GEO_COLS)
+    # Get vre_curtailed_reg_ts
+    ### Define model regs in multi-level format
+    model_regs_multi = load_by_reg_ts.unstack(c.GEO_COLS).columns
+    model_regs_multi = pd.MultiIndex.from_tuples([[i for i in x if i != 'value'] for x in model_regs_multi])
+
+    vre_av_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
+                                    (c.o.gen_df.Category.isin(VRE_TECHS))]
+                         .groupby((['model'] + c.GEO_COLS + ['timestamp']))
+                         .sum()
+                         .value
+                         .compute()
+                         .unstack(level=c.GEO_COLS)
+                         .fillna(0))
+
+    vre_gen_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Generation') &
+                                     (c.o.gen_df.Category.isin(VRE_TECHS))]
+                          .groupby((['model'] + c.GEO_COLS + ['timestamp']))
+                          .sum()
+                          .value
+                          .compute()
+                          .unstack(level=c.GEO_COLS)
+                          .fillna(0))
+
+    vre_regs = vre_av_reg_abs_ts.columns
+
+    ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
+    for reg in list(model_regs_multi):
+        if reg not in vre_regs:
+            vre_av_reg_abs_ts.loc[:, reg] = 0
+            vre_gen_reg_abs_ts.loc[:, reg] = 0
+
+    ### Columns in alphabetical order
+    vre_av_reg_abs_ts = vre_av_reg_abs_ts[model_regs_multi]
+    vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[model_regs_multi]
+    vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
+
+    gen_stack_by_reg = pd.concat([c.v.gen_by_tech_reg_ts.fillna(0).droplevel(0, axis=1),
+                                  net_load_reg_sto_ts,
+                                  underlying_load_reg,
+                                  pumpload_reg_ts,
+                                  load_by_reg_ts.rename('Total Load'),
+                                  load_by_reg_ts.rename('Load2'),
+                                  vre_curtailed_reg_ts.stack(c.GEO_COLS)
+                                 .reorder_levels(['model'] + c.GEO_COLS + ['timestamp'])
+                                 .rename('Curtailment'),
+                                  use_reg_ts.stack(c.GEO_COLS)
+                                 .reorder_levels(['model'] + c.GEO_COLS + ['timestamp'])
+                                 .rename(columns={'value': 'Unserved Energy'}),
+                                  ], axis=1)
+
+
+    for j, p in enumerate(doi_periods):
         doi = doi_summary.loc[p]
-        doi_name = doi_names[i]
+        doi_name = doi_names[j]
 
         for m in c.v.model_names:
-            save_dir_model = os.path.join(save_dir_plots, m)
-            if os.path.exists(save_dir_model) is False:
-                os.mkdir(save_dir_model)
+            if os.path.exists(os.path.join(c.DIR_05_3_PLOTS, m)) is False:
+                os.mkdir(os.path.join(c.DIR_05_3_PLOTS, m))
 
-            gen_stack = gen_stack_by_reg.loc[ix[m, :, :], :]
-            toi = doi.loc[m]
+            gen_stack = gen_stack_by_reg.loc[pd.IndexSlice[m, :, :], :]
+            toi = pd.to_datetime(doi.loc[m])
 
             gen_stack_doi = gen_stack.reset_index()
             gen_stack_doi = gen_stack_doi.loc[
@@ -962,29 +1070,32 @@ def plot_1a(c):
             gen_stack_doi = gen_stack_doi.set_index(["model", "Region", "timestamp"])
 
             # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
-            fig_path = os.path.join(
-                save_dir_model, "plot1a_stack_ntl_doi_{}.xlsx".format(doi_name)
-            )
             #         shutil.copyfile(fig_template_path, fig_path)
 
-            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
-                ## ExcelWriter for some reason uses writer.sheets to access the sheet.
-                ## If you leave it empty it will not know that sheet Main is already there
-                ## and will create a new sheet.
+            file_path = os.path.join(m, f'plot1a_stack_ntl_doi_{doi_name}.xlsx')
+            with pd.ExcelWriter(os.path.join(c.DIR_05_3_PLOTS, file_path),
+                                engine="xlsxwriter") as writer:
+                # ExcelWriter for some reason uses writer.sheets to access the sheet.
+                # If you leave it empty it will not know that sheet Main is already there
+                # and will create a new sheet.
 
                 for reg in model_regs:
-                    gen_stack_doi_reg = gen_stack_doi.loc[ix[:, reg, :], :].droplevel(
-                        [0, 1]
-                    )
-                    write_xlsx_stack(
-                        df=gen_stack_doi_reg,
-                        writer=writer,
-                        sheet_name=reg,
-                        palette=stack_palette,
-                    )
+                    try:
+                        gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel([0, 1])
+                    except KeyError:
+                        print(f'Cannot find {reg} in second level of index. Skipping. (Example index: '
+                              f'{gen_stack_doi.index[0]})')
+                        continue
+
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'])
+                    write_xlsx_stack(df=gen_stack_doi_reg,
+                                     writer=writer,
+                                     sheet_name=reg,
+                                     palette=stack_palette)
+                    print(f'Created sheet "{reg}" in {file_path}.')
 
 
-def plot_1b(c):
+def create_plot_1b(c):
     ### Plot 1b: Generation stacks for national days of interest a specified reference model
 
     load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'].groupby(
