@@ -1,3 +1,7 @@
+"""
+TODO Docstring
+"""
+
 VRE_TECHS = ['Solar', 'Wind']
 
 PRETTY_MODEL_NAMES = {

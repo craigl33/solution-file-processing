@@ -146,7 +146,7 @@ class SolutionFilesConfig:
         Converts solution files in ZIP format to H5 format using the H5PLEXOS Julia library.
         Does that automatically for all ZIP files in the subdirectory "04_SolutionFiles/model_name" in the given main
         directory. The H5 files are saved in the same directory. Existing H5 files are not overwritten, but skipped.
-        Ensure that Julia and the H5PLEXOS library are installed and accessible in your environment.
+        Ensure that Julia and the H5PLEXOS library are installed and are accessible in your environment.
         """
         # todo maybe also allow .zips in nested folders to be converted
         from julia.api import Julia

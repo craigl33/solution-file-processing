@@ -1,3 +1,7 @@
+"""
+TODO Docstring
+"""
+
 import os
 
 import matplotlib.pyplot as plt
@@ -1440,7 +1444,7 @@ def get_plot_data(c):
     return plot_cols, plot_type, plot_units, plot_cols_JVBSUMonly
 
 
-def plot_2(c):
+def create_plot_2(c):
     ### Plot 2: Annual summary plots by columnn
 
     fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")
@@ -1476,7 +1480,7 @@ def plot_2(c):
                 )
 
 
-def plot_3(c):
+def create_plot_3(c):
     """
     Status: Could work, but can't be run because 03 year output is missing
     """
@@ -1517,7 +1521,7 @@ def plot_3(c):
             )
 
 
-def plot_6(c):
+def create_plot_6(c):
     """
     Status: Could work, but can't be run because 04 interval output is missing
     """
@@ -1850,3 +1854,4 @@ def plot_7(c):
                 subtype="clustered",
                 units="",
             )
+    print("Done.")

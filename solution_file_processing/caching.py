@@ -298,8 +298,8 @@ class Variables:
     steps which are taken on a single or multiple objects. 
     
     This could be also be done over and over again in the code of the calling function (e.g. create outputs or 
-    plots functions in outputs.py and plots.py). But this needs a lot of processing time, specially during the 
-    development phase of new output and plot functions. To avoid this, the processing steps can be added to this
+    plots functions in summary.py, timeseries.py or plots.py). But this needs a lot of processing time, specially during
+    the development phase of new output and plot functions. To avoid this, the processing steps can be added to this
     Variables class and the result is cached in the cache folder (04_SolutionFilesCache/<soln_choice>/variables/).
     
     Similar to the Object class, the data is loaded from the cache folder if it exists and not processed again. If

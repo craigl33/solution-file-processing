@@ -1,9 +1,16 @@
 """
 Contains a custom logger class which uses some extra filters, handlers and adjustments.
 
-To initialize a logger, use the following code:
-.utils.logger import Logger
-log = Logger('<package_name>')
+The main initialization of the logger is done in the __init__.py file of the package. This way the logger is same logger
+is used throughout the package and now reinitializing issues occur.
+
+To use the logger just import it from the package:
+>>> from solution_file_processing import log
+>>> from . import log  # If you are in a module of the package
+
+Then you can simply use the logger as you would use the standard python logger:
+>>> log.debug('This is a debug message.')
+>>> log.info('This is an info message.')
 """
 import os
 import datetime as dt
@@ -19,6 +26,7 @@ class FilterTimeTaker(logging.Filter):
     This class is a custom filter for the logging module. It calculates the time difference between the current log
     record and the last one, and adds this information to the log record.
     """
+
     def filter(self, record):
         """
         This method is called for each log record and modifies the record in place by adding a new attribute
@@ -48,19 +56,22 @@ class FilterTimeTaker(logging.Filter):
 
 
 # noinspection PyAttributeOutsideInit
-class Logger(logging.Logger):
+class CustomLogger(logging.Logger):
     """
     This class is a custom logger that extends the built-in Logger class from the logging module.
     It provides additional functionality such as changing the log file path, changing the log level,
     and enabling/disabling logging in general.
     """
-    def __init__(self, name, path='logs.log'):
+
+    def __init__(self, name, path='logs.log', stream_level='DEBUG', file_level='INFO'):
         """
         Initializes the Logger with a name and a path for the log file.
 
         Args:
             name (str): The name of the logger.
             path (str, optional): The path to the log file. Defaults to 'logs.log'.
+            stream_level (str or int, optional): The log level for the stream handler. Defaults to 'DEBUG'.
+            file_level (str or int, optional): The log level for the file handler. Defaults to 'INFO'.
         """
         self.name = name
         super().__init__(self.name)
@@ -76,14 +87,14 @@ class Logger(logging.Logger):
 
         # Create stream handler
         h_stream = logging.StreamHandler()
-        h_stream.setLevel(logging.DEBUG)
+        h_stream.setLevel(stream_level)
         h_stream.setFormatter(self._fmt_stream)
         h_stream.addFilter(FilterTimeTaker())
         self.addHandler(h_stream)
 
         # Create file handler
         h_file = logging.FileHandler(path, delay=True)
-        h_file.setLevel(logging.DEBUG)
+        h_file.setLevel(file_level)
         h_file.setFormatter(self._fmt_file)
         h_file.addFilter(FilterTimeTaker())
         self.addHandler(h_file)
