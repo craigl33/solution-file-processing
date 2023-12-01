@@ -4,938 +4,22 @@ TODO Docstring
 
 import os
 
-import matplotlib.pyplot as plt
-import matplotlib
-import seaborn as sns
-import calmap
 import pandas as pd
 import numpy as np
 
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
-from matplotlib import colors
-
 from .utils.utils import catch_errors
+from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETTE
 from .constants import VRE_TECHS
+from .timeseries import create_output_11 as create_ts_output_11
+from .timeseries import create_output_4 as create_timeseries_output_4
 from . import log
 
 print = log.info
 
-np.random.seed(sum(map(ord, 'calplot')))
 
-iea_palette = {'grey5': '#f2f2f2', 'grey10': '#e6e6e6', 'pl': '#b187ef', 'bl': '#49d3ff', 'tl': '#00e0e0',
-               'gl': '#68f394', 'yl': '#fff45a',
-               'ol': '#ffb743', 'rl': '#ff684d', 'gl': '#68f394', 'yl': '#fff45a', 'grey40': '#949494',
-               'grey50': '#6f6f6f',
-               'p': '#af6ab1', 'b': '#3e7ad3', 't': '#00ada1', 'g': '#1dbe62', 'y': '#fed324',
-               'o': '#f1a800', 'r': '#e34946', 'grey20': '#afafaf', 'black': '#000000', 'white': '#ffffff',
-               'iea_b': '#0044ff', 'iea_b50': '#80a2ff'}
-
-extended_palette = dict(
-    {'{}'.format(i): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20b').colors[i]) for i in np.arange(0, 20)},
-    **{'{}'.format(i + 20): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[i]) for i in
-       np.arange(0, 20)})
-
-### For overflow, i.e. things that go beyond the 16 or so colors of IEA palette.
-iea_palette_plus = dict(iea_palette, **extended_palette)
-
-tech_palette = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10', 'Gas': 'p', 'Abated gas': 'p',
-                'Oil': 'grey50', 'Hydro': 'bl', 'Geothermal': 'r', 'Bioenergy': 'gl', 'Solar': 'y', 'Wind': 'g',
-                'Fuel Cell': 't', 'Other': 't', 'Battery': 'b', 'Storage': 'b'}
-
-# model_palette = {'2019':'rl', '2025 Base':'o', '2025 SolarPlus':'bl', '2025 SolarPlus Lite':'pl',  '2025 SolarPlus Extra':'gl' }
-
-
-### We should add load vs customer load (to see charging effect),
-### Similarly could add load + exports to get effective load
-stack_palette = {'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'grey20', 'Cofiring': 'grey5', 'Abated coal': 'grey5',
-                 'Gas': 'p', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
-                 'Fuel Cell': 'tl', 'Storage': 'b',
-                 'Solar': 'y', 'Wind': 'g', 'Total Load': 'black', 'Load2': 'white', 'Exports': 'p', 'Net Load': 'r',
-                 'Curtailment': 'yl', 'Unserved Energy': 'iea_b', 'Underlying Load': 'p', 'Storage Load': 'grey50',
-                 'Nuclear': 'r'}
-
-reg_palette = {'APB_BALI': 'bl', 'APB_JBR': 'b', 'APB_JKB': 'pl', 'APB_JTD': 't', 'APB_JTM': 'y'}
-subreg_palette = {'BAL': 'bl', 'BNT': 'b', 'DIY': 'gl', 'JBR': 't', 'JKT': 'ol', 'JTE': 'pl', 'JTM': 'grey20',
-                  'SMN': 'r', 'SMS': 'tl'}
-isl_palette = {'JVB': 'bl', 'SUM': 'gl', 'KLM': 'rl', 'SLW': 'ol', 'MPN': 'pl', 'IDN': 'yl'}
-
-iea_palette_l8 = ['rl', 'ol', 'gl', 'bl', 'pl', 'grey10', 'yl',
-                  'tl']  ### got rid of light yellow as its a poor choice for plots.
-iea_palette_d8 = ['r', 'o', 'y', 'g', 't', 'b', 'p', 'grey50']
-iea_palette_16 = iea_palette_l8 + iea_palette_d8
-
-iea_palette_14 = ['rl', 'ol', 'bl', 'gl', 'pl', 'grey10', 'y', 'tl', 'g', 't', 'b', 'grey50', 'yl', 'r', 'p']
-iea_cmap_l8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_l8])
-iea_cmap_d8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_d8])
-iea_cmap_16 = colors.ListedColormap([iea_palette[c] for c in iea_palette_16])
-iea_cmap_14 = colors.ListedColormap([iea_palette[c] for c in iea_palette_14])
-
-tab20bc = colors.ListedColormap([extended_palette[i] for i in extended_palette.keys()])
-
-# model_palette = dict(zip([m for m in pretty_model_names.values() if m in model_names], iea_palette_14[:len(model_names)]))
-combined_palette = dict(tech_palette, **subreg_palette, **reg_palette,
-                        **isl_palette)  # , **model_palette, **weo_Tech_palette)
-
-
-def write_xlsx_column(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        palette=combined_palette,
-        subtype="stacked",
-        units="",
-        total_scatter_col=None,
-        to_combine=False,
-        right_ax=None,
-):
-    cm_to_pixel = 37.7953
-
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    sort_index = [i for i in palette.keys() if i in df.index] + [
-        i for i in df.index if i not in palette.keys()
-    ]
-
-    if type(df.index == pd.Index):
-        df = df.loc[sort_index, sort_cols]
-    else:
-        df = df.loc[:, sort_cols]
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    ### Whether we caluclate the scatter col or not. Should probably rename the variable from total_col, as its not always a total
-    if (total_scatter_col != None) & (total_scatter_col not in df.columns):
-        df.loc[:, total_scatter_col] = df.sum(axis=1)
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "%":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "column", "subtype": subtype})
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 7 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    if total_scatter_col != None:
-        chart2 = workbook.add_chart({"type": "scatter"})
-
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        if df.columns[col_num - df.index.nlevels] != total_scatter_col:
-            # Configure the series of the chart from the dataframe data.
-            ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-
-            try:
-                fill_colour = iea_palette_plus[
-                    palette[df.columns[col_num - df.index.nlevels]]
-                ]
-            except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-            # fill_colour = matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[20-col_num-df.index.nlevels])
-
-            # Or using a list of values instead of category/value formulas:
-            #     [sheetname, first_row, first_col, last_row, last_col]
-
-            # Or using a list of values instead of category/value formulas:
-            #     [sheetname, first_row, first_col, last_row, last_col]
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "gap": 75,
-                    "fill": {"color": fill_colour, "border": "#000000"},
-                    "border": {"color": "#000000"},
-                }
-            )
-        else:
-            if right_ax != None:
-                chart2.add_series(
-                    {
-                        "name": [sheet_name, 0, col_num],
-                        "categories": [
-                            sheet_name,
-                            1,
-                            0,
-                            df.shape[0],
-                            df.index.nlevels - 1,
-                        ],
-                        "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                        "marker": {
-                            "type": "circle",
-                            "size": 8,
-                            "border": {"color": "#000000"},
-                            "fill": {"color": "#ffffff", "transparency": 30},
-                        },
-                        "y2_axis": True,
-                    }
-                )
-            else:
-                chart2.add_series(
-                    {
-                        "name": [sheet_name, 0, col_num],
-                        "categories": [
-                            sheet_name,
-                            1,
-                            0,
-                            df.shape[0],
-                            df.index.nlevels - 1,
-                        ],
-                        "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                        "marker": {
-                            "type": "circle",
-                            "size": 8,
-                            "border": {"color": "#000000"},
-                            "fill": {"color": "#ffffff", "transparency": 30},
-                        },
-                    }
-                )
-
-            ### This is the total column and will always be last, so we can just combine here and save an if/else loop
-            chart.combine(chart2)
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "line": {"color": "black"},
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    if right_ax != None:
-        if df.shape[1] > 1:
-            max_chars = np.max([len(c) for c in df.columns])
-            min_width = 0.075
-            width = min_width + max_chars * 0.01
-        else:
-            width = 0
-
-        chart2.set_y2_axis(
-            {
-                "major_gridlines": {"visible": False},
-                "num_font": {"name": "Arial", "size": 10},
-                "num_format": num_fmt,
-                "name": right_ax,
-                "name_font": {
-                    "name": "Arial",
-                    "size": 10,
-                    "bold": False,
-                    "text_rotation": -90,
-                },
-                "name_layout": {"x": 0.98 - width, "y": 0.02},
-                "line": {"none": True},
-                "major_gridlines": {
-                    "visible": True,
-                    "line": {"width": 1, "color": "#d9d9d9"},
-                },
-            }
-        )
-
-    chart.set_title({"none": True})
-
-    if df.shape[1] > 1:
-        max_chars = np.max([len(c) for c in df.columns])
-
-        ### Legend should not exceed 16chars and should always be more than 8chars
-
-        if max_chars < 8:
-            max_chars = 8
-        elif max_chars > 16:
-            max_chars = 16
-
-        min_width = 0.075
-        width = min_width + max_chars * 0.01
-
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "layout": {"x": 1 - width, "y": 0, "height": 1, "width": width},
-            }
-        )
-    else:
-        chart.set_legend({"visble": False})
-        chart.set_legend({"position": "none"})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-def write_xlsx_stack(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        palette=stack_palette,
-        units="MW",
-        to_combine=False,
-):
-    cm_to_pixel = 37.7953
-
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    df = df.loc[:, sort_cols]
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "area", "subtype": "stacked"})
-    chart2 = workbook.add_chart({"type": "line"})
-
-    sec_axis_vars = ["Load2", "Curtailment"]
-    write_xlsx_stack = ["Net Load", "Load"]
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        try:
-            fill_colour = iea_palette_plus[palette[df.columns[col_num - 1]]]
-        except KeyError:
-            print("Non-specified colour for: {}".format(df.columns[col_num - 1]))
-            fill_colour = iea_cmap_16.colors[col_num - 1]
-
-        if df.columns[col_num - 1] == "Load2":
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "fill": {"none": True},
-                    "border": {"none": True},
-                    "y2_axis": True,
-                }
-            )
-
-            leg_del_idx = [int(col_num - 1)]
-
-        elif df.columns[col_num - 1] == "Curtailment":
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "pattern": {
-                        "pattern": "light_upward_diagonal",
-                        "fg_color": iea_palette["y"],
-                        "bg_color": iea_palette["r"],
-                    },
-                    "border": {"none": True},
-                    "y2_axis": True,
-                }
-            )
-        elif df.columns[col_num - 1] == "Total Load":
-            chart2.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "line": {"width": 0.25, "color": "black", "dash_type": "solid"},
-                }
-            )
-        elif df.columns[col_num - 1] == "Underlying Load":
-            continue
-        elif df.columns[col_num - 1] == "Storage Load":
-            continue
-        #             chart2.add_series({
-        #                 'name':       [sheet_name, 0, col_num],
-        #                 'categories': [sheet_name, 1, 0, df.shape[0], 0],
-        #                 'values':     [sheet_name, 1, col_num, df.shape[0], col_num],
-        #                 'line': {'width': 1.00, 'color':iea_palette['p'], 'dash_type': 'dash'},
-        #             })
-        elif df.columns[col_num - 1] == "Net Load":
-            chart2.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "line": {
-                        "width": 1.00,
-                        "color": iea_palette["r"],
-                        "dash_type": "dash",
-                    },
-                }
-            )
-        else:
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "fill": {"color": fill_colour},
-                    "border": {"none": True},
-                }
-            )
-
-    # Configure the chart axes.
-    num_fmt = "# ###"
-
-    chart.combine(chart2)
-
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 9.5 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "dd mmm hh:mm",
-            "major_unit": 24,
-            "interval_unit": 24,
-            "interval_tick": 12,
-            "line": {"color": "black"},
-            "text_axis": True,
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_y2_axis({"visible": False})
-
-    #     leg_del_idx = df.shape[1]
-
-    if "Load2" in df.columns:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.7, "width": 1, "height": 0.25},
-                "delete_series": leg_del_idx,
-            }
-        )
-    else:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.7, "width": 1, "height": 0.25},
-            }
-        )
-
-    # Insert the chart into the worksheet.
-    worksheet.insert_chart("S2", chart)
-
-
-def write_xlsx_scatter(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        colour=None,
-        palette=combined_palette,
-        units="",
-        alpha=80,
-        to_combine=False,
-        markersize=4,
-        common_yr=2041,
-):
-    cm_to_pixel = 37.7953
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "scatter"})
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 8.5 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(1, df.shape[1] + 1):
-        if colour != None:
-            fill_colour = colour
-        else:
-            try:
-                fill_colour = iea_palette_plus[
-                    palette[df.columns[col_num - df.index.nlevels]]
-                ]
-            except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-        chart.add_series(
-            {
-                "name": [sheet_name, 0, col_num],
-                "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                "marker": {
-                    "type": "circle",
-                    "size": markersize,
-                    "border": {"color": fill_colour},
-                    "fill": {"color": fill_colour, "transparency": alpha},
-                },
-            }
-        )
-
-    # Configure the chart axes.
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "mmm",
-            "date_axis": True,
-            "min": pd.to_datetime("01-01-{}".format(common_yr)),
-            "max": pd.to_datetime("31-12-{}".format(common_yr)),
-            "major_unit": 31,
-            "interval_unit": 31,
-            "interval_tick": 31,
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_title({"none": True})
-
-    chart.set_legend(
-        {
-            "font": {"name": "Arial", "size": 10},
-            "position": "bottom",
-            #                       'layout': {'x':      0,
-            #                                 'y':      0.7,
-            #                                 'width':  1,
-            #                                 'height': 0.25
-            #                                },
-            #                      'delete_series': [leg_del_idx]
-        }
-    )
-
-    #     chart.set_legend({'num_font':  {'name': 'Arial', 'size': 10}})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-def write_xlsx_line(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        subtype="timeseries",
-        palette=combined_palette,
-        units="",
-        ldc_idx=None,
-        label_position="next_to",
-        to_combine=False,
-        line_width=1.5,
-):
-    cm_to_pixel = 37.7953
-
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    sort_index = [i for i in palette.keys() if i in df.index] + [
-        i for i in df.index if i not in palette.keys()
-    ]
-
-    if type(df.index == pd.Index):
-        df = df.loc[sort_index, sort_cols]
-    else:
-        df = df.loc[:, sort_cols]
-
-    if subtype == "ldc":
-        if ldc_idx is None:
-            df.index = (np.arange(0, df.shape[0]) + 1) / df.shape[0]
-        else:
-            df.index = ldc_idx
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    if subtype == "timeseries":
-        chart = workbook.add_chart({"type": "line"})
-    else:
-        chart = workbook.add_chart({"type": "scatter", "subtype": "line"})
-
-    # Create a chart object.
-    if to_combine:
-        chart.set_size({"width": 7.5 * cm_to_pixel, "height": 7 * cm_to_pixel})
-    else:
-        chart.set_size({"width": 15 * cm_to_pixel, "height": 7 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.25,
-                    "y": 0,
-                    "width": 0.75,
-                    "height": 0.65,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.25,
-                    "y": 0,
-                    "width": 0.75,
-                    "height": 0.65,
-                },
-                "fill": {"none": True},
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        try:
-            line_colour = iea_palette_plus[
-                palette[df.columns[col_num - df.index.nlevels]]
-            ]
-        except KeyError:
-            line_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-        chart.add_series(
-            {
-                "name": [sheet_name, 0, col_num],
-                "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                "line": {"color": line_colour, "width": line_width},
-                "marker": {"type": "none"},
-            }
-        )
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "dd mmm hh:mm",
-            "major_unit": 24,
-            "interval_unit": 24,
-            "interval_tick": 12,
-            "line": {"color": "black"},
-            "text_axis": True,
-            "label_position": label_position,
-        }
-    )
-
-    if subtype == "ldc":
-        if np.round(np.max(df.index) / 5, -1) < 1:
-            chart.set_x_axis(
-                {
-                    "num_font": {"name": "Arial", "size": 10},
-                    "line": {"color": "black"},
-                    "major_unit": np.round(np.max(df.index) / 5, -1),
-                    "min": 0,
-                    "max": np.max(df.index),
-                    "num_format": "0.0%",
-                    "label_position": label_position,
-                }
-            )
-        else:
-            chart.set_x_axis(
-                {
-                    "num_font": {"name": "Arial", "size": 10},
-                    "line": {"color": "black"},
-                    "major_unit": np.round(np.max(df.index) / 5, -1),
-                    "min": 0,
-                    "max": np.max(df.index),
-                    "num_format": "0%",
-                    "label_position": label_position,
-                }
-            )
-    else:
-        chart.set_x_axis(
-            {
-                "num_font": {"name": "Arial", "size": 10},
-                "line": {"color": "black"},
-                "num_format": "mmm",
-                "major_unit": 30,
-                "label_position": label_position,
-            }
-        )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_title({"none": True})
-
-    if df.shape[1] > 1:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.85, "height": 0.15, "width": 1},
-            }
-        )
-
-    #         max_chars = np.max([len(c) for c in df.columns])
-    #         min_width = 0.075
-    #         width = min_width + max_chars*0.01
-
-    #         chart.set_legend({'font':  {'name': 'Arial', 'size': 10},
-    #                           'layout': {'x': 1- width,
-    #                                     'y':      0,
-    #                                     'height': 1,
-    #                                     'width':width
-    #                                    }})
-    else:
-        chart.set_legend({"visble": False})
-        chart.set_legend({"position": "none"})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-@catch_errors
-def create_plot_1a(c):
-    ### Plot 1: Generation stacks for national days of interest
+def _get_plot_1_variables(c):
+    # -----
+    # Get: reg_ids
 
     load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'] \
         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
@@ -974,14 +58,24 @@ def create_plot_1a(c):
             how='all', axis=1).columns)))
     # Make reg_ids flat list ('value', 'Region') -> 'Region'
     reg_ids = [x[1] for x in reg_ids]
-    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
 
+    # -----
+    # Get: doi_summary
+    if not os.path.exists(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv')):
+        create_ts_output_11(c)
     doi_summary = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'),
                               index_col=0,
                               parse_dates=True)
 
-    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
-    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+    # -----
+    # Get: use_reg_ts
+
+    use_reg_ts = c.o.node_df[c.o.node_df.property == 'Unserved Energy'].groupby(
+        ['model'] + c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
+        level=c.GEO_COLS)
+
+    # -----
+    # Get: gen_stack_by_reg
 
     # Get needed variables
     load_by_reg_ts = c.o.node_df[c.o.node_df.property == 'Load'].groupby(
@@ -997,9 +91,6 @@ def create_plot_1a(c):
     net_load_reg_sto_ts = (c.v.net_load_reg_ts.stack(c.GEO_COLS).reorder_levels(
         ['model'] + c.GEO_COLS + ['timestamp']) + pumpload_reg_ts).rename('Net Load')
 
-    use_reg_ts = c.o.node_df[c.o.node_df.property == 'Unserved Energy'].groupby(
-        ['model'] + c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
-        level=c.GEO_COLS)
     # Get vre_curtailed_reg_ts
     ### Define model regs in multi-level format
     model_regs_multi = load_by_reg_ts.unstack(c.GEO_COLS).columns
@@ -1050,6 +141,22 @@ def create_plot_1a(c):
                                  .rename(columns={'value': 'Unserved Energy'}),
                                   ], axis=1)
 
+    return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
+
+
+@catch_errors
+def create_plot_1a(c):
+    """
+    Plot 1: Generation stacks for national days of interest
+    """
+
+    print('Creating plot 1a...')
+    reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg = _get_plot_1_variables(c)
+
+    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
 
     for j, p in enumerate(doi_periods):
         doi = doi_summary.loc[p]
@@ -1139,7 +246,6 @@ def create_plot_1b(c):
             fig_path = os.path.join(
                 save_dir_model, "plot1b_stack_ntl_ref_doi_{}.xlsx".format(doi_name)
             )
-            #         shutil.copyfile(fig_template_path, fig_path)
 
             with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
                 ## ExcelWriter for some reason uses writer.sheets to access the sheet.
@@ -1147,14 +253,14 @@ def create_plot_1b(c):
                 ## and will create a new sheet.
 
                 for reg in model_regs:
-                    gen_stack_doi_reg = gen_stack_doi.loc[ix[:, reg, :], :].droplevel(
+                    gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel(
                         [0, 1]
                     )
                     write_xlsx_stack(
                         df=gen_stack_doi_reg,
                         writer=writer,
                         sheet_name=reg,
-                        palette=stack_palette,
+                        palette=STACK_PALETTE,
                     )
 
 
@@ -1805,16 +911,21 @@ def create_plot_6(c):
             )
 
 
-def plot_7(c):
+def create_plot_7(c):
     """
     Status:
     Plot7: CO2 savings plots by reference model
+
+    Creates following output files:
+    - for each model in /{model}/:
+        - plot7_co2_savings_ref_{model}.xlsx
     """
+    print("Creating plot 7...")
     # Get rid of cofiring if any for the purpose of comparison
     co2_by_tech_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2') &
                                        (c.o.em_gen_yr_df.property == 'Production')] \
         .groupby(['model'] + c.GEO_COLS + ['Category']) \
-        .agg({'value': 'sum'}).compute()
+        .agg({'value': 'sum'})
     co2_by_tech = (
             co2_by_tech_reg
             .unstack("Category")
@@ -1847,7 +958,7 @@ def plot_7(c):
     )
 
     em_by_type_tech_reg = c.o.em_gen_yr_df[(c.o.em_gen_yr_df.property == 'Production')].groupby(
-        ['model', 'parent'] + c.GEO_COLS + ['Category']).agg({'value': 'sum'}).reset_index().compute()
+        ['model', 'parent'] + c.GEO_COLS + ['Category']).agg({'value': 'sum'}).reset_index()
 
     def get_parent(x):
         return x if '_' not in x else x.split('_')[0]
