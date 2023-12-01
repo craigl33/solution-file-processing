@@ -87,7 +87,23 @@ class SolutionFilesConfig:
             raise FileNotFoundError(f'Could not find configuration file {os.path.basename(config_name)} in '
                                     f'{os.path.abspath(config_name)}.')
 
-        ## Apply configurations
+        # -----
+        # Do some checks on the configuration
+
+        # Check files and directories
+        if not os.path.exists(self.cfg['path']['model_dir']):
+            if not os.path.isdir(self.cfg['path']['model_dir']):
+                raise FileNotFoundError(f'Could not find model directory {self.cfg["path"]["model_dir"]}.')
+        if not os.path.exists(self.cfg['path']['soln_idx_path']):
+            if not os.path.isfile(self.cfg['path']['soln_idx_path']):
+                raise FileNotFoundError(f'Could not find solution index file {self.cfg["path"]["soln_idx_path"]}.')
+        if not os.path.exists(self.cfg['run']['log_file_path']):
+            if not os.path.isdir(os.path.dirname(self.cfg['run']['log_file_path'])):
+                raise FileNotFoundError(f'Could not find log file directory {self.cfg["run"]["log_file_path"]}.')
+
+        # -----
+        # Apply configurations
+
         # For logging
         if self.cfg['run']['log_file_path']:
             log_file_path = self.cfg['run']['log_file_path']

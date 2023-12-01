@@ -1,5 +1,5 @@
 """
-TODO Docstring
+TODO DOCSTRING
 """
 
 VRE_TECHS = ['Solar', 'Wind']

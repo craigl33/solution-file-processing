@@ -1,5 +1,5 @@
 """
-# Todo update after splitting into multiple files
+# DOCSTRING update after splitting into multiple files
 This module, `summary.py`, is responsible for all output files from the processed data. Those functions can be
 accessed from the package level, e.g. `solution_file_processing.outputs.create_year_output_1(c)`. They all need a
 `config` object as input, which has to be created first, e.g.
@@ -23,7 +23,7 @@ More details on each function in the its Docstring, which can be accessed via
 `help(solution_file_processing.outputs.func_name)`.
 
 Year outputs:
-# todo needs list with short description and better docstrings for all functions
+# DOCSTRING needs list with short description and better docstrings for all functions
 """
 
 import os

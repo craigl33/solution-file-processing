@@ -12,7 +12,6 @@ geo_cols = ['Island', 'Region', 'Subregion']
 reg_ts = true
 
 [run]
-working_dir = 'U:/code/solution-file-processing'
 log_file_path = 'U:/code/solution-file-processing/logs/IDN.log'
 log_timestamp = true
 variables_cache = true
