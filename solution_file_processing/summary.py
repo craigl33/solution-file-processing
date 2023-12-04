@@ -1,5 +1,5 @@
 """
-# Todo update after splitting into multiple files
+# DOCSTRING update after splitting into multiple files
 This module, `summary.py`, is responsible for all output files from the processed data. Those functions can be
 accessed from the package level, e.g. `solution_file_processing.outputs.create_year_output_1(c)`. They all need a
 `config` object as input, which has to be created first, e.g.
@@ -23,7 +23,7 @@ More details on each function in the its Docstring, which can be accessed via
 `help(solution_file_processing.outputs.func_name)`.
 
 Year outputs:
-# todo needs list with short description and better docstrings for all functions
+# DOCSTRING needs list with short description and better docstrings for all functions
 """
 
 import os
@@ -434,8 +434,9 @@ def create_output_9(c):
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
 
-    vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
-    vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
+    if 'Island' in c.o.vre_curtailed.columns:
+        vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
+        vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
 
     curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
                             vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
@@ -596,6 +597,7 @@ def create_output_11(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
+    # todo check for IPP information
     gen_cap_tech_reg_IPPs \
         .stack(c.GEO_COLS) \
         .assign(units='MW') \

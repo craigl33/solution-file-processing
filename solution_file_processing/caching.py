@@ -1,5 +1,5 @@
 """"
-TODO Docstring
+TODO DOCSTRING
 """
 import numpy as np
 import pandas as pd
@@ -73,7 +73,7 @@ class Objects:
     @caching('objects')
     def gen_yr_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._gen_yr_df is None:
             _df = self.c.get_processed_object('year', 'generators', return_type='pandas')
@@ -150,7 +150,7 @@ class Objects:
     @caching('objects')
     def em_gen_yr_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._em_gen_yr_df is None:
             self._em_gen_yr_df = self.c.get_processed_object('year', 'emissions_generators', return_type='pandas')
@@ -160,7 +160,7 @@ class Objects:
     @caching('objects')
     def node_yr_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._node_yr_df is None:
             self._node_yr_df = self.c.get_processed_object('year', 'nodes', return_type='pandas')
@@ -170,7 +170,7 @@ class Objects:
     @caching('objects')
     def line_yr_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._line_yr_df is None:
             self._line_yr_df = self.c.get_processed_object('year', 'lines', return_type='pandas')
@@ -180,7 +180,7 @@ class Objects:
     @caching('objects')
     def fuelcontract_yr_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._fuelcontract_yr_df is None:
             self._fuelcontract_yr_df = self.c.get_processed_object('year', 'fuelcontracts', return_type='pandas')
@@ -190,7 +190,7 @@ class Objects:
     @caching('objects')
     def gen_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._gen_df is None:
             _df = self.c.get_processed_object('interval', 'generators', return_type='dask')
@@ -244,7 +244,7 @@ class Objects:
     @caching('objects')
     def node_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._node_df is None:
             self._node_df = self.c.get_processed_object('interval', 'nodes', return_type='dask')
@@ -254,7 +254,7 @@ class Objects:
     @caching('objects')
     def reg_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._reg_df is None:
             self._reg_df = self.c.get_processed_object('interval', 'regions', return_type='dask')
@@ -264,7 +264,7 @@ class Objects:
     @caching('objects')
     def res_gen_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._res_gen_df is None:
             _df = self.c.get_processed_object('interval', 'reserves_generators', return_type='dask')
@@ -282,7 +282,7 @@ class Objects:
     @caching('objects')
     def purch_df(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._purch_df is None:
             self._purch_df = self.c.get_processed_object('interval', 'purchasers', return_type='dask')
@@ -316,14 +316,14 @@ class Variables:
     
     Currently, the following properties are available:
 
-    time_idx: # todo
-    gen_by_tech_reg_ts: # todo 
-    gen_by_subtech_reg_ts: # todo
-    customer_load_ts: # todo
-    vre_av_abs_ts: # todo
-    net_load_ts: # todo 
-    net_load_reg_ts: # todo
-    gen_inertia: # todo
+    time_idx: #DOCSTRING
+    gen_by_tech_reg_ts: #DOCSTRING
+    gen_by_subtech_reg_ts: #DOCSTRING
+    customer_load_ts: #DOCSTRING
+    vre_av_abs_ts: #DOCSTRING
+    net_load_ts: #DOCSTRING
+    net_load_reg_ts: #DOCSTRING
+    gen_inertia: #DOCSTRING
 
     """
 
@@ -351,7 +351,7 @@ class Variables:
     @property
     def model_names(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._model_names is None:
             self._model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
@@ -365,7 +365,7 @@ class Variables:
     @caching('variables')
     def gen_by_tech_reg_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._gen_by_tech_reg_ts is None:
             self._gen_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
@@ -381,7 +381,7 @@ class Variables:
     @caching('variables')
     def gen_by_subtech_reg_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._gen_by_subtech_reg_ts is None:
             self._gen_by_subtech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
@@ -397,7 +397,7 @@ class Variables:
     @caching('variables')
     def customer_load_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._customer_load_ts is None:
             self._customer_load_ts = self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
@@ -413,7 +413,7 @@ class Variables:
     @caching('variables')
     def vre_av_abs_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._vre_av_abs_ts is None:
             self._vre_av_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
@@ -427,7 +427,7 @@ class Variables:
     @caching('variables')
     def net_load_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._net_load_ts is None:
             self._net_load_ts = pd.DataFrame(
@@ -440,7 +440,7 @@ class Variables:
     @caching('variables')
     def net_load_sto_ts(self):
         """
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._net_load_sto_ts is None:
             customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
@@ -481,7 +481,7 @@ class Variables:
     @caching('variables')
     def net_load_reg_ts(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._net_load_reg_ts is None:
             customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
@@ -507,7 +507,7 @@ class Variables:
     @caching('variables')
     def gen_inertia(self):
         """"
-        TODO Docstring
+        TODO DOCSTRING
         """
         if self._gen_inertia is None:
             gen_units_gen = self.c.o.gen_df[self.c.o.gen_df.property == 'Units Generating'] \

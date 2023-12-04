@@ -24,19 +24,19 @@ Just clone the repository to create a local copy:
 
     git clone solution-file-processing
 
-To install the dependencies, it is recommended to use a virtual environment. Both can be done automatically with the `environment.yml` file:
+To install the dependencies, it is recommended to use a virtual environment. Both can be done automatically with the `environment.yml` file. This will create an environment named `solution-file-processing`:
 
     conda env create -f environment.yml
 
 This creates a conda environment named `solution-file-processing` and installs all relevant packages which can be installed via conda. Then activate the environment and install the relevant packages which are only available via pip and use the IEA proxy:
 
-    conda activate iea-rise
+    conda activate solution-file-processing
     python -m pip install --proxy http://proxy.iea.org:8080 julia
     python -m pip install --proxy http://proxy.iea.org:8080 https://github.com/NREL/h5plexos/archive/master.zip
 
 That's it. Julia needs also to be installed on the system and if Julia should be used within python (only for unpacking the .zips to .h5 files) it also has to be initialized within python. There is a function for that in the code.
 
-If problems occur, see the [Troubleshooting](/docs/Troubleshooting.md) page for more information.
+If problems occur, see the Troubleshooting section in the [Documentation](docs/Documentation.md).
 
 ## Usage
 In the same project folder, create a new python file and import the package:
