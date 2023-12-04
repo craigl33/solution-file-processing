@@ -434,8 +434,9 @@ def create_output_9(c):
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
 
-    vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
-    vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
+    if 'Island' in c.o.vre_curtailed.columns:
+        vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
+        vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
 
     curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
                             vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
@@ -596,6 +597,7 @@ def create_output_11(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11d_gen_cap_by_weoTech_reg.csv'), index=False)
+    # todo check for IPP information
     gen_cap_tech_reg_IPPs \
         .stack(c.GEO_COLS) \
         .assign(units='MW') \

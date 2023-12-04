@@ -359,12 +359,16 @@ def write_xlsx_stack(
 
     # Configure the series of the chart from the dataframe data.
     ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
+    for col_num in np.arange(df.shape[1]):
         try:
-            fill_colour = iea_palette_plus[palette[df.columns[col_num - 1]]]
+            fill_colour = iea_palette_plus[palette[df.columns[col_num]]]
         except KeyError:
-            print("Non-specified colour for: {}".format(df.columns[col_num - 1]))
-            fill_colour = iea_cmap_16.colors[col_num - 1]
+            print("Non-specified colour for: {}".format(df.columns[col_num]))
+            try:
+                fill_colour = iea_cmap_16.colors[col_num]
+            except IndexError:
+                print("Too many columns for colour palette, starts repeating.")
+                fill_colour = iea_cmap_16.colors[col_num - 16]
 
         if df.columns[col_num - 1] == "Load2":
             chart.add_series(

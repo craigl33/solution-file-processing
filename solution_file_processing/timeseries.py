@@ -1078,7 +1078,6 @@ def create_output_11(c):
         .fillna(0) \
         .droplevel(0, axis=1)
 
-    print(gen_by_tech_ts)
     total_load_ts = c.o.reg_df[c.o.reg_df.property == 'Load'] \
         .groupby(['model', 'timestamp']) \
         .agg({'value': 'sum'})

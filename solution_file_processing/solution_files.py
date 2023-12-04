@@ -405,7 +405,7 @@ class SolutionFilesConfig:
                                    subfolder_name)
 
         # Run tests with baseline path if given
-        if self.cfg['testing']['baseline_output_dir']:
+        if getattr(getattr(self.cfg, 'testing', None), 'baseline_output_dir', None):
             print(f'\n\nRunning baseline tests with {self.cfg["testing"]["baseline_output_dir"]}.\n')
 
             output_path_test_baseline = os.path.join(self.cfg['testing']['baseline_output_dir'],
@@ -479,7 +479,7 @@ class SolutionFilesConfig:
             print(f'cfg.testing.baseline_output_dir not set. Skipping baseline tests.')
 
         # Run tests with similar outputs to check for consistency, if given
-        if self.cfg['testing']['similar_output_dirs']:
+        if getattr(getattr(self.cfg, 'testing', None), 'similar_output_dirs', None):
             for similar_output_dir in self.cfg['testing']['similar_output_dirs']:
                 print(f'\n\nRunning similarity tests with {similar_output_dir}.\n')
                 output_path_test_similar = os.path.join(similar_output_dir,

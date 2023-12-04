@@ -148,12 +148,13 @@ def _get_plot_1_variables(c):
 def create_plot_1a(c):
     """
     Plot 1: Generation stacks for national days of interest
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
     """
 
     print('Creating plot 1a...')
     reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg = _get_plot_1_variables(c)
 
-    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
+    model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
     doi_periods = [doi for doi in doi_summary.index if "time" in doi]
     doi_names = [doi for doi in doi_summary.index if "time" not in doi]
@@ -194,46 +195,40 @@ def create_plot_1a(c):
                               f'{gen_stack_doi.index[0]})')
                         continue
 
-                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'])
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'], errors='ignore')
                     write_xlsx_stack(df=gen_stack_doi_reg,
                                      writer=writer,
                                      sheet_name=reg,
-                                     palette=stack_palette)
+                                     palette=STACK_PALETTE)
                     print(f'Created sheet "{reg}" in {file_path}.')
 
 
 def create_plot_1b(c):
-    ### Plot 1b: Generation stacks for national days of interest a specified reference model
+    """
+    Plot 1b: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
 
-    load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'].groupby(
-        ['model', 'timestamp'] + c.GEO_COLS).sum().value
+    reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg = _get_plot_1_variables(c)
 
-    reg_ids = list(np.unique(np.append(
-        load_by_reg.unstack(c.GEO_COLS).droplevel(level=[c for c in c.GEO_COLS if c != 'Region'], axis=1).replace(0,
-                                                                                                                  np.nan).dropna(
-            how='all', axis=1).columns,
-        gen_by_tech_reg.droplevel(level=[c for c in c.GEO_COLS if c != 'Region'], axis=1).replace(0, np.nan).dropna(
-            how='all', axis=1).columns)))
+    model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
-    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
-
-    ### Ref model is based on highest USE....this can be changed/even selected via drop-down menu, etc.
-    ref_model = use_reg_ts.groupby("model").sum().idxmax().iloc[0]
-    ####|
     doi_periods = [doi for doi in doi_summary.index if "time" in doi]
     doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    ref_model = use_reg_ts.groupby('model').sum().idxmax().iloc[0]
 
     for i, p in enumerate(doi_periods):
         doi = doi_summary.loc[p]
         doi_name = doi_names[i]
 
-        for m in model_names:
-            save_dir_model = os.path.join(save_dir_plots, m)
+        for m in c.v.model_names:
+            save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
             if os.path.exists(save_dir_model) is False:
                 os.mkdir(save_dir_model)
 
-            gen_stack = gen_stack_by_reg.loc[ix[m, :, :], :]
-            toi_ref = doi.loc[ref_model]
+            gen_stack = gen_stack_by_reg.loc[pd.IndexSlice[m, :, :], :]
+            toi_ref = pd.to_datetime(doi.loc[ref_model])
 
             gen_stack_doi = gen_stack.reset_index()
             gen_stack_doi = gen_stack_doi.loc[
@@ -253,9 +248,14 @@ def create_plot_1b(c):
                 ## and will create a new sheet.
 
                 for reg in model_regs:
-                    gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel(
-                        [0, 1]
-                    )
+                    try:
+                        gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel([0, 1])
+                    except KeyError:
+                        print(f'Cannot find {reg} in second level of index. Skipping. (Example index: '
+                              f'{gen_stack_doi.index[0]})')
+                        continue
+
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'], errors='ignore')
                     write_xlsx_stack(
                         df=gen_stack_doi_reg,
                         writer=writer,
@@ -265,6 +265,9 @@ def create_plot_1b(c):
 
 
 def get_plot_data(c):
+    """
+    # todo Not implemented at all, just copied from old jupyter notebook
+    """
     plot_cols = {
         "load_by_reg":
             customer_load_by_reg.groupby(["model", "Region"]).sum().unstack(level="model") / 1000,
@@ -662,8 +665,10 @@ def get_plot_data(c):
 
 
 def create_plot_2(c):
+    """
+    # todo Not implemented at all, just copied from old jupyter notebook
     ### Plot 2: Annual summary plots by columnn
-
+    """
     fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")
 
     with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
@@ -699,6 +704,7 @@ def create_plot_2(c):
 
 def create_plot_3(c):
     """
+    # todo Not implemented at all, just copied from old jupyter notebook
     Status: Could work, but can't be run because 03 year output is missing
     """
     ### Gen by tech/reg plots per model
@@ -740,11 +746,15 @@ def create_plot_3(c):
 
 def create_plot_6(c):
     """
-    Status: Could work, but can't be run because 04 interval output is missing
+    # todo Could work, but can't be run because implementation of 04 ts output is missing
     """
     ### Plot 6: Cost savings plots by reference model
 
     ### Get rid of cofiring if any for the purpose of comparison
+    if not os.path.exists(os.path.join(c.DIR_05_2_TS_OUT, '04a_gen_op_costs_reg.csv')):
+        # todo implement this
+        pass
+
     gen_op_costs_by_reg = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '04a_gen_op_costs_reg.csv'))
     gen_op_costs_by_tech = (
         gen_op_costs_by_reg.unstack("Category")
