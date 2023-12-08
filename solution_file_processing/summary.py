@@ -35,8 +35,10 @@ import numpy as np
 from .utils.utils import catch_errors
 from .constants import VRE_TECHS
 from . import log
+from . import calculate
 
 print = log.info
+
 
 
 @catch_errors
@@ -82,6 +84,7 @@ def create_output_2(c):
     - 02b_use_reg_daily_ts.csv
     """
     print('Creating output 2...')
+
 
     use_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Unserved Energy'] \
         .groupby(['model'] + c.GEO_COLS) \
@@ -187,9 +190,24 @@ def create_output_3(c):
 @catch_errors
 def create_output_4(c):
     """
+RE/VRE Shares:
 
-    """
-    pass
+    """"
+    print("Creating output 4...")
+
+    gen_techs = list(c.o.gen_yr_df.Category.drop_duplicates())
+    re_by_reg = calculate.get_re_share_by_reg(c)
+    vre_by_reg = calculate.get_vre_share_by_reg(c)
+
+    re_by_reg.assign(units='%').reset_index().to_csv(
+    os.path.join(c.DIR_05_1_SUMMARY_OUT, '04_re_by_reg.csv'), index=False)
+
+    vre_by_reg.assign(units='%').reset_index().to_csv(
+    os.path.join(c.DIR_05_1_SUMMARY_OUT, '04_vre_by_reg.csv'), index=False)
+
+    print('Created file 04_re_by_reg.csv.')
+    print('Created file 04_vre_by_reg.csv.')
+
 
 
 @catch_errors
@@ -434,10 +452,11 @@ def create_output_9(c):
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
 
-    if 'Island' in c.o.vre_curtailed.columns:
-        vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
-        vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
+    ### Note that this is the new implementation for ISLAND-style aggregation. using c.GEO_COLS[0] i.e. the top tier of regional grouping.
+    vre_curtailed_grouped = vre_curtailed.T.groupby(c.GEO_COLS[0]).sum().T
+    vre_av_abs_grouped = vre_av_abs.T.groupby(c.GEO_COLS[0]).sum().T
 
+    ## This could be renamed _reg. But should be done in consistent manner, so leaving for now.
     curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
                             vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
 
@@ -459,7 +478,7 @@ def create_output_9(c):
 
     print('Created file 09a_vre_daily_curtailed.csv.')
     print('Created file 09b_curtailment_rate.csv.')
-    print('Created file 09c_all_RE_daily_curtailed.csv.')
+    print('Created file 09c_all_RE_daily_curtailed.csv.'
     print('Created file 09d_all_RE_curtailment_rate.csv.')
 
 
@@ -469,55 +488,58 @@ def create_output_10(c):
     Creates following output files:
     - 10a_line_cap.csv
     - 10b_line_imports_exports.csv
+
+    Capacities/flows are calculated based on defined regFrom/regTo in SolutionIndex
+    Future iterations could define nodeFrom/nodeTo also in order to allow mutliple outputs 
+    at different aggregations
     """
     print("Creating output 10...")
     # Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface
     # (as % of capacity?)
-    if not {'islFrom', 'nodeTo'}.issubset(set(c.soln_idx.columns)):
-        print("No islFrom and nodeTo columns in soln_idx. Skipping output 10.")
-        return
+    # This is now done between regions (as defined by regFrom, regTO) to be more general
+    # Further development could check if subRegFrom/subRegFrom is not NaN and if so,
+    # to calculate capacity/flow at lower aggregation. If NaN, line_cap_subreg = linecap_reg
+
 
     line_cap = c.o.line_yr_df[(c.o.line_yr_df.property == 'Import Limit') | \
                               (c.o.line_yr_df.property == 'Export Limit')] \
-        .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
+        .groupby(['model', 'regFrom', 'regTo', 'property']) \
         .agg({'value': 'sum'}) \
         .unstack(level='property')
+    
+        ####
+    line_cap_reg = line_cap.reset_index()
+    line_cap_reg = line_cap_reg[line_cap_reg.regFrom != line_cap_reg.regTo]
+    line_cap_reg.loc[:, 'line'] = line_cap_reg.regFrom + '-' + line_cap_reg.regTo
+    line_cap_reg = line_cap_reg.groupby(['model', 'line']).sum(numeric_only=True)
+
+    if line_cap_reg.shape[0] == 0:
+        pd.DataFrame({'model': c.o.line_yr_df.model.unique(),
+                      'reg_from': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_to': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'value': [0] * len(c.o.line_yr_df.model.unique())})
 
     line_imp_exp = c.o.line_yr_df[(c.o.line_yr_df.property == 'Flow') | \
                                   (c.o.line_yr_df.property == 'Flow Back')] \
-        .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
+       . groupby(['model', 'regFrom', 'regTo', 'property']) \
         .agg({'value': 'sum'}) \
         .unstack(level='property')
 
-    ####
-    line_cap_isl = line_cap.reset_index()
-    line_cap_isl = line_cap_isl[line_cap_isl.islFrom != line_cap_isl.islTo]
-    line_cap_isl.loc[:, 'line'] = line_cap_isl.islFrom + '-' + line_cap_isl.islTo
-    line_cap_isl = line_cap_isl.groupby(['model', 'line']).sum(numeric_only=True)
-
-    if line_cap_isl.shape[0] == 0:
-        pd.DataFrame({'model': c.o.line_yr_df.model.unique(),
-                      'nodeFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'nodeTo': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islTo': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'value': [0] * len(c.o.line_yr_df.model.unique())})
 
     if line_imp_exp.shape[0] == 0:
         pd.DataFrame({'model': c.o.line_yr_df.model.unique(),
-                      'nodeFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'nodeTo': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islTo': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_from': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_to': ['None'] * len(c.o.line_yr_df.model.unique()),
                       'value': [0] * len(c.o.line_yr_df.model.unique())})
 
-    line_imp_exp_isl = line_imp_exp.reset_index()
-    line_imp_exp_isl = line_imp_exp_isl[line_imp_exp_isl.islFrom != line_imp_exp_isl.islTo]
-    line_imp_exp_isl.loc[:, 'line'] = line_imp_exp_isl.islFrom + '-' + line_imp_exp_isl.islTo
+    line_imp_exp_reg = line_imp_exp.reset_index()
+    line_imp_exp_reg = line_imp_exp_reg[line_imp_exp_reg.regFrom != line_imp_exp_reg.regTo]
+    line_imp_exp_reg.loc[:, 'line'] = line_imp_exp_reg.regFrom + '-' + line_imp_exp_reg.regTo
+    line_imp_exp.columns = line_imp_exp.columns.droplevel(level=0)
+
 
     # Drop the higher-level index (to get a single column line in csv file)
     line_cap.columns = line_cap.columns.droplevel(level=0)
-    line_imp_exp.columns = line_imp_exp.columns.droplevel(level=0)
 
     line_cap \
         .assign(units='MW') \
@@ -706,4 +728,65 @@ def create_output_13(c):
 
     print('Created file 13a_co2_by_tech_reg.csv.')
     print('Created file 13b_co2_by_reg.csv.')
+
+
+@catch_errors
+def get_cf_tech_reg(c):
+    
+    time_idx = c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+    nr_days = len(time_idx.dt.date.drop_duplicates())
+
+    gen_by_tech_reg_orig = c.o.gen_yr_df[
+        c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
+    gen_by_tech_reg_orig = gen_by_tech_reg_orig \
+        .groupby(['model'] + c.GEO_COLS + ['Category']) \
+        .agg({'value': 'sum'}) \
+        .unstack(level=c.GEO_COLS) \
+        .fillna(0)
+
+    gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
+        .groupby(['model'] + c.GEO_COLS + ['Category']) \
+        .agg({'value': 'sum'}) \
+        .unstack(level=c.GEO_COLS) \
+        .fillna(0)
+
+    # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
+    # Standard
+    # As we make adjustments for co_firing on the energy values, we must re-calculate this
+
+    
+    cf_tech = (gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24)).unstack(
+        level='Category').fillna(0)
+        
+    return cf_tech
+
+   
+@catch_errors
+def get_cf_tech_reg(c):
+    
+    time_idx = c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+    nr_days = len(time_idx.dt.date.drop_duplicates())
+
+    gen_by_tech_reg_orig = c.o.gen_yr_df[
+        c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
+    gen_by_tech_reg_orig = gen_by_tech_reg_orig \
+        .groupby(['model'] + c.GEO_COLS + ['Category']) \
+        .agg({'value': 'sum'}) \
+        .unstack(level=c.GEO_COLS) \
+        .fillna(0)
+
+    gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity'] \
+        .groupby(['model'] + c.GEO_COLS + ['Category']) \
+        .agg({'value': 'sum'}) \
+        .unstack(level=c.GEO_COLS) \
+        .fillna(0)
+
+    # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
+    # Standard
+    # As we make adjustments for co_firing on the energy values, we must re-calculate this
+
+    cf_tech_reg = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * nr_days * 24)).fillna(0)
+    
+    return cf_tech_reg
+
 

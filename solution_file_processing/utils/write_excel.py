@@ -358,8 +358,15 @@ def write_xlsx_stack(
     write_xlsx_stack = ["Net Load", "Load"]
 
     # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.shape[1]):
+    # Col_num iterates from first data column, which varies if it is multiindex columns or not
+    # By iterating from df.index.nlevels, we avoid adding any part of the index while ensuring we had all data from the dataframe 
+    # Note this is because df.shape ignores index columns, but the items added to the chart are from the Excel columns, which are included!!
+    for col_num in np.arange(0, df.shape[1]):
+
+        # As Excel-indexed columns include the index columns, we need to have two column variables
+        # col_num is used for reference to DF while excel_col_num is for reference to columns written in the Excel sheet
+        excel_col_num = col_num + df.index.nlevels
+
         try:
             fill_colour = iea_palette_plus[palette[df.columns[col_num]]]
         except KeyError:
@@ -370,26 +377,26 @@ def write_xlsx_stack(
                 print("Too many columns for colour palette, starts repeating.")
                 fill_colour = iea_cmap_16.colors[col_num - 16]
 
-        if df.columns[col_num - 1] == "Load2":
+        if df.columns[col_num] == "Load2":
             chart.add_series(
                 {
-                    "name": [sheet_name, 0, col_num],
+                    "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "fill": {"none": True},
                     "border": {"none": True},
                     "y2_axis": True,
                 }
             )
 
-            leg_del_idx = [int(col_num - 1)]
+            leg_del_idx = [int(excel_col_num)]
 
-        elif df.columns[col_num - 1] == "Curtailment":
+        elif df.columns[col_num] == "Curtailment":
             chart.add_series(
                 {
-                    "name": [sheet_name, 0, col_num],
+                    "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "pattern": {
                         "pattern": "light_upward_diagonal",
                         "fg_color": iea_palette["y"],
@@ -399,18 +406,18 @@ def write_xlsx_stack(
                     "y2_axis": True,
                 }
             )
-        elif df.columns[col_num - 1] == "Total Load":
+        elif df.columns[col_num] == "Total Load":
             chart2.add_series(
                 {
-                    "name": [sheet_name, 0, col_num],
+                    "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "line": {"width": 0.25, "color": "black", "dash_type": "solid"},
                 }
             )
-        elif df.columns[col_num - 1] == "Underlying Load":
+        elif df.columns[col_num] == "Underlying Load":
             continue
-        elif df.columns[col_num - 1] == "Storage Load":
+        elif df.columns[col_num] == "Storage Load":
             continue
         #             chart2.add_series({
         #                 'name':       [sheet_name, 0, col_num],
@@ -418,12 +425,12 @@ def write_xlsx_stack(
         #                 'values':     [sheet_name, 1, col_num, df.shape[0], col_num],
         #                 'line': {'width': 1.00, 'color':iea_palette['p'], 'dash_type': 'dash'},
         #             })
-        elif df.columns[col_num - 1] == "Net Load":
+        elif df.columns[col_num] == "Net Load":
             chart2.add_series(
                 {
-                    "name": [sheet_name, 0, col_num],
+                    "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "line": {
                         "width": 1.00,
                         "color": iea_palette["r"],
@@ -434,9 +441,9 @@ def write_xlsx_stack(
         else:
             chart.add_series(
                 {
-                    "name": [sheet_name, 0, col_num],
+                    "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "fill": {"color": fill_colour},
                     "border": {"none": True},
                 }
