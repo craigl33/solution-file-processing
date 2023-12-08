@@ -601,7 +601,11 @@ def create_output_6(c):
     # Series with indices matching the columns of the DF for filling in missing columns
     model_filler = pd.Series(data=[1] * len(c.v.model_names), index=c.v.model_names).rename_axis('model')
 
-    purch_df = c.o.purch_df.compute()
+    try: 
+        purch_df = c.o.purch_df.compute()
+    except ValueError:
+        purch_df = pd.DataFrame(None)
+
     if purch_df.shape[0] > 0:
         ev_profiles_ts = purch_df[
             purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(

@@ -434,10 +434,11 @@ def create_output_9(c):
     curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
         'model').sum()).fillna(0) * 100
 
-    if 'Island' in c.o.vre_curtailed.columns:
-        vre_curtailed_grouped = vre_curtailed.T.groupby('Island').sum().T
-        vre_av_abs_grouped = vre_av_abs.T.groupby('Island').sum().T
+    ### Note that this is the new implementation for ISLAND-style aggregation. using c.GEO_COLS[0] i.e. the top tier of regional grouping.
+    vre_curtailed_grouped = vre_curtailed.T.groupby(c.GEO_COLS[0]).sum().T
+    vre_av_abs_grouped = vre_av_abs.T.groupby(c.GEO_COLS[0]).sum().T
 
+    ## This could be renamed _reg. But should be done in consistent manner, so leaving for now.
     curtailment_rate_isl = (vre_curtailed_grouped.groupby('model').sum() /
                             vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
 
@@ -469,51 +470,52 @@ def create_output_10(c):
     Creates following output files:
     - 10a_line_cap.csv
     - 10b_line_imports_exports.csv
+
+    Capacities/flows are calculated based on defined regFrom/regTo in SolutionIndex
+    Future iterations could define nodeFrom/nodeTo also in order to allow mutliple outputs 
+    at different aggregations
     """
     print("Creating output 10...")
     # Output 10: a) Line flows/capacity per line/interface c) Line flow time-series per interface
     # (as % of capacity?)
-    if not {'islFrom', 'nodeTo'}.issubset(set(c.soln_idx.columns)):
-        print("No islFrom and nodeTo columns in soln_idx. Skipping output 10.")
-        return
+    # This is now done between regions (as defined by regFrom, regTO) to be more general
+    # Further development could check if subRegFrom/subRegFrom is not NaN and if so,
+    # to calculate capacity/flow at lower aggregation. If NaN, line_cap_subreg = linecap_reg
+
 
     line_cap = c.o.line_yr_df[(c.o.line_yr_df.property == 'Import Limit') | \
                               (c.o.line_yr_df.property == 'Export Limit')] \
-        .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
+        .groupby(['model', 'regFrom', 'regTo', 'property']) \
         .agg({'value': 'sum'}) \
         .unstack(level='property')
 
     line_imp_exp = c.o.line_yr_df[(c.o.line_yr_df.property == 'Flow') | \
                                   (c.o.line_yr_df.property == 'Flow Back')] \
-        .groupby(['model', 'nodeFrom', 'nodeTo', 'islFrom', 'islTo', 'property']) \
+        .groupby(['model', 'regFrom', 'regTo', 'property']) \
         .agg({'value': 'sum'}) \
         .unstack(level='property')
 
     ####
-    line_cap_isl = line_cap.reset_index()
-    line_cap_isl = line_cap_isl[line_cap_isl.islFrom != line_cap_isl.islTo]
-    line_cap_isl.loc[:, 'line'] = line_cap_isl.islFrom + '-' + line_cap_isl.islTo
-    line_cap_isl = line_cap_isl.groupby(['model', 'line']).sum(numeric_only=True)
+    line_cap_reg = line_cap.reset_index()
+    line_cap_reg = line_cap_reg[line_cap_reg.regFrom != line_cap_reg.regTo]
+    line_cap_reg.loc[:, 'line'] = line_cap_reg.regFrom + '-' + line_cap_reg.regTo
+    line_cap_reg = line_cap_reg.groupby(['model', 'line']).sum(numeric_only=True)
 
-    if line_cap_isl.shape[0] == 0:
+    if line_cap_reg.shape[0] == 0:
         pd.DataFrame({'model': c.o.line_yr_df.model.unique(),
-                      'nodeFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'nodeTo': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islTo': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_from': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_to': ['None'] * len(c.o.line_yr_df.model.unique()),
                       'value': [0] * len(c.o.line_yr_df.model.unique())})
 
     if line_imp_exp.shape[0] == 0:
         pd.DataFrame({'model': c.o.line_yr_df.model.unique(),
-                      'nodeFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'nodeTo': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islFrom': ['None'] * len(c.o.line_yr_df.model.unique()),
-                      'islTo': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_from': ['None'] * len(c.o.line_yr_df.model.unique()),
+                      'reg_to': ['None'] * len(c.o.line_yr_df.model.unique()),
                       'value': [0] * len(c.o.line_yr_df.model.unique())})
 
-    line_imp_exp_isl = line_imp_exp.reset_index()
-    line_imp_exp_isl = line_imp_exp_isl[line_imp_exp_isl.islFrom != line_imp_exp_isl.islTo]
-    line_imp_exp_isl.loc[:, 'line'] = line_imp_exp_isl.islFrom + '-' + line_imp_exp_isl.islTo
+    line_imp_exp_reg = line_imp_exp.reset_index()
+    line_imp_exp_reg = line_imp_exp_reg[line_imp_exp_reg.regFrom != line_imp_exp_reg.regTo]
+    line_imp_exp_reg.loc[:, 'line'] = line_imp_exp_reg.regFrom + '-' + line_imp_exp_reg.regTo
 
     # Drop the higher-level index (to get a single column line in csv file)
     line_cap.columns = line_cap.columns.droplevel(level=0)
