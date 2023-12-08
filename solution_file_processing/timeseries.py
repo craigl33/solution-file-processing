@@ -432,10 +432,7 @@ def create_output_4(c):
     # gen_fom.loc[:, 'property'] = 'FO&M Cost'
     gen_fom.assign(value=lambda x: x.value / x.FOM)
     gen_fom.assign(property='FO&M Cost')
-
-    gen_capex = c.o.gen_yr_df.loc[c.o.gen_yr_df.property == 'Installed Capacity', :]
-    # gen_capex.loc[:, 'value'] = gen_capex.apply(lambda x: x.value * x.CAPEX, axis=1).fillna(0)
-    # gen_capex.loc[:, 'property'] = 'Investment Cost'
+ gen_capex.loc[:, 'property'] = 'Investment Cost'
     gen_capex.assign(value=lambda x: x.value / x.CAPEX)
     gen_capex.assign(property='Investment Cost')
 
@@ -523,6 +520,9 @@ def create_output_4(c):
 
     # USDm/GWh = USD'000/MWh
     gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
+    gen_capex = c.o.gen_yr_df.loc[c.o.gen_yr_df.property == 'Installed Capacity', :]
+    # gen_capex.loc[:, 'value'] = gen_capex.apply(lambda x: x.value * x.CAPEX, axis=1).fillna(0)
+    #
 
     lcoe_by_tech_reg = (gen_total_costs_by_reg.groupby(
         ['model'] + c.GEO_COLS + ['Category']).sum().unstack(

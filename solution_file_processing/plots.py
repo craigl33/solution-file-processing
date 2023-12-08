@@ -12,6 +12,8 @@ from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETT
 from .constants import VRE_TECHS
 from .timeseries import create_output_11 as create_ts_output_11
 from .timeseries import create_output_4 as create_timeseries_output_4
+from . import calculate
+
 from . import log
 
 print = log.info
@@ -153,57 +155,81 @@ def _get_plot_1_variables(c):
     return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
 
 
-def _get_plot_2_variables(c):
-    """
-    Function to get all variables for the annual summary plots (aka PLOT 2 for now)
+# def _get_plot_2_variables(c):
+#     """
+#     Function to get all variables for the annual summary plots (aka PLOT 2 for now)
 
-    customer_load_by_reg
-    customer_load_reg_ts
-    net_load_reg_ts
-    line_cap_reg
-    line_imp_exp_reg
-    use_by_reg
-    gen_by_tech_reg
-    load_by_reg
-    gen_cap_tech_reg
-    cf_tech
-    vre_by_reg
-    vre_av_reg_abs_ts
-    re_by_reg
-    curtailment_rate
-    re_curtailment_rate_by_tech
-    fuel_by_type
-    co2_by_tech_reg
-    co2_by_reg
-    gen_op_costs_by_reg
-    gen_op_and_vio_costs_reg
-    gen_total_costs_by_reg
-    # gen_total_costs_by_reg_2030
-    lcoe_tech
-    ramp_reg_ts
-    daily_pk_reg_ts
-    ramp_pc_ts
-    th_ramp_reg_ts
-    th_ramp_pc_ts
-    ramp_ts
-    nldc_orig
-    nldc
+    
+#     vre_by_reg
+#     re_by_reg
+#     curtailment_rate
+#     re_curtailment_rate_by_tech
+#     fuel_by_type
+#     co2_by_tech_reg
+#     co2_by_reg
+#     gen_op_costs_by_reg
+#     gen_op_and_vio_costs_reg
+#     gen_total_costs_by_reg
+#     # gen_total_costs_by_reg_2030
+#     lcoe_tech
+#     ramp_reg_ts
+#     daily_pk_reg_ts
+#     ramp_pc_ts
+#     th_ramp_reg_ts
+#     th_ramp_pc_ts
+#     ramp_ts
+#     nldc_orig
+#     nldc
 
-    """
+#     """
 
-    # load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'] \
-    #     .groupby(['model', 'timestamp'] + c.GEO_COLS) \
-    #     .agg({'value': 'sum'})
+#     load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'] \
+#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
+#         .agg({'value': 'sum'})
+#     customer_load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == ' Customer Load'] \
+#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
+#         .agg({'value': 'sum'})
+#     customer_load_reg_ts = c.v.customer_load_reg_ts
+#     net_load_by_reg_ts = c.v.net_load_reg_ts
+#     use_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Unserved Energy'] \
+#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
+#         .agg({'value': 'sum'})
+#     gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
+#     gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity']
+#     vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts
+#     cf_tech_reg = calculate.get_cf_tech_reg(c)
+#     line_cap_reg = calculate.get_line_cap_reg(c)
+#     line_imp_exp_reg = calculate.get_line_imp_exp(c)
+#     vre_by_reg = calculate.get_vre_share_by_reg(c)
+#     re_by_reg = calculate.get_re_share_by_reg(c)
+#     curtailment_rate = calculate.get_curtailment_rate(c)
+#     re_curtailment_rate_by_tech = calculate.get_re_curtailed_by_tech(c)
+#     fuel_by_type = c.o.fuel_yr_df[c.o.fuel_yr_df.property == 'Offtake'].groupby(['model', 'timestamp'] + c.GEO_COLS) \
+#         .agg({'value': 'sum'})
+#     co2_by_tech_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2')&(c.o.em_gen_yr_df.property=='Production')].groupby(
+#     [ 'model'] + c.GEO_COLS + ['Category']).sum().value
+#     co2_by_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2')&(c.o.em_gen_yr_df.property=='Production')].groupby(
+#     [ 'model'] + c.GEO_COLS).sum().value
+#     gen_op_costs_by_reg = calculate.get_gen_op_costs_by_reg(c)
 
-    # # Get gen_by_tech_reg
-    # gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
-    # gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
+    
 
-    # underlying_load_reg = (load_by_reg_ts - pumpload_reg_ts).rename('Underlying Load')
-    # net_load_reg_sto_ts = (c.v.net_load_reg_ts.stack(c.GEO_COLS).reorder_levels(
-    #     ['model'] + c.GEO_COLS + ['timestamp']) + pumpload_reg
 
-    return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
+    
+
+    
+#     ###
+
+
+
+
+#     # gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
+
+#     # underlying_load_reg = (load_by_reg_ts - pumpload_reg_ts).rename('Underlying Load')
+#     # net_load_reg_sto_ts = (c.v.net_load_reg_ts.stack(c.GEO_COLS).reorder_levels(
+#     #     ['model'] + c.GEO_COLS + ['timestamp']) + pumpload_reg
+
+#     return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
 
 
 @catch_errors
@@ -731,7 +757,6 @@ def get_plot_data(c):
 
 
 def create_plot_2(c):
-
     
 
     """

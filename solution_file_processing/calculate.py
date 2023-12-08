@@ -408,9 +408,3 @@ def get_gen_op_costs_by_reg(c):
         ['model'] + c.GEO_COLS + ['Category', 'property']).sum().value
     
     return gen_op_costs_by_reg
-
-
-def get_ldcs(c):
-    """
-    Get load duration curves. Returns LDC, nLDC and nLDC with curtailment
-    """
