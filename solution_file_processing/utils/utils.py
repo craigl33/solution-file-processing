@@ -4,6 +4,7 @@ This module, 'utils.py', contains a collection of functions that are used in the
 
 import os
 import sys
+import functools
 
 import dask.dataframe as dd
 import pandas as pd
@@ -12,7 +13,8 @@ from .. import log
 
 print = log.info
 
-def caching(cache_type):
+
+def drive_cache(cache_type):
     """
     This is a decorator for caching the results of a function. It's specially designed for the methods in the
     Objects and Variables classes in the caching.py file. This function can just be used as a decorator for any
@@ -30,11 +32,10 @@ def caching(cache_type):
         function: The wrapped function.
     """
 
-    def _caching_decorator(func):
-        def _caching_wrapper(self, *args, **kwargs):
-            if getattr(self, f'_{func.__name__}') is not None:
-                return getattr(self, f'_{func.__name__}')
+    def _drive_cache_decorator(func):
+        def _drive_cache_wrapper(self, *args, **kwargs):
 
+            # Check if drive cached
             path = os.path.join(self.c.DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
             if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
@@ -57,9 +58,33 @@ def caching(cache_type):
             setattr(self, f'_{func.__name__}', call)
             return call
 
-        return _caching_wrapper
+        return _drive_cache_wrapper
 
-    return _caching_decorator
+    return _drive_cache_decorator
+
+
+def mem_cache(func):
+    @functools.wraps(func)
+    def _mem_cache_wrapper(self, *args, **kwargs):
+        attr_name = f'_{func.__name__}'
+        if not hasattr(self, attr_name):
+            result = func(self, *args, **kwargs)
+            setattr(self, attr_name, result)
+        return getattr(self, attr_name)
+
+    return _mem_cache_wrapper
+
+
+def apply_properties_and_caching(cls):
+    """Class decorator that converts methods into cached properties."""
+    # Not implemented yet
+    raise NotImplementedError
+    for attr_name, attr_value in cls.__dict__.items():
+        if callable(attr_value):
+            cached_method = drive_cache('variables')(attr_value)
+            setattr(cls, attr_name, property(cached_method))
+    return cls
+
 
 def catch_errors(func):
     """
@@ -152,7 +177,6 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
         else:
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr))
-
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]
