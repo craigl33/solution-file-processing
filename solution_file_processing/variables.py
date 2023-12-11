@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 
-from solution_file_processing.constants import VRE_TECHS
+from solution_file_processing.constants import VRE_TECHS, CONSTR_TECHS
 
-from solution_file_processing.utils.utils import drive_cache, mem_cache
+from solution_file_processing.utils.utils import drive_cache, memory_cache
 from solution_file_processing import log
 
 print = log.info
@@ -55,7 +55,7 @@ class Variables:
         self.c = configuration_object
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_tech_reg_ts(self):
         """"
         TODO DOCSTRING
@@ -69,7 +69,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_subtech_reg_ts(self):
         """"
         TODO DOCSTRING
@@ -84,7 +84,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def customer_load_ts(self):
         """"
         TODO DOCSTRING
@@ -99,7 +99,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def vre_av_abs_ts(self):
         """"
         TODO DOCSTRING
@@ -112,7 +112,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def net_load_ts(self):
         """"
         TODO DOCSTRING
@@ -124,7 +124,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def net_load_sto_ts(self):
         """
         TODO DOCSTRING
@@ -165,7 +165,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def net_load_reg_ts(self):
         """"
         TODO DOCSTRING
@@ -190,7 +190,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_inertia(self):
         """"
         TODO DOCSTRING
@@ -240,7 +240,7 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def model_names(self):
         """"
         TODO DOCSTRING
@@ -249,48 +249,94 @@ class Variables:
         return model_names
 
     @property
-    @mem_cache
+    @memory_cache
     def time_idx(self):
-        return c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+        """
+        TODO DOCSTRING
+        """
+        return self.c.o.reg_df.reset_index().timestamp.drop_duplicates()
 
     @property
-    @mem_cache
+    @memory_cache
     def interval_periods(self):
+        """
+        TODO DOCSTRING
+        """
         return len(self.time_idx)
 
     @property
-    @mem_cache
+    @memory_cache
     def nr_days(self):
+        """
+        TODO DOCSTRING
+        """
         return len(self.time_idx.dt.date.drop_duplicates())
 
     @property
-    @mem_cache
+    @memory_cache
     def daily_periods(self):
+        """
+        TODO DOCSTRING
+        """
         return self.interval_periods / self.nr_days
 
     @property
-    @mem_cache
+    @memory_cache
     def hour_corr(self):
+        """
+        TODO DOCSTRING
+        """
         return 24 / self.daily_periods
 
     @property
-    @mem_cache
-    def cf_tech(self):
+    @memory_cache
+    def gen_cap_tech_reg(self):
         """
-        Get the capacity factor(%) per technology in the overall model
+        TODO DOCSTRING
         """
-        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-        nr_days = len(time_idx.dt.date.drop_duplicates())
-
-        gen_by_tech_reg_orig = self.c.o.gen_yr_df[
-            self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
-        gen_by_tech_reg_orig = gen_by_tech_reg_orig \
+        gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
             .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
             .agg({'value': 'sum'}) \
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0)
+        return gen_cap_tech_reg
 
-        gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+    @property
+    @memory_cache
+    def gen_cap_costTech_reg(self):
+        """
+        TODO DOCSTRING
+        """
+        # For Capex calcs
+        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.c.GEO_COLS + ['CostCategory']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
+        return gen_cap_costTech_reg
+
+    @property
+    @memory_cache
+    def gen_cap_subtech_reg(self):
+        """
+        TODO DOCSTRING
+        """
+        gen_cap_subtech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['CapacityCategory']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
+        return gen_cap_subtech_reg
+
+    @property
+    @memory_cache
+    def cf_tech(self):
+        """
+        Get the capacity factor(%) per technology in the overall model
+        """
+        gen_by_tech_reg_orig = self.c.o.gen_yr_df[
+            self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
+        gen_by_tech_reg_orig = gen_by_tech_reg_orig \
             .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
             .agg({'value': 'sum'}) \
             .unstack(level=self.c.GEO_COLS) \
@@ -300,19 +346,17 @@ class Variables:
         # Standard
         # As we make adjustments for co_firing on the energy values, we must re-calculate this
 
-        df = ((gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24))
+        df = ((gen_by_tech_reg_orig.sum(axis=1) / (self.gen_cap_tech_reg.sum(axis=1) / 1000 * self.nr_days * 24))
               .unstack(level='Category').fillna(0))
 
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     def cf_tech_reg(self):
         """
         Get the capacity factor(%) per technology in each region
         """
-        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-        nr_days = len(time_idx.dt.date.drop_duplicates())
 
         gen_by_tech_reg_orig = self.c.o.gen_yr_df[
             self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
@@ -332,23 +376,30 @@ class Variables:
         # Standard
         # As we make adjustments for co_firing on the energy values, we must re-calculate this
 
-        df = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * nr_days * 24)).fillna(0)
+        df = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * self.nr_days * 24)).fillna(0)
 
         return df
 
     @property
-    @mem_cache
-    def line_cap_reg(self):
+    @memory_cache
+    def line_cap(self):
         """
-        Get the line capacity total between each region
+        TODO DOCSTRING
         """
         line_cap = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Import Limit') | \
                                        (self.c.o.line_yr_df.property == 'Export Limit')] \
             .groupby(['model', 'regFrom', 'regTo', 'property']) \
             .agg({'value': 'sum'}) \
             .unstack(level='property')
+        return line_cap
 
-        df = line_cap.reset_index()
+    @property
+    @memory_cache
+    def line_cap_reg(self):
+        """
+        Get the line capacity total between each region
+        """
+        df = self.line_cap.reset_index()
         df = df[df.regFrom != df.regTo]
         df.loc[:, 'line'] = df.regFrom + '-' + df.regTo
         df = df.groupby(['model', 'line']).sum(numeric_only=True)
@@ -362,7 +413,35 @@ class Variables:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
+    def line_imp_exp(self):
+        line_imp_exp = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Flow') | \
+                                           (self.c.o.line_yr_df.property == 'Flow Back')] \
+            .groupby(['model', 'regFrom', 'regTo', 'property']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level='property')
+
+        if line_imp_exp.shape[0] == 0:
+            pd.DataFrame({'model': self.c.o.line_yr_df.model.unique(),
+                          'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'value': [0] * len(self.c.o.line_yr_df.model.unique())})
+
+        return line_imp_exp
+
+    @property
+    @memory_cache
+    def line_imp_exp_reg(self):
+        """
+        TODO DOCSTRING
+        """
+
+        line_imp_exp_reg = self.line_imp_exp.reset_index()
+        line_imp_exp_reg = line_imp_exp_reg[line_imp_exp_reg.regFrom != line_imp_exp_reg.regTo]
+        line_imp_exp_reg.loc[:, 'line'] = line_imp_exp_reg.regFrom + '-' + line_imp_exp_reg.regTo
+
+    @property
+    @memory_cache
     def line_imp_exp_reg(self):
         """
         Get the net annual flow across each transmission corridor (i.e. between each region)
@@ -386,18 +465,60 @@ class Variables:
         return line_imp_exp_reg
 
     @property
-    @mem_cache
+    @memory_cache
+    def other_re_gen_abs(self):
+        """
+        TODO DOCSTRING
+        """
+        other_re_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                           (self.c.o.gen_df.Category.isin(CONSTR_TECHS))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * self.hour_corr)
+        other_re_gen_abs = (other_re_gen_abs * self.geo_col_filler).fillna(0)
+        return other_re_gen_abs
+
+    @property
+    @memory_cache
+    def other_re_energy_vio(self):
+        """
+        TODO DOCSTRING
+        """
+        other_re_energy_vio = self.c.o.gen_df[(self.c.o.gen_df.property == 'Min Energy Violation') &
+                                              (self.c.o.gen_df.Category.isin(CONSTR_TECHS))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * self.hour_corr)
+        other_re_energy_vio = (other_re_energy_vio * self.geo_col_filler).fillna(0)
+        return other_re_energy_vio
+
+    @property
+    @memory_cache
+    def other_re_av(self):
+        """
+        TODO DOCSTRING
+        """
+        other_re_av = self.other_re_energy_vio + self.other_re_gen_abs
+        return other_re_av
+
+    @property
+    @memory_cache
     def re_curtailment_rate_by_tech(self):
         """
         Get the curtailment / minimum energy violations by technology
         """
-
-        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-
-        interval_periods = len(time_idx)
-        nr_days = len(time_idx.dt.date.drop_duplicates())
-        daily_periods = interval_periods / nr_days
-        hour_corr = 24 / daily_periods
 
         # Output 8 & 9
 
@@ -405,68 +526,39 @@ class Variables:
         # vre_add_df_columns
         # To add something for subregions
 
-        # Add non-VRE spillage/curtailment
-        constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
-
-        other_re_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
-                                           (self.c.o.gen_df.Category.isin(constr_techs))] \
-            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-            .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack('Category') \
-            .fillna(0) \
-            .stack('Category') \
-            .unstack(level=self.c.GEO_COLS) \
-            .fillna(0) \
-            .apply(lambda x: x * hour_corr)
-
-        other_re_energy_vio = self.c.o.gen_df[(self.c.o.gen_df.property == 'Min Energy Violation') &
-                                              (self.c.o.gen_df.Category.isin(constr_techs))] \
-            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack('Category') \
-            .fillna(0) \
-            .stack('Category') \
-            .unstack(level=self.c.GEO_COLS) \
-            .fillna(0) \
-            .apply(lambda x: x * hour_corr)
-
-        other_re_gen_abs = (other_re_gen_abs * geo_col_filler).fillna(0)
-        other_re_energy_vio = (other_re_energy_vio * geo_col_filler).fillna(0)
-        other_re_av = other_re_energy_vio + other_re_gen_abs
-
-        all_re_av = pd.concat([vre_av_abs, other_re_av], axis=0).reset_index().groupby(
+        all_re_av = pd.concat([self.vre_av_abs, self.other_re_av], axis=0).reset_index().groupby(
             ['model', 'timestamp', 'Category']).sum()
 
-        all_re_curtailed = pd.concat([vre_curtailed, other_re_energy_vio], axis=0).reset_index().groupby(
-            ['model', 'timestamp', 'Category']).sum()
-
-        re_curtailment_rate_by_tech = (all_re_curtailed.sum(axis=1).groupby(['model', 'Category']).sum().unstack(
+        re_curtailment_rate_by_tech = (self.all_re_curtailed.sum(axis=1).groupby(['model', 'Category']).sum().unstack(
             'Category') / all_re_av.sum(axis=1).groupby(['model', 'Category']).sum().unstack('Category')).fillna(
             0) * 100
-        re_curtailment_rate = (all_re_curtailed.sum(axis=1).groupby('model').sum() / all_re_av.sum(axis=1).groupby(
-            'model').sum()).fillna(0) * 100
-        re_curtailment_rate_by_tech = pd.concat([re_curtailment_rate_by_tech, re_curtailment_rate.rename('All')],
+        re_curtailment_rate_by_tech = pd.concat([re_curtailment_rate_by_tech, self.re_curtailment_rate.rename('All')],
                                                 axis=1)
 
         return re_curtailment_rate_by_tech
 
     @property
-    @mem_cache
+    @memory_cache
+    def all_re_curtailed(self):
+        all_re_curtailed = pd.concat([self.vre_curtailed, self.other_re_energy_vio], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
+        return all_re_curtailed
+
+    @property
+    @memory_cache
+    def re_curtailment_rate(self):
+        all_re_av = pd.concat([self.vre_av_abs, self.other_re_av], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
+        re_curtailment_rate = (self.all_re_curtailed.sum(axis=1).groupby('model').sum() / all_re_av.sum(axis=1).groupby(
+            'model').sum()).fillna(0) * 100
+        return re_curtailment_rate
+
+    @property
+    @memory_cache
     def curtailment_rate(self):
         """
         Get the curtailment rate
         """
-
-        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-
-        interval_periods = len(time_idx)
-        nr_days = len(time_idx.dt.date.drop_duplicates())
-        daily_periods = interval_periods / nr_days
-        hour_corr = 24 / daily_periods
 
         # Output 8 & 9
 
@@ -476,12 +568,12 @@ class Variables:
 
         # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
 
-        curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
+        curtailment_rate = (self.vre_curtailed.sum(axis=1).groupby('model').sum() / self.vre_av_abs.sum(axis=1).groupby(
             'model').sum()).fillna(0) * 100
 
         ### Note that this is the new implementation for ISLAND-style aggregation. using self.c.GEO_COLS[0] i.e. the top tier of regional grouping.
-        vre_curtailed_grouped = vre_curtailed.T.groupby(self.c.GEO_COLS[0]).sum().T
-        vre_av_abs_grouped = vre_av_abs.T.groupby(self.c.GEO_COLS[0]).sum().T
+        vre_curtailed_grouped = self.vre_curtailed.T.groupby(self.c.GEO_COLS[0]).sum().T
+        vre_av_abs_grouped = self.vre_av_abs.T.groupby(self.c.GEO_COLS[0]).sum().T
 
         ## This could be renamed _reg. But should be done in consistent manner, so leaving for now.
         curtailment_rate_reg = (vre_curtailed_grouped.groupby('model').sum() /
@@ -492,7 +584,7 @@ class Variables:
         return curtailment_rate
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_op_costs_by_reg(self):
         """
         TODO: DOCSTRING
@@ -521,12 +613,12 @@ class Variables:
         # gen_fom.loc[:, 'property'] = 'FO&M Cost'
         gen_fom.assign(value=lambda x: x.value / x.FOM)
         gen_fom.assign(property='FO&M Cost')
-        gen_capex.loc[:, 'property'] = 'Investment Cost'
-        gen_capex.assign(value=lambda x: x.value / x.CAPEX)
-        gen_capex.assign(property='Investment Cost')
+        self.gen_capex.loc[:, 'property'] = 'Investment Cost'
+        self.gen_capex.assign(value=lambda x: x.value / x.CAPEX)
+        self.gen_capex.assign(property='Investment Cost')
 
-        gen_total_costs = dd.concat([gen_op_costs, gen_vom, gen_fom, gen_capex], axis=0)
-        gen_total_costs_w_pen = dd.concat([gen_op_costs_w_pen, gen_vom, gen_fom, gen_capex], axis=0)
+        gen_total_costs = dd.concat([gen_op_costs, gen_vom, gen_fom, self.gen_capex], axis=0)
+        gen_total_costs_w_pen = dd.concat([gen_op_costs_w_pen, gen_vom, gen_fom, self.gen_capex], axis=0)
         gen_op_costs = dd.concat([gen_op_costs, gen_vom], axis=0)
 
         # Scale to USDm
@@ -564,16 +656,14 @@ class Variables:
 
         return gen_op_costs_by_reg
 
-
-# ----------------------------------------------------------------------------------------------------------------------
-# Summary Output Variables
-# ----------------------------------------------------------------------------------------------------------------------
-
+    # ----------------------------------------------------------------------------------------------------------------------
+    # Summary Output Variables
+    # ----------------------------------------------------------------------------------------------------------------------
 
     # -----
     # Output 1
     @property
-    @mem_cache
+    @memory_cache
     def load_by_reg(self):
         """"
         TODO DOCSTRING
@@ -585,13 +675,13 @@ class Variables:
         return load_by_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def customer_load_by_reg(self):
         """
         TODO DOCSTRING
         """
         customer_load_by_reg = self.c.o.node_yr_df[(self.c.o.node_yr_df.property == 'Customer Load') |
-                                              (self.c.o.node_yr_df.property == 'Unserved Energy')] \
+                                                   (self.c.o.node_yr_df.property == 'Unserved Energy')] \
             .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
             .agg({'value': 'sum'})
 
@@ -600,7 +690,7 @@ class Variables:
     # -----
     # Output 2
     @property
-    @mem_cache
+    @memory_cache
     def use_by_reg(self):
         """"
         TODO DOCSTRING
@@ -611,7 +701,7 @@ class Variables:
         return use_by_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def use_reg_daily_ts(self):
         """"
         TODO DOCSTRING
@@ -628,6 +718,9 @@ class Variables:
         """
         TODO DOCSTRING
         """
+
+        # todo this needs improvements, this is different implemented in outputs 3 and output 12 (summary)
+
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         gen_by_tech_reg_orig = gen_by_tech_reg.copy()  # For not seperating cofiring. good for CF comparison
         gen_techs = self.c.o.gen_yr_df.Category.drop_duplicates().values
@@ -650,7 +743,7 @@ class Variables:
         return gen_by_tech_reg, gen_by_tech_reg_orig
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_tech_reg(self):
         """"
         TODO DOCSTRING
@@ -664,7 +757,7 @@ class Variables:
         return gen_by_tech_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_tech_reg_orig(self):
         """
         TODO DOCSTRING
@@ -678,7 +771,7 @@ class Variables:
         return gen_by_tech_reg_orig
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_costTech_reg(self):
         """
         TODO DOCSTRING
@@ -692,7 +785,7 @@ class Variables:
         return gen_by_costTech_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_weoTech_reg(self):
         gen_by_weoTech_reg = (self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
                               .groupby(['model'] + self.c.GEO_COLS + ['WEO_Tech_simpl'])
@@ -702,7 +795,7 @@ class Variables:
         return gen_by_weoTech_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def gen_by_plant(self):
         """
         TODO DOCSTRING
@@ -718,7 +811,7 @@ class Variables:
     # -----
     # Output 4
     @property
-    @mem_cache
+    @memory_cache
     def re_by_reg(self):
         """
         Get the share of a RE generation
@@ -727,14 +820,23 @@ class Variables:
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         re_by_reg = gen_by_tech_reg.reset_index()
         re_by_reg.loc[:, 'RE'] = re_by_reg.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
-        re_by_reg = re_by_reg.groupby(['model', 'RE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
+        print(re_by_reg)
+        re_by_reg = (re_by_reg
+                     .groupby(['model', 'RE'])
+                     .sum()
+                     .groupby(level=self.c.GEO_COLS[0], axis=1)
+                     .sum())
         re_by_reg.loc[:, 'Overall'] = re_by_reg.sum(axis=1)
-        re_by_reg = re_by_reg.loc[pd.IndexSlice[:, 'RE'],].droplevel('RE') / re_by_reg.groupby('model').sum()
+        re_by_reg = (re_by_reg
+                     .loc[pd.IndexSlice[:, 'RE'],]
+                     .droplevel('RE')
+                     / re_by_reg.groupby('model')
+                     .sum())
 
         return re_by_reg
 
     @property
-    @mem_cache
+    @memory_cache
     def vre_by_reg(self):
         """
         Get the share of a subset of generation (e.g. RE or VRE), with the subset technologies passed as a list
@@ -749,12 +851,11 @@ class Variables:
 
         return vre_by_reg
 
-
     # -----
     # Output 5
 
     @property
-    @mem_cache
+    @memory_cache
     def unit_starts_by_tech(self):
         """
         TODO DOCSTRING
@@ -769,7 +870,7 @@ class Variables:
     # -----
     # Output 6
     @property
-    @mem_cache
+    @memory_cache
     def gen_max_by_tech_reg(self):
         """
         TODO DOCSTRING
@@ -782,11 +883,10 @@ class Variables:
             .fillna(0)
         return gen_max_by_tech_reg
 
-
     # -----
     # Output 7
     @property
-    @mem_cache
+    @memory_cache
     def tx_losses(self):
         tx_losses = self.c.o.line_yr_df[self.c.o.line_yr_df.property == 'Loss'] \
             .groupby(['model', 'timestamp', 'name']) \
@@ -797,25 +897,25 @@ class Variables:
     # Output 8
 
     @property
-    @mem_cache
+    @memory_cache
     def geo_col_filler(self):
         """
         TODO DOCSTRING
         """
         # Add zero values to regions without VRE
-        geo_col_filler = pd.Series(data=np.ones(len(self.c.os.load_by_reg.unstack(self.c.GEO_COLS).columns)),
-                                   index=self.c.os.load_by_reg.unstack(self.c.GEO_COLS).columns)
+        geo_col_filler = pd.Series(data=np.ones(len(self.load_by_reg.unstack(self.c.GEO_COLS).columns)),
+                                   index=self.load_by_reg.unstack(self.c.GEO_COLS).columns)
         return geo_col_filler
 
     @property
-    @mem_cache
+    @memory_cache
     def vre_cap(self):
 
         # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
         # vre_add_df_columns
         # To add something for subregions
         vre_cap = self.c.o.gen_yr_df[(self.c.o.gen_yr_df.property == 'Installed Capacity') &
-                                (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
+                                     (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
             .groupby(['model', 'Category'] + self.c.GEO_COLS) \
             .agg({'value': 'max'}) \
             .unstack('Category') \
@@ -829,10 +929,10 @@ class Variables:
         return vre_cap
 
     @property
-    @mem_cache
+    @memory_cache
     def vre_av_abs(self):
         vre_av_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
-                                (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+                                     (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
@@ -842,25 +942,23 @@ class Variables:
             .stack('Category') \
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0) \
-            .apply(lambda x: x * self.c.vu.hour_corr)
+            .apply(lambda x: x * self.hour_corr)
         vre_av_abs = (vre_av_abs * self.geo_col_filler).fillna(0)
 
         return vre_av_abs
 
-
     @property
-    @mem_cache
+    @memory_cache
     def vre_av_norm(self):
         # 24 periods per day for the daily data
-        vre_av_norm = (self.vre_av_abs / self.vre_cap / self.c.vu.daily_periods).fillna(0)
+        vre_av_norm = (self.vre_av_abs / self.vre_cap / self.daily_periods).fillna(0)
         return vre_av_norm
 
-
     @property
-    @mem_cache
+    @memory_cache
     def vre_gen_abs(self):
         vre_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
-                                 (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
@@ -878,7 +976,7 @@ class Variables:
     # Output 9
 
     @property
-    @mem_cache
+    @memory_cache
     def vre_curtailed(self):
         """
         TODO DOCSTRING
@@ -886,3 +984,26 @@ class Variables:
         # 24 periods per day for the daily data
         vre_curtailed = self.vre_av_abs - self.vre_gen_abs
         return vre_curtailed
+
+    @property
+    @memory_cache
+    def co2_by_tech_reg(self):
+        """
+        TODO DOCSTRING
+        """
+        co2_by_tech_reg = self.c.o.em_gen_yr_df[self.c.o.em_gen_yr_df.parent.str.contains('CO2') &
+                                                (self.c.o.em_gen_yr_df.property == 'Production')] \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
+            .agg({'value': 'sum'})
+
+        return co2_by_tech_reg
+
+    @property
+    @memory_cache
+    def co2_by_reg(self):
+        co2_by_reg = self.c.o.em_gen_yr_df[self.c.o.em_gen_yr_df.parent.str.contains('CO2') &
+                                           (self.c.o.em_gen_yr_df.property == 'Production')] \
+            .groupby(['model'] + self.c.GEO_COLS) \
+            .agg({'value': 'sum'})
+
+        return co2_by_reg

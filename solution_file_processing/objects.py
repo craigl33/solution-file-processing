@@ -4,7 +4,7 @@ TODO DOCSTRING
 import pandas as pd
 import dask.dataframe as dd
 
-from solution_file_processing.utils.utils import drive_cache, mem_cache
+from solution_file_processing.utils.utils import drive_cache, memory_cache
 from solution_file_processing.constants import PRETTY_MODEL_NAMES
 from solution_file_processing import log
 
@@ -51,7 +51,7 @@ class Objects:
         self.c = configuration_object
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def gen_yr_df(self):
         """"
@@ -127,7 +127,7 @@ class Objects:
         return _df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def em_gen_yr_df(self):
         """"
@@ -139,7 +139,7 @@ class Objects:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def node_yr_df(self):
         """"
@@ -151,7 +151,7 @@ class Objects:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def line_yr_df(self):
         """"
@@ -163,7 +163,7 @@ class Objects:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def fuelcontract_yr_df(self):
         """"
@@ -173,7 +173,7 @@ class Objects:
         return df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def gen_df(self):
         """"
@@ -226,7 +226,7 @@ class Objects:
         return _df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def node_df(self):
         """"
@@ -237,7 +237,7 @@ class Objects:
         return _df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def reg_df(self):
         """"
@@ -247,7 +247,7 @@ class Objects:
         return _df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def res_gen_df(self):
         """"
@@ -264,7 +264,7 @@ class Objects:
         return _df
 
     @property
-    @mem_cache
+    @memory_cache
     @drive_cache('objects')
     def purch_df(self):
         """"

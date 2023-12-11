@@ -14,8 +14,8 @@ import math
 
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
-from solution_file_processing.variables.objects import Objects
-from solution_file_processing.variables.calculations import Variables
+from solution_file_processing.objects import Objects
+from solution_file_processing.variables import Variables
 from . import log
 
 print = log.info
@@ -463,16 +463,17 @@ class SolutionFilesConfig:
                         print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
                         test_failed = True
 
-                    for col in df.columns:
-                        if pd.to_numeric(df[col], errors='coerce').notna().all():
-                            if not math.isclose(df[col].sum(), df_test[col].sum()):
-                                print(
-                                    f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
-                                test_failed = True
-                        else:
-                            if not set(df[col].unique()) == set(df_test[col].unique()):
-                                print(f'\tUnique values of {file} column {col} do not match.')
-                                test_failed = True
+                    if not test_failed:
+                        for col in df.columns:
+                            if pd.to_numeric(df[col], errors='coerce').notna().all():
+                                if not math.isclose(df[col].sum(), df_test[col].sum()):
+                                    print(
+                                        f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                                    test_failed = True
+                            else:
+                                if not set(df[col].unique()) == set(df_test[col].unique()):
+                                    print(f'\tUnique values of {file} column {col} do not match.')
+                                    test_failed = True
 
                 if test_failed:
                     print(f'Test failed: {file}.')

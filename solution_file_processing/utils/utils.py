@@ -31,8 +31,8 @@ def drive_cache(cache_type):
     Returns:
         function: The wrapped function.
     """
-
     def _drive_cache_decorator(func):
+        @functools.wraps(func)
         def _drive_cache_wrapper(self, *args, **kwargs):
 
             # Check if drive cached
