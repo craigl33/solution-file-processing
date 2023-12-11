@@ -12,8 +12,6 @@ from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETT
 from .constants import VRE_TECHS
 from .timeseries import create_output_11 as create_ts_output_11
 from .timeseries import create_output_4 as create_timeseries_output_4
-from . import calculate
-
 from . import log
 
 print = log.info

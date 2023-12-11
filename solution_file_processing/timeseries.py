@@ -432,7 +432,7 @@ def create_output_4(c):
     # gen_fom.loc[:, 'property'] = 'FO&M Cost'
     gen_fom.assign(value=lambda x: x.value / x.FOM)
     gen_fom.assign(property='FO&M Cost')
- gen_capex.loc[:, 'property'] = 'Investment Cost'
+    gen_capex.loc[:, 'property'] = 'Investment Cost'
     gen_capex.assign(value=lambda x: x.value / x.CAPEX)
     gen_capex.assign(property='Investment Cost')
 

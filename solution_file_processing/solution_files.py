@@ -14,7 +14,8 @@ import math
 
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
-from .caching import Objects, Variables
+from solution_file_processing.objects import Objects
+from solution_file_processing.variables import Variables
 from . import log
 
 print = log.info
@@ -139,9 +140,11 @@ class SolutionFilesConfig:
         # Define some constants for easier access
         self.GEO_COLS = self.cfg['settings']['geo_cols']
 
-        # Initialize caching system
-        self.v = Variables(self)
+        # Initialize variables system with caches
+
         self.o = Objects(self)
+        self.v = Variables(self)
+
 
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
 
@@ -405,7 +408,7 @@ class SolutionFilesConfig:
                                    subfolder_name)
 
         # Run tests with baseline path if given
-        if getattr(getattr(self.cfg, 'testing', None), 'baseline_output_dir', None):
+        if dict.get(dict.get(self.cfg, 'testing', None), 'baseline_output_dir', None):
             print(f'\n\nRunning baseline tests with {self.cfg["testing"]["baseline_output_dir"]}.\n')
 
             output_path_test_baseline = os.path.join(self.cfg['testing']['baseline_output_dir'],
@@ -460,16 +463,17 @@ class SolutionFilesConfig:
                         print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
                         test_failed = True
 
-                    for col in df.columns:
-                        if pd.to_numeric(df[col], errors='coerce').notna().all():
-                            if not math.isclose(df[col].sum(), df_test[col].sum()):
-                                print(
-                                    f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
-                                test_failed = True
-                        else:
-                            if not set(df[col].unique()) == set(df_test[col].unique()):
-                                print(f'\tUnique values of {file} column {col} do not match.')
-                                test_failed = True
+                    if not test_failed:
+                        for col in df.columns:
+                            if pd.to_numeric(df[col], errors='coerce').notna().all():
+                                if not math.isclose(df[col].sum(), df_test[col].sum()):
+                                    print(
+                                        f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                                    test_failed = True
+                            else:
+                                if not set(df[col].unique()) == set(df_test[col].unique()):
+                                    print(f'\tUnique values of {file} column {col} do not match.')
+                                    test_failed = True
 
                 if test_failed:
                     print(f'Test failed: {file}.')
@@ -479,7 +483,7 @@ class SolutionFilesConfig:
             print(f'cfg.testing.baseline_output_dir not set. Skipping baseline tests.')
 
         # Run tests with similar outputs to check for consistency, if given
-        if getattr(getattr(self.cfg, 'testing', None), 'similar_output_dirs', None):
+        if dict.get(dict.get(self.cfg, 'testing', None), 'similar_output_dirs', None):
             for similar_output_dir in self.cfg['testing']['similar_output_dirs']:
                 print(f'\n\nRunning similarity tests with {similar_output_dir}.\n')
                 output_path_test_similar = os.path.join(similar_output_dir,
