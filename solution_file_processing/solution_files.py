@@ -15,7 +15,7 @@ import math
 from .utils.utils import get_files, enrich_df, silence_prints
 from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
 from solution_file_processing.variables.objects import Objects
-from solution_file_processing.variables.calculations import VariablesCached, VariablesUncached
+from solution_file_processing.variables.calculations import Variables
 from . import log
 
 print = log.info
@@ -143,8 +143,7 @@ class SolutionFilesConfig:
         # Initialize variables system with caches
 
         self.o = Objects(self)
-        self.vc = VariablesCached(self)
-        self.vu = VariablesUncached(self)
+        self.v = Variables(self)
 
 
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
