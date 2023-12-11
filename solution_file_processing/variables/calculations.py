@@ -7,8 +7,7 @@ import dask.dataframe as dd
 
 from solution_file_processing.constants import VRE_TECHS
 
-from solution_file_processing.utils.utils import caching
-from solution_file_processing.constants import PRETTY_MODEL_NAMES
+from solution_file_processing.utils.utils import drive_cache, mem_cache
 from solution_file_processing import log
 
 print = log.info
@@ -55,215 +54,198 @@ class VariablesCached:
     def __init__(self, configuration_object):
         self.c = configuration_object
 
-    _gen_by_tech_reg_ts = None
-
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def gen_by_tech_reg_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._gen_by_tech_reg_ts is None:
-            self._gen_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack(level='Category') \
-                .fillna(0)
-
-        return self._gen_by_tech_reg_ts
-
-    _gen_by_subtech_reg_ts = None
+        df = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack(level='Category') \
+            .fillna(0)
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def gen_by_subtech_reg_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._gen_by_subtech_reg_ts is None:
-            self._gen_by_subtech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .groupby(['model', 'CapacityCategory'] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack(level='CapacityCategory') \
-                .fillna(0)
+        df = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
+            .groupby(['model', 'CapacityCategory'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack(level='CapacityCategory') \
+            .fillna(0)
 
-        return self._gen_by_subtech_reg_ts
-
-    _customer_load_ts = None
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def customer_load_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._customer_load_ts is None:
-            self._customer_load_ts = self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
-                                                     (self.c.o.reg_df.property == 'Unserved Energy')] \
-                .groupby(['model', 'timestamp']) \
-                .sum() \
-                .value \
-                .to_frame() \
-                .compute()
-        return self._customer_load_ts
-
-    _vre_av_abs_ts = None
+        df = self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
+                             (self.c.o.reg_df.property == 'Unserved Energy')] \
+            .groupby(['model', 'timestamp']) \
+            .sum() \
+            .value \
+            .to_frame() \
+            .compute()
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def vre_av_abs_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._vre_av_abs_ts is None:
-            self._vre_av_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
-                                                  (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .groupby(['model', 'Category', 'timestamp']) \
-                .sum().value.compute().unstack(level='Category').fillna(0)
+        df = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
+                             (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model', 'Category', 'timestamp']) \
+            .sum().value.compute().unstack(level='Category').fillna(0)
 
-        return self._vre_av_abs_ts
-
-    _net_load_ts = None
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def net_load_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._net_load_ts is None:
-            self._net_load_ts = pd.DataFrame(
-                self.customer_load_ts.value - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
-                    ['model', 'timestamp']).sum(),
-                columns=['value'])
-        return self._net_load_ts
-
-    _net_load_sto_ts = None
+        df = pd.DataFrame(
+            self.customer_load_ts.value - self.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
+                ['model', 'timestamp']).sum(),
+            columns=['value'])
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def net_load_sto_ts(self):
         """
         TODO DOCSTRING
         """
-        if self._net_load_sto_ts is None:
-            customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
-                                                (self.c.o.reg_df.property == 'Unserved Energy')]
-                                .groupby(['model', 'timestamp'])
-                                .agg({'value': 'sum'})
-                                .compute())
-            storage_load_ts = self.c.o.reg_df[
-                (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
-                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
-            vre_av_abs_ts = self.c.o.gen_df[
-                (self.c.o.gen_df.property == 'Available Capacity') & (
-                    self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
-                ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
-                level='Category').fillna(0)
-            gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
-                              .groupby(['model', 'Category', 'timestamp'])
-                              .agg({'value': 'sum'})
-                              .compute()
-                              .unstack(level='Category')
-                              .fillna(0)
-                              .droplevel(0, axis=1))
-            storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
+        customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
+                                            (self.c.o.reg_df.property == 'Unserved Energy')]
+                            .groupby(['model', 'timestamp'])
+                            .agg({'value': 'sum'})
+                            .compute())
+        storage_load_ts = self.c.o.reg_df[
+            (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
+            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+        vre_av_abs_ts = self.c.o.gen_df[
+            (self.c.o.gen_df.property == 'Available Capacity') & (
+                self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
+            ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
+            level='Category').fillna(0)
+        gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
+                          .groupby(['model', 'Category', 'timestamp'])
+                          .agg({'value': 'sum'})
+                          .compute()
+                          .unstack(level='Category')
+                          .fillna(0)
+                          .droplevel(0, axis=1))
+        storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
 
-            _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
-                vre_av_abs_ts
-                .fillna(0)
-                .sum(axis=1)
-                .groupby(['model', 'timestamp'])
-                .sum()
-                .rename('value'))
+        _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
+            vre_av_abs_ts
+            .fillna(0)
+            .sum(axis=1)
+            .groupby(['model', 'timestamp'])
+            .sum()
+            .rename('value'))
 
-            self._net_load_sto_ts = pd.DataFrame(_data,
-                                                 columns=['value'])
+        df = pd.DataFrame(_data,
+                          columns=['value'])
 
-        return self._net_load_sto_ts
-
-    _net_load_reg_ts = None
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def net_load_reg_ts(self):
         """"
         TODO DOCSTRING
         """
-        if self._net_load_reg_ts is None:
-            customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
-                                                    (self.c.o.node_df.property == 'Unserved Energy')] \
-                .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
-                .sum() \
-                .value \
-                .compute() \
-                .unstack(level=self.c.GEO_COLS)
-            vre_av_reg_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
-                                                (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .groupby((['model'] + self.c.GEO_COLS + ['timestamp'])) \
-                .sum() \
-                .value \
-                .compute() \
-                .unstack(level=self.c.GEO_COLS).fillna(0)
+        customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
+                                                (self.c.o.node_df.property == 'Unserved Energy')] \
+            .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
+            .sum() \
+            .value \
+            .compute() \
+            .unstack(level=self.c.GEO_COLS)
+        vre_av_reg_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
+                                            (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .groupby((['model'] + self.c.GEO_COLS + ['timestamp'])) \
+            .sum() \
+            .value \
+            .compute() \
+            .unstack(level=self.c.GEO_COLS).fillna(0)
 
-            self._net_load_reg_ts = customer_load_reg_ts - vre_av_reg_abs_ts
+        df = customer_load_reg_ts - vre_av_reg_abs_ts
 
-        return self._net_load_reg_ts
-
-    _gen_inertia = None
+        return df
 
     @property
-    @caching('variables')
+    @mem_cache
+    @drive_cache('variables')
     def gen_inertia(self):
         """"
         TODO DOCSTRING
         """
-        if self._gen_inertia is None:
-            gen_units_gen = self.c.o.gen_df[self.c.o.gen_df.property == 'Units Generating'] \
-                .groupby(['model', 'name', 'timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute()
+        gen_units_gen = self.c.o.gen_df[self.c.o.gen_df.property == 'Units Generating'] \
+            .groupby(['model', 'name', 'timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute()
 
-            gen_units = self.c.o.gen_df[self.c.o.gen_df.property == 'Units'] \
-                .groupby(['model', 'name', 'timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute()
+        gen_units = self.c.o.gen_df[self.c.o.gen_df.property == 'Units'] \
+            .groupby(['model', 'name', 'timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute()
 
-            # Take only the sum to maintain the capacity value & inertia constant in the dataframe
-            gen_cap = self.c.o.gen_df[self.c.o.gen_df.property == 'Installed Capacity'] \
-                .groupby(['model', 'name', 'timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute()
+        # Take only the sum to maintain the capacity value & inertia constant in the dataframe
+        gen_cap = self.c.o.gen_df[self.c.o.gen_df.property == 'Installed Capacity'] \
+            .groupby(['model', 'name', 'timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute()
 
-            gen_cap = pd.merge(gen_cap.reset_index(),
-                               self.c.soln_idx[['name', 'InertiaLOW', 'InertiaHI']], on='name', how='left') \
-                .set_index(['model', 'name', 'timestamp'])
+        gen_cap = pd.merge(gen_cap.reset_index(),
+                           self.c.soln_idx[['name', 'InertiaLOW', 'InertiaHI']], on='name', how='left') \
+            .set_index(['model', 'name', 'timestamp'])
 
-            #  As installed capacity is [Units] * [Max Capacity], we must calculate the unit capacity
-            gen_inertia_lo = (gen_units_gen.value / gen_units.value) * (gen_cap.value * gen_cap.InertiaLOW)
-            gen_inertia_hi = (gen_units_gen.value / gen_units.value) * (gen_cap.value * gen_cap.InertiaHI)
+        #  As installed capacity is [Units] * [Max Capacity], we must calculate the unit capacity
+        gen_inertia_lo = (gen_units_gen.value / gen_units.value) * (gen_cap.value * gen_cap.InertiaLOW)
+        gen_inertia_hi = (gen_units_gen.value / gen_units.value) * (gen_cap.value * gen_cap.InertiaHI)
 
-            gen_inertia = pd.merge(pd.DataFrame(gen_inertia_lo, columns=['InertiaLo']),
-                                   pd.DataFrame(gen_inertia_hi, columns=['InertiaHi']),
-                                   left_index=True,
-                                   right_index=True)
+        gen_inertia = pd.merge(pd.DataFrame(gen_inertia_lo, columns=['InertiaLo']),
+                               pd.DataFrame(gen_inertia_hi, columns=['InertiaHi']),
+                               left_index=True,
+                               right_index=True)
 
-            try:
-                gen_inertia = pd.merge(gen_inertia.reset_index(),
-                                       self.c.soln_idx[
-                                           ['name', 'Island', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
-                                       on='name')
-            except KeyError:
-                gen_inertia = pd.merge(gen_inertia.reset_index(),
-                                       self.c.soln_idx[
-                                           ['name', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
-                                       on='name')
+        try:
+            gen_inertia = pd.merge(gen_inertia.reset_index(),
+                                   self.c.soln_idx[
+                                       ['name', 'Island', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
+                                   on='name')
+        except KeyError:
+            gen_inertia = pd.merge(gen_inertia.reset_index(),
+                                   self.c.soln_idx[
+                                       ['name', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
+                                   on='name')
 
-            self._gen_inertia = gen_inertia
+        df = gen_inertia
 
-        return self._gen_inertia
+        return df
 
 
 class VariablesUncached:
@@ -274,436 +256,412 @@ class VariablesUncached:
     def __init__(self, configuration_object):
         self.c = configuration_object
 
-    _model_names = None
-
     @property
+    @mem_cache
     def model_names(self):
         """"
         TODO DOCSTRING
         """
-        if self._model_names is None:
-            self._model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
-        return self._model_names
-
-    _cf_tech = None
+        model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
+        return model_names
 
     @property
+    @mem_cache
     def cf_tech(self):
         """
         Get the capacity factor(%) per technology in the overall model
         """
-        if self._cf_tech is None:
-            time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-            nr_days = len(time_idx.dt.date.drop_duplicates())
+        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+        nr_days = len(time_idx.dt.date.drop_duplicates())
 
-            gen_by_tech_reg_orig = self.c.o.gen_yr_df[
-                self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
-            gen_by_tech_reg_orig = gen_by_tech_reg_orig \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0)
+        gen_by_tech_reg_orig = self.c.o.gen_yr_df[
+            self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
+        gen_by_tech_reg_orig = gen_by_tech_reg_orig \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
 
-            gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0)
+        gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
 
-            # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
-            # Standard
-            # As we make adjustments for co_firing on the energy values, we must re-calculate this
+        # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
+        # Standard
+        # As we make adjustments for co_firing on the energy values, we must re-calculate this
 
-            self._cf_tech = ((gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24))
-                             .unstack(level='Category').fillna(0))
+        df = ((gen_by_tech_reg_orig.sum(axis=1) / (gen_cap_tech_reg.sum(axis=1) / 1000 * nr_days * 24))
+              .unstack(level='Category').fillna(0))
 
-        return self._cf_tech
-
-    _cf_tech_reg = None
+        return df
 
     @property
+    @mem_cache
     def cf_tech_reg(self):
         """
         Get the capacity factor(%) per technology in each region
         """
-        if self._cf_tech_reg is None:
-            time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
-            nr_days = len(time_idx.dt.date.drop_duplicates())
+        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+        nr_days = len(time_idx.dt.date.drop_duplicates())
 
-            gen_by_tech_reg_orig = self.c.o.gen_yr_df[
-                self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
-            gen_by_tech_reg_orig = gen_by_tech_reg_orig \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0)
+        gen_by_tech_reg_orig = self.c.o.gen_yr_df[
+            self.c.o.gen_yr_df.property == 'Generation']  # For not separating cofiring. good for CF comparison
+        gen_by_tech_reg_orig = gen_by_tech_reg_orig \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
 
-            gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0)
+        gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0)
 
-            # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
-            # Standard
-            # As we make adjustments for co_firing on the energy values, we must re-calculate this
+        # Calculate as EN[GWh]/(Capacity[MW]/1000*hours)
+        # Standard
+        # As we make adjustments for co_firing on the energy values, we must re-calculate this
 
-            self._cf_tech_reg = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * nr_days * 24)).fillna(0)
+        df = (gen_by_tech_reg_orig / (gen_cap_tech_reg / 1000 * nr_days * 24)).fillna(0)
 
-        return self._cf_tech_reg
-
-    _line_cap_reg = None
+        return df
 
     @property
+    @mem_cache
     def line_cap_reg(self):
         """
         Get the line capacity total between each region
         """
-        if self._line_cap_reg is None:
-            line_cap = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Import Limit') | \
-                                           (self.c.o.line_yr_df.property == 'Export Limit')] \
-                .groupby(['model', 'regFrom', 'regTo', 'property']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level='property')
+        line_cap = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Import Limit') | \
+                                       (self.c.o.line_yr_df.property == 'Export Limit')] \
+            .groupby(['model', 'regFrom', 'regTo', 'property']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level='property')
 
-            self._line_cap_reg = line_cap.reset_index()
-            self._line_cap_reg = self._line_cap_reg[self._line_cap_reg.regFrom != self._line_cap_reg.regTo]
-            self._line_cap_reg.loc[:, 'line'] = self._line_cap_reg.regFrom + '-' + self._line_cap_reg.regTo
-            self._line_cap_reg = self._line_cap_reg.groupby(['model', 'line']).sum(numeric_only=True)
+        df = line_cap.reset_index()
+        df = df[df.regFrom != df.regTo]
+        df.loc[:, 'line'] = df.regFrom + '-' + df.regTo
+        df = df.groupby(['model', 'line']).sum(numeric_only=True)
 
-            if self._line_cap_reg.shape[0] == 0:
-                pd.DataFrame({'model': self.c.o.line_yr_df.model.unique(),
-                              'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
-                              'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
-                              'value': [0] * len(self.c.o.line_yr_df.model.unique())})
+        if df.shape[0] == 0:
+            pd.DataFrame({'model': self.c.o.line_yr_df.model.unique(),
+                          'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'value': [0] * len(self.c.o.line_yr_df.model.unique())})
 
-        return self._line_cap_reg
-
-    _line_imp_exp_reg = None
+        return df
 
     @property
+    @mem_cache
     def line_imp_exp_reg(self):
         """
         Get the net annual flow across each transmission corridor (i.e. between each region)
         """
-        if self._line_imp_exp_reg is None:
-            line_imp_exp = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Flow') | \
-                                          (self.c.o.line_yr_df.property == 'Flow Back')] \
-                .groupby(['model', 'regFrom', 'regTo', 'property']) \
-                .agg({'value': 'sum'}) \
-                .unstack(level='property')
+        line_imp_exp = self.c.o.line_yr_df[(self.c.o.line_yr_df.property == 'Flow') | \
+                                           (self.c.o.line_yr_df.property == 'Flow Back')] \
+            .groupby(['model', 'regFrom', 'regTo', 'property']) \
+            .agg({'value': 'sum'}) \
+            .unstack(level='property')
 
-            if line_imp_exp.shape[0] == 0:
-                pd.DataFrame({'model': self.c.o.line_yr_df.model.unique(),
-                              'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
-                              'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
-                              'value': [0] * len(self.c.o.line_yr_df.model.unique())})
+        if line_imp_exp.shape[0] == 0:
+            pd.DataFrame({'model': self.c.o.line_yr_df.model.unique(),
+                          'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
+                          'value': [0] * len(self.c.o.line_yr_df.model.unique())})
 
-            line_imp_exp_reg = line_imp_exp.reset_index()
-            line_imp_exp_reg = line_imp_exp_reg[line_imp_exp_reg.regFrom != line_imp_exp_reg.regTo]
-            line_imp_exp_reg.loc[:, 'line'] = line_imp_exp_reg.regFrom + '-' + line_imp_exp_reg.regTo
+        line_imp_exp_reg = line_imp_exp.reset_index()
+        line_imp_exp_reg = line_imp_exp_reg[line_imp_exp_reg.regFrom != line_imp_exp_reg.regTo]
+        line_imp_exp_reg.loc[:, 'line'] = line_imp_exp_reg.regFrom + '-' + line_imp_exp_reg.regTo
 
-            self._line_imp_exp_reg = line_imp_exp_reg
+        return line_imp_exp_reg
 
-        return self._line_imp_exp_reg
-
-    _vre_by_reg = None
     @property
+    @mem_cache
     def vre_by_reg(self):
         """
         Get the share of a subset of generation (e.g. RE or VRE), with the subset technologies passed as a list
         """
-        if self._vre_by_reg is None:
 
-            gen_by_tech_reg = gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
-            vre_by_reg = gen_by_tech_reg.reset_index()
-            vre_by_reg.loc[:, 'VRE'] = vre_by_reg.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
-            vre_by_reg = vre_by_reg.groupby(['model', 'VRE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
-            vre_by_reg.loc[:, 'Overall'] = vre_by_reg.sum(axis=1)
-            vre_by_reg = vre_by_reg.loc[pd.IndexSlice[:, 'VRE'],].droplevel('VRE') / vre_by_reg.groupby('model').sum()
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+        vre_by_reg = gen_by_tech_reg.reset_index()
+        vre_by_reg.loc[:, 'VRE'] = vre_by_reg.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
+        vre_by_reg = vre_by_reg.groupby(['model', 'VRE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
+        vre_by_reg.loc[:, 'Overall'] = vre_by_reg.sum(axis=1)
+        vre_by_reg = vre_by_reg.loc[pd.IndexSlice[:, 'VRE'],].droplevel('VRE') / vre_by_reg.groupby('model').sum()
 
-            self._vre_by_reg = vre_by_reg
+        return vre_by_reg
 
-        return self._vre_by_reg
-
-    _re_by_reg = None
-
+    @property
+    @mem_cache
     def re_by_reg(self):
         """
         Get the share of a RE generation
         """
-        if self._re_by_reg is None:
-            re_techs = ['Solar', 'Wind', 'Bioenergy', 'Geothermal', 'Other', 'Marine', 'Hydro']
-            gen_by_tech_reg = gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
-            re_by_reg = gen_by_tech_reg.reset_index()
-            re_by_reg.loc[:, 'RE'] = re_by_reg.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
-            re_by_reg = re_by_reg.groupby(['model', 'RE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
-            re_by_reg.loc[:, 'Overall'] = re_by_reg.sum(axis=1)
-            self._re_by_reg = re_by_reg.loc[pd.IndexSlice[:, 'RE'],].droplevel('RE') / re_by_reg.groupby('model').sum()
+        re_techs = ['Solar', 'Wind', 'Bioenergy', 'Geothermal', 'Other', 'Marine', 'Hydro']
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+        re_by_reg = gen_by_tech_reg.reset_index()
+        re_by_reg.loc[:, 'RE'] = re_by_reg.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
+        re_by_reg = re_by_reg.groupby(['model', 'RE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
+        re_by_reg.loc[:, 'Overall'] = re_by_reg.sum(axis=1)
+        df = re_by_reg.loc[pd.IndexSlice[:, 'RE'],].droplevel('RE') / re_by_reg.groupby('model').sum()
 
-        return self._re_by_reg
+        return df
 
-    _re_curtailment_rate_by_tech = None
-
+    @property
+    @mem_cache
     def re_curtailment_rate_by_tech(self):
         """
         Get the curtailment / minimum energy violations by technology
         """
 
-        if self._re_curtailment_rate_by_tech is None:
+        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
 
-            time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+        interval_periods = len(time_idx)
+        nr_days = len(time_idx.dt.date.drop_duplicates())
+        daily_periods = interval_periods / nr_days
+        hour_corr = 24 / daily_periods
 
-            interval_periods = len(time_idx)
-            nr_days = len(time_idx.dt.date.drop_duplicates())
-            daily_periods = interval_periods / nr_days
-            hour_corr = 24 / daily_periods
+        # Output 8 & 9
 
-            # Output 8 & 9
+        # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
+        # vre_add_df_columns
+        # To add something for subregions
 
-            # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
-            # vre_add_df_columns
-            # To add something for subregions
+        # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
+        load_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Load'] \
+            .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
+            .agg({'value': 'sum'})
 
-            # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
-            load_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Load'] \
-                .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
-                .agg({'value': 'sum'})
-
-            vre_av_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
-                                    (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
-
-            vre_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+        vre_av_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            # Add zero values to regions without VRE
-            geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(self.c.GEO_COLS).columns)),
-                                       index=load_by_reg.unstack(self.c.GEO_COLS).columns)
-            vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
-            vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
+        vre_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            # 24 periods per day for the daily data
-            vre_curtailed = vre_av_abs - vre_gen_abs
+        # Add zero values to regions without VRE
+        geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(self.c.GEO_COLS).columns)),
+                                   index=load_by_reg.unstack(self.c.GEO_COLS).columns)
+        vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
+        vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
 
-            # Add non-VRE spillage/curtailment
-            constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
+        # 24 periods per day for the daily data
+        vre_curtailed = vre_av_abs - vre_gen_abs
 
-            other_re_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
-                                          (self.c.o.gen_df.Category.isin(constr_techs))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
+        # Add non-VRE spillage/curtailment
+        constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
 
-            other_re_energy_vio = self.c.o.gen_df[(self.c.o.gen_df.property == 'Min Energy Violation') &
-                                             (self.c.o.gen_df.Category.isin(constr_techs))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
+        other_re_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                           (self.c.o.gen_df.Category.isin(constr_techs))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            other_re_gen_abs = (other_re_gen_abs * geo_col_filler).fillna(0)
-            other_re_energy_vio = (other_re_energy_vio * geo_col_filler).fillna(0)
-            other_re_av = other_re_energy_vio + other_re_gen_abs
+        other_re_energy_vio = self.c.o.gen_df[(self.c.o.gen_df.property == 'Min Energy Violation') &
+                                              (self.c.o.gen_df.Category.isin(constr_techs))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            all_re_av = pd.concat([vre_av_abs, other_re_av], axis=0).reset_index().groupby(
-                ['model', 'timestamp', 'Category']).sum()
+        other_re_gen_abs = (other_re_gen_abs * geo_col_filler).fillna(0)
+        other_re_energy_vio = (other_re_energy_vio * geo_col_filler).fillna(0)
+        other_re_av = other_re_energy_vio + other_re_gen_abs
 
-            all_re_curtailed = pd.concat([vre_curtailed, other_re_energy_vio], axis=0).reset_index().groupby(
-                ['model', 'timestamp', 'Category']).sum()
+        all_re_av = pd.concat([vre_av_abs, other_re_av], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
 
-            re_curtailment_rate_by_tech = (all_re_curtailed.sum(axis=1).groupby(['model', 'Category']).sum().unstack(
-                'Category') / all_re_av.sum(axis=1).groupby(['model', 'Category']).sum().unstack('Category')).fillna(
-                0) * 100
-            re_curtailment_rate = (all_re_curtailed.sum(axis=1).groupby('model').sum() / all_re_av.sum(axis=1).groupby(
-                'model').sum()).fillna(0) * 100
-            re_curtailment_rate_by_tech = pd.concat([re_curtailment_rate_by_tech, re_curtailment_rate.rename('All')],
-                                                    axis=1)
+        all_re_curtailed = pd.concat([vre_curtailed, other_re_energy_vio], axis=0).reset_index().groupby(
+            ['model', 'timestamp', 'Category']).sum()
 
-            self._re_curtailment_rate_by_tech = re_curtailment_rate_by_tech
+        re_curtailment_rate_by_tech = (all_re_curtailed.sum(axis=1).groupby(['model', 'Category']).sum().unstack(
+            'Category') / all_re_av.sum(axis=1).groupby(['model', 'Category']).sum().unstack('Category')).fillna(
+            0) * 100
+        re_curtailment_rate = (all_re_curtailed.sum(axis=1).groupby('model').sum() / all_re_av.sum(axis=1).groupby(
+            'model').sum()).fillna(0) * 100
+        re_curtailment_rate_by_tech = pd.concat([re_curtailment_rate_by_tech, re_curtailment_rate.rename('All')],
+                                                axis=1)
 
-        return self._re_curtailment_rate_by_tech
+        return re_curtailment_rate_by_tech
 
-    _curtailment_rate = None
-
+    @property
+    @mem_cache
     def curtailment_rate(self):
         """
         Get the curtailment rate
         """
 
-        if self._curtailment_rate is None:
-            time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
+        time_idx = self.c.o.reg_df.reset_index().timestamp.drop_duplicates().compute()
 
-            interval_periods = len(time_idx)
-            nr_days = len(time_idx.dt.date.drop_duplicates())
-            daily_periods = interval_periods / nr_days
-            hour_corr = 24 / daily_periods
+        interval_periods = len(time_idx)
+        nr_days = len(time_idx.dt.date.drop_duplicates())
+        daily_periods = interval_periods / nr_days
+        hour_corr = 24 / daily_periods
 
-            # Output 8 & 9
+        # Output 8 & 9
 
-            # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
-            # vre_add_df_columns
-            # To add something for subregions
+        # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
+        # vre_add_df_columns
+        # To add something for subregions
 
-            # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
-            load_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Load'] \
-                .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
-                .agg({'value': 'sum'})
+        # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
+        load_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Load'] \
+            .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
+            .agg({'value': 'sum'})
 
-            vre_av_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
-                                    (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
-
-            vre_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+        vre_av_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') &
                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
-                .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
-                .agg({'value': 'sum'}) \
-                .compute() \
-                .unstack('Category') \
-                .fillna(0) \
-                .stack('Category') \
-                .unstack(level=self.c.GEO_COLS) \
-                .fillna(0) \
-                .apply(lambda x: x * hour_corr)
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            # Add zero values to regions without VRE
-            geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(self.c.GEO_COLS).columns)),
-                                       index=load_by_reg.unstack(self.c.GEO_COLS).columns)
-            vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
-            vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
+        vre_gen_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * hour_corr)
 
-            # 24 periods per day for the daily data
-            vre_curtailed = vre_av_abs - vre_gen_abs
+        # Add zero values to regions without VRE
+        geo_col_filler = pd.Series(data=np.ones(len(load_by_reg.unstack(self.c.GEO_COLS).columns)),
+                                   index=load_by_reg.unstack(self.c.GEO_COLS).columns)
+        vre_av_abs = (vre_av_abs * geo_col_filler).fillna(0)
+        vre_gen_abs = (vre_gen_abs * geo_col_filler).fillna(0)
 
-            curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
-                'model').sum()).fillna(0) * 100
+        # 24 periods per day for the daily data
+        vre_curtailed = vre_av_abs - vre_gen_abs
 
-            ### Note that this is the new implementation for ISLAND-style aggregation. using self.c.GEO_COLS[0] i.e. the top tier of regional grouping.
-            vre_curtailed_grouped = vre_curtailed.T.groupby(self.c.GEO_COLS[0]).sum().T
-            vre_av_abs_grouped = vre_av_abs.T.groupby(self.c.GEO_COLS[0]).sum().T
+        curtailment_rate = (vre_curtailed.sum(axis=1).groupby('model').sum() / vre_av_abs.sum(axis=1).groupby(
+            'model').sum()).fillna(0) * 100
 
-            ## This could be renamed _reg. But should be done in consistent manner, so leaving for now.
-            curtailment_rate_reg = (vre_curtailed_grouped.groupby('model').sum() /
-                                    vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
+        ### Note that this is the new implementation for ISLAND-style aggregation. using self.c.GEO_COLS[0] i.e. the top tier of regional grouping.
+        vre_curtailed_grouped = vre_curtailed.T.groupby(self.c.GEO_COLS[0]).sum().T
+        vre_av_abs_grouped = vre_av_abs.T.groupby(self.c.GEO_COLS[0]).sum().T
 
-            curtailment_rate = pd.concat([curtailment_rate_reg, curtailment_rate.rename('Overall')], axis=1)
+        ## This could be renamed _reg. But should be done in consistent manner, so leaving for now.
+        curtailment_rate_reg = (vre_curtailed_grouped.groupby('model').sum() /
+                                vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
 
-            self._curtailment_rate = curtailment_rate
+        curtailment_rate = pd.concat([curtailment_rate_reg, curtailment_rate.rename('Overall')], axis=1)
 
-        return self._curtailment_rate
+        return curtailment_rate
 
-    _gen_op_costs_by_reg = None
+    @property
+    @mem_cache
     def gen_op_costs_by_reg(self):
         """
         TODO: DOCSTRING
         """
 
-        if self._gen_op_costs_by_reg is None:
+        gen_cost_props_w_penalty = ['Emissions Cost', 'Fuel Cost', 'Max Energy Violation Cost',
+                                    'Min Energy Violation Cost', 'Ramp Down Cost', 'Ramp Up Cost',
+                                    'Start & Shutdown Cost']
 
-            gen_cost_props_w_penalty = ['Emissions Cost', 'Fuel Cost', 'Max Energy Violation Cost',
-                                        'Min Energy Violation Cost', 'Ramp Down Cost', 'Ramp Up Cost', 'Start & Shutdown Cost']
+        # Excludes VO&M as this is excluded for some generators because of bad scaling of the objective function
+        gen_op_cost_props = ['Emissions Cost', 'Fuel Cost', 'Start & Shutdown Cost']
 
-            # Excludes VO&M as this is excluded for some generators because of bad scaling of the objective function
-            gen_op_cost_props = ['Emissions Cost', 'Fuel Cost', 'Start & Shutdown Cost']
+        # Standard costs reported as USD'000
+        gen_op_costs = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property.isin(gen_op_cost_props)]
+        gen_op_costs_w_pen = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property.isin(gen_cost_props_w_penalty)]
 
-            # Standard costs reported as USD'000
-            gen_op_costs = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property.isin(gen_op_cost_props)]
-            gen_op_costs_w_pen = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property.isin(gen_cost_props_w_penalty)]
+        # Scale costs to be also USD'000
+        gen_vom = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].fillna(0)
+        # gen_vom.loc[:, 'value'] = gen_vom.apply(lambda x: x.value * x.VOM, axis=1).fillna(0)
+        # gen_vom.loc[:, 'property'] = 'VO&M Cost'
+        gen_vom.assign(value=lambda x: x.value / x.VOM)
+        gen_vom.assign(property='VO&M Cost')
 
-            # Scale costs to be also USD'000
-            gen_vom = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].fillna(0)
-            # gen_vom.loc[:, 'value'] = gen_vom.apply(lambda x: x.value * x.VOM, axis=1).fillna(0)
-            # gen_vom.loc[:, 'property'] = 'VO&M Cost'
-            gen_vom.assign(value=lambda x: x.value / x.VOM)
-            gen_vom.assign(property='VO&M Cost')
+        gen_fom = self.c.o.gen_yr_df.loc[self.c.o.gen_yr_df.property == 'Installed Capacity', :]
+        # gen_fom.loc[:, 'value'] = gen_fom.apply(lambda x: x.value * x.FOM, axis=1).fillna(0)
+        # gen_fom.loc[:, 'property'] = 'FO&M Cost'
+        gen_fom.assign(value=lambda x: x.value / x.FOM)
+        gen_fom.assign(property='FO&M Cost')
+        gen_capex.loc[:, 'property'] = 'Investment Cost'
+        gen_capex.assign(value=lambda x: x.value / x.CAPEX)
+        gen_capex.assign(property='Investment Cost')
 
-            gen_fom = self.c.o.gen_yr_df.loc[self.c.o.gen_yr_df.property == 'Installed Capacity', :]
-            # gen_fom.loc[:, 'value'] = gen_fom.apply(lambda x: x.value * x.FOM, axis=1).fillna(0)
-            # gen_fom.loc[:, 'property'] = 'FO&M Cost'
-            gen_fom.assign(value=lambda x: x.value / x.FOM)
-            gen_fom.assign(property='FO&M Cost')
-            gen_capex.loc[:, 'property'] = 'Investment Cost'
-            gen_capex.assign(value=lambda x: x.value / x.CAPEX)
-            gen_capex.assign(property='Investment Cost')
+        gen_total_costs = dd.concat([gen_op_costs, gen_vom, gen_fom, gen_capex], axis=0)
+        gen_total_costs_w_pen = dd.concat([gen_op_costs_w_pen, gen_vom, gen_fom, gen_capex], axis=0)
+        gen_op_costs = dd.concat([gen_op_costs, gen_vom], axis=0)
 
-            gen_total_costs = dd.concat([gen_op_costs, gen_vom, gen_fom, gen_capex], axis=0)
-            gen_total_costs_w_pen = dd.concat([gen_op_costs_w_pen, gen_vom, gen_fom, gen_capex], axis=0)
-            gen_op_costs = dd.concat([gen_op_costs, gen_vom], axis=0)
+        # Scale to USDm
+        gen_op_costs_by_reg = gen_op_costs \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
+            .agg({'value': 'sum'}) \
+            .applymap(lambda x: x / 1e3)
+        gen_total_costs_by_reg = gen_total_costs \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
+            .agg({'value': 'sum'}) \
+            .applymap(lambda x: x / 1e3)
+        gen_total_costs_by_reg_w_pen = gen_total_costs_w_pen \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
+            .agg({'value': 'sum'}) \
+            .applymap(lambda x: x / 1e3)
 
-            # Scale to USDm
-            gen_op_costs_by_reg = gen_op_costs \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
-                .agg({'value': 'sum'}) \
-                .applymap(lambda x: x / 1e3)
-            gen_total_costs_by_reg = gen_total_costs \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
-                .agg({'value': 'sum'}) \
-                .applymap(lambda x: x / 1e3)
-            gen_total_costs_by_reg_w_pen = gen_total_costs_w_pen \
-                .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
-                .agg({'value': 'sum'}) \
-                .applymap(lambda x: x / 1e3)
+        # Ramp costs by reg in USDm
+        gen_by_name_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
+            .set_index(['model', 'name'] + self.c.GEO_COLS + ['Category', 'timestamp']) \
+            .value
+        ramp_by_gen_name = (gen_by_name_ts - gen_by_name_ts.shift(1)).fillna(0)
+        ramp_costs_by_gen_name = pd.merge(ramp_by_gen_name.reset_index(), self.c.soln_idx[['name', 'RampCost']],
+                                          on='name',
+                                          how='left').set_index(
+            ['model', 'name'] + self.c.GEO_COLS + ['Category', 'timestamp'])
+        ramp_costs_by_gen_name.loc[:, 'value'] = (
+                ramp_costs_by_gen_name.value.abs() * ramp_costs_by_gen_name.RampCost.fillna(0))
+        ramp_costs_by_gen_name.loc[:, 'property'] = 'Ramp Cost'
+        gen_ramp_costs_by_reg = ramp_costs_by_gen_name.reset_index().groupby(
+            ['model'] + self.c.GEO_COLS + ['Category', 'property']).sum().value / 1e6
 
-            # Ramp costs by reg in USDm
-            gen_by_name_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'] \
-                .set_index(['model', 'name'] + self.c.GEO_COLS + ['Category', 'timestamp']) \
-                .value
-            ramp_by_gen_name = (gen_by_name_ts - gen_by_name_ts.shift(1)).fillna(0)
-            ramp_costs_by_gen_name = pd.merge(ramp_by_gen_name.reset_index(), self.c.soln_idx[['name', 'RampCost']], on='name',
-                                              how='left').set_index(
-                ['model', 'name'] + self.c.GEO_COLS + ['Category', 'timestamp'])
-            ramp_costs_by_gen_name.loc[:, 'value'] = (
-                    ramp_costs_by_gen_name.value.abs() * ramp_costs_by_gen_name.RampCost.fillna(0))
-            ramp_costs_by_gen_name.loc[:, 'property'] = 'Ramp Cost'
-            gen_ramp_costs_by_reg = ramp_costs_by_gen_name.reset_index().groupby(
-                ['model'] + self.c.GEO_COLS + ['Category', 'property']).sum().value / 1e6
+        # ### Final dataframes of costs
+        gen_op_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_ramp_costs_by_reg], axis=0).reset_index().groupby(
+            ['model'] + self.c.GEO_COLS + ['Category', 'property']).sum().value
 
-            # ### Final dataframes of costs
-            gen_op_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_ramp_costs_by_reg], axis=0).reset_index().groupby(
-                ['model'] + self.c.GEO_COLS + ['Category', 'property']).sum().value
-
-            self._gen_op_costs_by_reg = gen_op_costs_by_reg
-
-        return self._gen_op_costs_by_reg
+        return gen_op_costs_by_reg
