@@ -76,17 +76,6 @@ def memory_cache(func):
     return _mem_cache_wrapper
 
 
-def apply_properties_and_caching(cls):
-    """Class decorator that converts methods into cached properties."""
-    # Not implemented yet
-    raise NotImplementedError
-    for attr_name, attr_value in cls.__dict__.items():
-        if callable(attr_value):
-            cached_method = drive_cache('variables')(attr_value)
-            setattr(cls, attr_name, property(cached_method))
-    return cls
-
-
 def catch_errors(func):
     """
     Decorator to catch errors in functions and log them instead of crashing the program. This decorator can only be
