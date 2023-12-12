@@ -38,12 +38,12 @@ tech_palette = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10',
 
 ### We should add load vs customer load (to see charging effect),
 ### Similarly could add load + exports to get effective load
-STACK_PALETTE = {'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'grey20', 'Cofiring': 'grey5', 'Abated coal': 'grey5',
-                 'Gas': 'p', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
+STACK_PALETTE = {'Nuclear': 'p', 'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'grey50', 'Cofiring': 'grey5', 'Abated coal': 'rl',
+                 'Gas': 'grey20', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'r', 'Imports': 't', 'Other': 't',
                  'Fuel Cell': 'tl', 'Storage': 'b',
                  'Solar': 'y', 'Wind': 'g', 'Total Load': 'black', 'Load2': 'white', 'Exports': 'p', 'Net Load': 'r',
                  'Curtailment': 'yl', 'Unserved Energy': 'iea_b', 'Underlying Load': 'p', 'Storage Load': 'grey50',
-                 'Nuclear': 'r'}
+                 }
 
 reg_palette = {'APB_BALI': 'bl', 'APB_JBR': 'b', 'APB_JKB': 'pl', 'APB_JTD': 't', 'APB_JTM': 'y'}
 subreg_palette = {'BAL': 'bl', 'BNT': 'b', 'DIY': 'gl', 'JBR': 't', 'JKT': 'ol', 'JTE': 'pl', 'JTM': 'grey20',
