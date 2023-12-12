@@ -171,6 +171,10 @@ class Variables:
         """
         TODO DOCSTRING
         """
+
+            ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
+        
+
         customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
                                                 (self.c.o.node_df.property == 'Unserved Energy')] \
             .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
@@ -191,6 +195,11 @@ class Variables:
             .agg({'value': 'sum'}) \
             .compute() \
             .unstack(level=self.c.GEO_COLS).fillna(0)
+        
+                all_regs = customer_load_reg_ts.columns
+        all_reg_unity = pd.Series(index=all_regs, data = [1]*len(all_regs))
+        vre_av_reg_abs_ts = (vre_av_reg_abs_ts * all_reg_unity).fillna(0)
+
         return vre_av_reg_abs_ts
 
     @property
@@ -200,7 +209,7 @@ class Variables:
         TODO DOCSTRING
         """
         net_load_reg_ts = self.customer_load_reg_ts - self.vre_av_reg_abs_ts
-
+        
         return net_load_reg_ts
 
     @property
