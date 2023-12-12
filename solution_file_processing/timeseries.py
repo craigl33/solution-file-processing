@@ -14,6 +14,7 @@ from . import log
 
 print = log.info
 
+
 @catch_errors
 def create_output_1(c):
     """
@@ -29,59 +30,33 @@ def create_output_1(c):
     """
     print("Creating interval output 1...")
     # Output 1a-b: Load and USE time-series
-    total_load_ts = c.o.reg_df[c.o.reg_df.property == 'Load'] \
-        .groupby(['model', 'timestamp']) \
-        .agg({'value': 'sum'})
 
-    total_load_ts.assign(units='MW').reset_index().compute() \
+    c.v.total_load_ts.assign(units='MW').reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01a_total_load_ts.csv'))
-
-    use_ts = c.o.reg_df[c.o.reg_df.property == 'Unserved Energy'] \
-        .groupby(['model', 'timestamp']) \
-        .agg({'value': 'sum'})
-
-    use_ts.assign(units='MW').reset_index().compute() \
+    c.v.use_ts.assign(units='MW').reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01b_use_ts.csv'))
+    c.v.use_dly_ts.assign(units='GWh').reset_index().to_csv(
+        os.path.join(c.DIR_05_2_TS_OUT, '01c_use_dly_ts.csv'))
 
     print('Created file 01a_total_load_ts.csv.')
     print('Created file 01b_use_ts.csv.')
+    print('Created file 01c_use_dly_ts.csv.')
 
-    # Need to calculate whether its 30mn or 1hr within but for now just assume hourly
-    use_dly_ts = c.o.reg_df[c.o.reg_df.property == 'Unserved Energy'] \
-        .assign(timestamp=dd.to_datetime(c.o.reg_df['timestamp']).dt.floor('D')) \
-        .groupby(['model', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .applymap(lambda x: x / 1000 if isinstance(x, float) else x)
-
-    use_dly_ts.assign(units='GWh').reset_index().compute().to_csv(
-        os.path.join(c.DIR_05_2_TS_OUT, '01c_use_dly_ts.csv'))
-
-    # todo needs implentation
-    # load_w_use_ts = dd.concat([total_load_ts.rename('Load'), use_ts.rename('USE')])
-    #
+    # todo Needs implementation
     # add_df_column(load_w_use_ts, 'units', 'MW').reset_index().compute().to_csv(
     #     os.path.join(p.DIR_05_2_TS_OUT, '01d_load_w_use_ts.csv'))
 
-    print('Created file 01c_use_dly_ts.csv.')
-
     if c.cfg['settings']['reg_ts']:
         print("Creating interval special output 1 (reg_ts=True)...")
-        load_by_reg_ts = c.o.node_df[c.o.node_df.property == 'Load'].groupby(
-            ['model'] + c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
-            level='timestamp').fillna(0).stack('timestamp')
 
-        use_reg_ts = c.o.node_df[c.o.node_df.property == 'Unserved Energy'].groupby(
-            ['model'] + c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
-            level=c.GEO_COLS)
-
-        use_dly_reg_ts = use_reg_ts.groupby(
+        use_dly_reg_ts = c.v.use_reg_ts.groupby(
             [pd.Grouper(level='model'), pd.Grouper(freq='D', level='timestamp')]).sum() / 1000
 
         for geo in c.GEO_COLS:
             geo_suffix = geo[:3].lower()
             count = ord('e')
 
-            load_by_reg_ts \
+            c.v.load_by_reg_ts \
                 .unstack(level=c.GEO_COLS) \
                 .groupby(level=geo, axis=1) \
                 .sum() \
@@ -90,7 +65,7 @@ def create_output_1(c):
                 .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '01{}_total_load_{}_ts.csv'.format(chr(count), geo_suffix)),
                         index=False)
 
-            use_reg_ts \
+            c.v.use_reg_ts \
                 .groupby(level=geo, axis=1) \
                 .sum() \
                 .assign(units='MW') \
@@ -123,45 +98,19 @@ def create_output_2(c):
     - 02c_av_cap_by_subtech_ts.csv
     """
     print("Creating interval output 2...")
-    # Output 2: Generation
 
-    gen_by_tech_ts = c.o.gen_df[c.o.gen_df.property == 'Generation'] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    gen_by_subtech_ts = c.o.gen_df[c.o.gen_df.property == 'Generation'] \
-        .groupby(['model', 'CapacityCategory', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='CapacityCategory') \
-        .fillna(0)
-
-    av_cap_by_tech_ts = c.o.gen_df[c.o.gen_df.property == 'Available Capacity'] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    # Drop the higher-level index (to get a single column line in csv file)
-    gen_by_tech_ts.columns = gen_by_tech_ts.columns.droplevel(level=0)
-    gen_by_subtech_ts.columns = gen_by_subtech_ts.columns.droplevel(level=0)
-    av_cap_by_tech_ts.columns = av_cap_by_tech_ts.columns.droplevel(level=0)
-
-    gen_by_tech_ts \
+    c.v.gen_by_tech_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02a_gen_by_tech_ts.csv'), index=False)
-
-    gen_by_subtech_ts \
+    c.v.gen_by_subtech_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02b_gen_by_tech_ts.csv'), index=False)
-
-    av_cap_by_tech_ts \
+    c.v.av_cap_by_tech_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02c_av_cap_by_subtech_ts.csv'), index=False)
@@ -188,53 +137,22 @@ def create_output_3(c):
     """
     print("Creating interval output 3...")
 
-    vre_av_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    vre_gen_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Generation') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    vre_curtailed_ts = vre_av_abs_ts - vre_gen_abs_ts
-
-    constr_techs = ['Hydro', 'Bioenergy', 'Geothermal']
-
-    min_energy_vio_tech_ts = c.o.gen_df[(c.o.gen_df.property == 'Min Energy Violation') &
-                                        (c.o.gen_df.Category.isin(constr_techs))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    re_curtailed_ts = pd.concat([vre_curtailed_ts, min_energy_vio_tech_ts])
-
-    # Drop the higher-level index (to get a single column line in csv file)
-    vre_av_abs_ts.columns = vre_av_abs_ts.columns.droplevel(level=0)
-    # vre_av_abs_ts.columns = vre_av_abs_ts.columns.droplevel(level=0)
-    vre_curtailed_ts.columns = vre_curtailed_ts.columns.droplevel(level=0)
-    re_curtailed_ts.columns = re_curtailed_ts.columns.droplevel(level=0)
-
-    vre_av_abs_ts \
+    c.v.vre_av_abs_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03a_vre_available_ts.csv'), index=False)
-    vre_av_abs_ts \
+    c.v.vre_av_abs_ts \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03b_vre_gen_ts.csv'), index=False)
-    vre_curtailed_ts \
+    c.v.vre_curtailed_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_vre_curtailed_ts.csv'), index=False)
-    re_curtailed_ts \
+    c.v.re_curtailed_ts \
+        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_RE_curtailed_ts.csv'), index=False)
@@ -246,17 +164,6 @@ def create_output_3(c):
 
     # Due to the size, we do the gen DFs per model
     if c.cfg['settings']['reg_ts']:
-
-        load_by_reg_ts = c.o.node_df[c.o.node_df.property == 'Load'] \
-            .groupby(['model'] + c.GEO_COLS + ['timestamp']) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack(level='timestamp') \
-            .fillna(0) \
-            .stack('timestamp')
-
-        # Define model regs in multi-level format
-        model_regs_multi = load_by_reg_ts.unstack(c.GEO_COLS).columns
 
         vre_av_reg_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
                                        (c.o.gen_df.Category.isin(VRE_TECHS))] \
@@ -278,14 +185,14 @@ def create_output_3(c):
 
         # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
         # vre_av_ts
-        for reg in model_regs_multi:
+        for reg in c.v.model_regs_multi:
             if reg not in vre_regs:
                 vre_av_reg_abs_ts[reg] = 0
                 vre_gen_reg_abs_ts[reg] = 0
 
         # Columns in alphabetical order
-        vre_av_reg_abs_ts = vre_av_reg_abs_ts[model_regs_multi]
-        vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[model_regs_multi]
+        vre_av_reg_abs_ts = vre_av_reg_abs_ts[c.v.model_regs_multi]
+        vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[c.v.model_regs_multi]
 
         for m in c.v.model_names:
             save_dir_model = os.path.join(c.DIR_05_2_TS_OUT, m)
@@ -591,106 +498,25 @@ def create_output_6(c):
     """
     print("Creating interval output 6...")
 
-    # So that we can see the total load before USE and pump load
-    customer_load_ts = c.o.reg_df[
-        (c.o.reg_df.property == 'Customer Load') | (c.o.reg_df.property == 'Unserved Energy')].groupby(
-        ['model', 'timestamp']).sum().value.compute()
-
-    ######
-    # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
-    # Series with indices matching the columns of the DF for filling in missing columns
-    model_filler = pd.Series(data=[1] * len(c.v.model_names), index=c.v.model_names).rename_axis('model')
-
-    try: 
-        purch_df = c.o.purch_df.compute()
-    except ValueError:
-        purch_df = pd.DataFrame(None)
-
-    if purch_df.shape[0] > 0:
-        ev_profiles_ts = purch_df[
-            purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(
-            ['model', 'timestamp']).sum().value
-        ev_profiles_orig_ts = purch_df[
-            purch_df.name.str.contains('_EV') & (purch_df.property == 'x')].groupby(
-            ['model', 'timestamp']).sum().value
-        if not ev_profiles_ts.shape[0] == 0:
-            ev_profiles_orig_ts = (ev_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                'model').reorder_levels(['model', 'timestamp'])
-
-        dsm_profiles_ts = purch_df[
-            purch_df.name.str.contains('_Shift') & (purch_df.property == 'Load')].groupby(
-            ['model', 'timestamp']).sum().value
-        dsm_profiles_orig_ts = purch_df[
-            purch_df.name.str.contains('_Shift') & (purch_df.property == 'x')].groupby(
-            ['model', 'timestamp']).sum().value
-        if not dsm_profiles_ts.shape[0] == 0:
-            dsm_profiles_orig_ts = (dsm_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                'model').reorder_levels(['model', 'timestamp'])
-
-        electr_profiles_ts = purch_df[
-            purch_df.name.str.contains('_Elec') & (purch_df.property == 'Load')].groupby(
-            ['model', 'timestamp']).sum().value
-        electr_profiles_orig_ts = purch_df[
-            purch_df.name.str.contains('_Elec') & (purch_df.property == 'x')].groupby(
-            ['model', 'timestamp']).sum().value
-        if electr_profiles_ts.shape[0] == 0:
-            electr_profiles_orig_ts = pd.Series(data=[0] * len(customer_load_ts.index),
-                                                index=customer_load_ts.index)
-        else:
-            electr_profiles_orig_ts = (electr_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                'model').reorder_levels(['model', 'timestamp'])
-
-        native_load_ts = c.o.node_df[c.o.node_df.property == 'Native Load'].groupby(
-            ['model', 'timestamp']).sum().value.compute()
-
-        customer_load_orig_ts = (native_load_ts + ev_profiles_orig_ts + dsm_profiles_orig_ts + electr_profiles_orig_ts)
-        # .fillna(customer_load_ts) ### For those profiles where EVs are missing, for e.g. ... other DSM to be added
-    else:
-        customer_load_orig_ts = customer_load_ts
-
-    vre_av_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-    vre_gen_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Generation') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-
-    #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
-    #  of vre_abs)
-    net_load_ts = pd.DataFrame(
-        customer_load_ts - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(), columns=['value'])
-    net_load_curtail_ts = pd.DataFrame(
-        customer_load_ts - vre_gen_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
-        columns=['value'])
-    net_load_orig_ts = pd.DataFrame(
-        customer_load_orig_ts - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
-        columns=['value'])
-
     # Calculation of all the different variations of LDC for later comparison
-    ldc = customer_load_ts.unstack('model')
+    ldc = c.v.customer_load_ts.unstack('model')
     ldc = pd.DataFrame(np.flipud(np.sort(ldc.values, axis=0)), index=ldc.index, columns=ldc.columns)
 
-    ldc_orig = customer_load_orig_ts.unstack('model')
+    ldc_orig = c.v.customer_load_orig_ts.unstack('model')
     ldc_orig = pd.DataFrame(np.flipud(np.sort(ldc_orig.values, axis=0)), index=ldc_orig.index, columns=ldc_orig.columns)
 
-    nldc = net_load_ts.value.unstack('model')
+    nldc = c.v.net_load_ts.value.unstack('model')
     nldc = pd.DataFrame(np.flipud(np.sort(nldc.values, axis=0)), index=nldc.index, columns=nldc.columns)
 
-    nldc_orig = net_load_orig_ts.value.unstack('model')
+    nldc_orig = c.v.net_load_orig_ts.value.unstack('model')
     nldc_orig = pd.DataFrame(np.flipud(np.sort(nldc_orig.values, axis=0)), index=nldc_orig.index,
                              columns=nldc_orig.columns)
 
-    nldc_curtail = net_load_curtail_ts.value.unstack('model')
+    nldc_curtail = c.v.net_load_curtail_ts.value.unstack('model')
     nldc_curtail = pd.DataFrame(np.flipud(np.sort(nldc_curtail.values, axis=0)), index=nldc_curtail.index,
                                 columns=nldc_curtail.columns)
 
-    net_load_ts.value.unstack('model').assign(units='MW') \
+    c.v.net_load_ts.value.unstack('model').assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06a_net_load_ts.csv'), index=True)
     ldc.reset_index(drop=True).assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06b_ldc.csv'), index=True)
@@ -698,7 +524,7 @@ def create_output_6(c):
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06c_net_ldc.csv'), index=True)
     nldc_curtail.reset_index(drop=True).assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06d_net_ldc_curtail.csv'), index=True)
-    net_load_orig_ts.value.unstack('model').assign(units='MW') \
+    c.v.net_load_orig_ts.value.unstack('model').assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06e_net_load_orig_ts.csv'), index=True)
     ldc_orig.reset_index(drop=True).assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06f_ldc_orig.csv'), index=True)
@@ -732,70 +558,53 @@ def create_output_7(c):
     """
     print("Creating interval output 7...")
 
-    customer_load_reg_ts = c.o.node_df[(c.o.node_df.property == 'Customer Load') |
-                                       (c.o.node_df.property == 'Unserved Energy')] \
-        .groupby(['model'] + c.cfg['settings']['geo_cols'] + ['timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level=c.cfg['settings']['geo_cols'])
-
-    vre_av_reg_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
-                                   (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby((['model'] + c.cfg['settings']['geo_cols'] + ['timestamp'])) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level=c.cfg['settings']['geo_cols']) \
-        .fillna(0)
-
-    net_load_reg_ts = customer_load_reg_ts - vre_av_reg_abs_ts
-
-    nl_max_dly_reg = net_load_reg_ts \
+    nl_max_dly_reg = c.v.net_load_reg_ts \
         .groupby('Region', axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
-    nl_max_dly_subreg = net_load_reg_ts \
+    nl_max_dly_subreg = c.v.net_load_reg_ts \
         .groupby('Subregion', axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
     try:
-        nl_max_dly_isl = net_load_reg_ts \
+        nl_max_dly_isl = c.v.net_load_reg_ts \
             .groupby('Island', axis=1) \
             .sum() \
             .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
             .max()
     except KeyError:
-        nl_max_dly_isl = net_load_reg_ts \
+        nl_max_dly_isl = c.v.net_load_reg_ts \
             .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
             .max()
-    nl_max_dly = net_load_reg_ts \
+    nl_max_dly = c.v.net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
 
-    nl_min_dly_reg = net_load_reg_ts \
+    nl_min_dly_reg = c.v.net_load_reg_ts \
         .groupby('Region', axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .min()
-    nl_min_dly_subreg = net_load_reg_ts \
+    nl_min_dly_subreg = c.v.net_load_reg_ts \
         .groupby('Subregion', axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .min()
     try:
-        nl_min_dly_isl = net_load_reg_ts \
+        nl_min_dly_isl = c.v.net_load_reg_ts \
             .groupby('Island', axis=1) \
             .sum() \
             .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
             .min()
     except KeyError:
-        nl_min_dly_isl = net_load_reg_ts \
+        nl_min_dly_isl = c.v.net_load_reg_ts \
             .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
             .min()
 
-    nl_min_dly = net_load_reg_ts \
+    nl_min_dly = c.v.net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .min()
@@ -865,27 +674,15 @@ def create_output_8i(c):
     """
     print("Creating interval output 8i)...")
 
-    inertia_by_tech = c.v.gen_inertia.groupby(['model', 'Category', 'timestamp']).sum()
-    try:
-        inertia_by_isl = c.v.gen_inertia.groupby(['model', 'Island', 'timestamp']).sum()
-    except KeyError:
-        inertia_by_isl = c.v.gen_inertia.groupby(['model', 'timestamp']).sum()
-    inertia_by_reg = c.v.gen_inertia.groupby(['model'] + c.cfg['settings']['geo_cols'] + ['timestamp']).sum()
-    total_inertia_ts = c.v.gen_inertia.groupby(['model', 'timestamp']).sum()
-
-    inertia_by_tech \
+    c.v.inertia_by_tech \
         .assign(units='MWs') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08a_inertia_by_tech_ts.csv'), index=False)
-    inertia_by_isl \
-        .assign(units='MWs') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08b_inertia_by_isl_ts.csv'), index=False)
-    inertia_by_reg \
+    c.v.inertia_by_reg \
         .assign(units='MWs') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08c_inertia_by_reg_ts.csv'), index=False)
-    total_inertia_ts \
+    c.v.total_inertia_ts \
         .assign(units='MWs') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08d_total_inertia_ts.csv'), index=False)
@@ -911,114 +708,53 @@ def create_output_8ii(c):
     - 08g_3hr_ramp_reg_pc_ts.csv
     """
     print("Creating interval output 8ii)...")
-    customer_load_ts = c.o.reg_df[
-        (c.o.reg_df.property == 'Customer Load') | (c.o.reg_df.property == 'Unserved Energy')] \
-        .groupby(['model', 'timestamp']) \
-        .agg({'value': 'sum'})
-    vre_av_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') & (c.o.gen_df.Category.isin(VRE_TECHS))] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-    net_load_ts = pd.DataFrame(
-        customer_load_ts.compute().value - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
-        columns=['value'])
-    ramp_ts = (net_load_ts.unstack(level='model') - net_load_ts.unstack(level='model').shift(1)) \
-        .fillna(0) \
-        .stack() \
-        .sort_index(level=1) \
-        .reset_index() \
-        .set_index(['model', 'timestamp']) \
-        .rename(columns={0: 'value'})
 
-    th_ramp_ts = (net_load_ts.unstack(level='model') - net_load_ts.unstack(level='model').shift(3)) \
-        .fillna(0) \
-        .stack() \
-        .sort_index(level=1) \
-        .reset_index() \
-        .set_index(['model', 'timestamp']) \
-        .rename(columns={0: 'value'})
-
-    customer_load_ts = customer_load_ts.compute()
-    #########
-    daily_pk_ts = customer_load_ts \
-        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .max() \
-        .reindex(customer_load_ts.index) \
-        .ffill()
-    ramp_pc_ts = ramp_ts.value / daily_pk_ts.value * 100
-    th_ramp_pc_ts = th_ramp_ts.value / daily_pk_ts.value * 100
-    gen_by_tech_ts = c.o.gen_df[c.o.gen_df.property == 'Generation'] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0)
-    gen_by_subtech_ts = c.o.gen_df[c.o.gen_df.property == 'Generation'] \
-        .groupby(['model', 'CapacityCategory', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='CapacityCategory') \
-        .fillna(0)
-
-    ########
-    ramp_by_gen_tech_ts = (gen_by_tech_ts - gen_by_tech_ts.shift(1)).fillna(0)
-    ramp_by_gen_subtech_ts = (gen_by_subtech_ts - gen_by_subtech_ts.shift(1)).fillna(0)
-
-    th_ramp_by_gen_tech_ts = (gen_by_tech_ts - gen_by_tech_ts.shift(3)).fillna(0)
-    th_ramp_by_gen_subtech_ts = (gen_by_subtech_ts - gen_by_subtech_ts.shift(3)).fillna(0)
-    #####
-
-    ramp_ts \
+    c.v.ramp_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08a_ramp_ts.csv'), index=False)
-    th_ramp_ts \
+    c.v.th_ramp_ts \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08b_3hr_ramp_ts.csv'), index=False)
-    ramp_pc_ts \
+    c.v.ramp_pc_ts \
         .reset_index() \
         .assign(units='MW.hr-1') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08c_ramp_pc_ts.csv'), index=False)
-    th_ramp_pc_ts \
+    c.v.th_ramp_pc_ts \
         .reset_index() \
         .assign(units='MW.hr-1') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08d_3hr_ramp_pc_ts.csv'), index=False)
+    c.v.ramp_by_gen_tech_ts \
+        .droplevel(0, axis=1) \
+        .assign(units='MW.hr-1') \
+        .reset_index() \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08e_ramp_by_gen_tech_ts.csv'), index=False)
+    c.v.ramp_by_gen_subtech_ts \
+        .droplevel(0, axis=1) \
+        .assign(units='MW.hr-1') \
+        .reset_index() \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08f_ramp_by_gen_subtech_ts.csv'), index=False)
+    c.v.th_ramp_by_gen_tech_ts \
+        .droplevel(0, axis=1) \
+        .assign(units='MW.hr-1') \
+        .reset_index() \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08g_3hr_ramp_by_gen_tech_ts.csv'), index=False)
+    c.v.th_ramp_by_gen_subtech_ts \
+        .droplevel(0, axis=1) \
+        .assign(units='MW.hr-1') \
+        .reset_index() \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08h_3hr_ramp_by_gen_subtech_ts.csv'), index=False)
 
     print('Created file 08a_ramp_ts.csv.')
     print('Created file 08b_3hr_ramp_ts.csv.')
     print('Created file 08c_ramp_pc_ts.csv.')
     print('Created file 08d_3hr_ramp_pc_ts.csv.')
-
-    ramp_by_gen_tech_ts = ramp_by_gen_tech_ts.droplevel(0, axis=1)
-    ramp_by_gen_subtech_ts = ramp_by_gen_subtech_ts.droplevel(0, axis=1)
-    th_ramp_by_gen_tech_ts = th_ramp_by_gen_tech_ts.droplevel(0, axis=1)
-    th_ramp_by_gen_subtech_ts = th_ramp_by_gen_subtech_ts.droplevel(0, axis=1)
-
-    ramp_by_gen_tech_ts \
-        .assign(units='MW.hr-1') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08e_ramp_by_gen_tech_ts.csv'), index=False)
-    ramp_by_gen_subtech_ts \
-        .assign(units='MW.hr-1') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08f_ramp_by_gen_subtech_ts.csv'), index=False)
-
-    th_ramp_by_gen_tech_ts \
-        .assign(units='MW.hr-1') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08g_3hr_ramp_by_gen_tech_ts.csv'), index=False)
-    th_ramp_by_gen_subtech_ts \
-        .assign(units='MW.hr-1') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08h_3hr_ramp_by_gen_subtech_ts.csv'), index=False)
-
     print('Created file 08e_ramp_by_gen_tech_ts.csv.')
     print('Created file 08f_ramp_by_gen_subtech_ts.csv.')
     print('Created file 08g_3hr_ramp_by_gen_tech_ts.csv.')
     print('Created file 08h_3hr_ramp_by_gen_subtech_ts.csv.')
+
 
 @catch_errors
 def create_output_9(c):
@@ -1036,28 +772,13 @@ def create_output_10(c):
     """
     print("Creating interval output 10...")
 
-    gen_out_tech_ts = c.o.gen_df[(c.o.gen_df.property == 'Forced Outage') |
-                                 (c.o.gen_df.property == 'Maintenance')] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category')
-
-    gen_out_by_type_ts = c.o.gen_df[(c.o.gen_df.property == 'Forced Outage') | \
-                                    (c.o.gen_df.property == 'Maintenance')] \
-        .groupby(['model', 'property', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='property')
-
-    gen_out_tech_ts = gen_out_tech_ts.droplevel(0, axis=1)
-    gen_out_by_type_ts = gen_out_by_type_ts.droplevel(0, axis=1)
-
-    gen_out_tech_ts \
+    c.v.gen_out_tech_ts \
+        .droplevel(0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10a_outages_by_tech_ts.csv'), index=False)
-    gen_out_by_type_ts \
+    c.v.gen_out_by_type_ts \
+        .droplevel(0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10b_outages_by_outtype_ts.csv'), index=False)
@@ -1074,37 +795,6 @@ def create_output_11(c):
     """
     print("Creating interval output 11...")
     # Temp get variables
-    gen_by_tech_ts = c.o.gen_df[c.o.gen_df.property == 'Generation'] \
-        .groupby(['model', 'Category', 'timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='Category') \
-        .fillna(0) \
-        .droplevel(0, axis=1)
-
-    total_load_ts = c.o.reg_df[c.o.reg_df.property == 'Load'] \
-        .groupby(['model', 'timestamp']) \
-        .agg({'value': 'sum'})
-
-    load_by_reg_ts = c.o.node_df[c.o.node_df.property == 'Load'] \
-        .groupby(['model'] + c.GEO_COLS + ['timestamp']) \
-        .agg({'value': 'sum'}) \
-        .compute() \
-        .unstack(level='timestamp') \
-        .fillna(0) \
-        .stack('timestamp')
-    ### Define model regs in multi-level format
-    model_regs_multi = load_by_reg_ts.unstack(c.GEO_COLS).columns
-    model_regs_multi = pd.MultiIndex.from_tuples([[i for i in x if i != 'value'] for x in model_regs_multi])
-
-    vre_av_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
-                                    (c.o.gen_df.Category.isin(VRE_TECHS))]
-                         .groupby((['model'] + c.GEO_COLS + ['timestamp']))
-                         .sum()
-                         .value
-                         .compute()
-                         .unstack(level=c.GEO_COLS)
-                         .fillna(0))
 
     vre_gen_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Generation') &
                                      (c.o.gen_df.Category.isin(VRE_TECHS))]
@@ -1115,18 +805,18 @@ def create_output_11(c):
                           .unstack(level=c.GEO_COLS)
                           .fillna(0))
 
-    vre_regs = vre_av_reg_abs_ts.columns
+    vre_regs = c.v.vre_av_reg_abs_ts.columns
 
-    ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
-    for reg in list(model_regs_multi):
+    # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
+    for reg in list(c.v.model_regs_multi):
         if reg not in vre_regs:
             print(reg)
-            vre_av_reg_abs_ts.loc[:, reg] = 0
+            c.v.vre_av_reg_abs_ts.loc[:, reg] = 0
             vre_gen_reg_abs_ts.loc[:, reg] = 0
 
-    ### Columns in alphabetical order
-    vre_av_reg_abs_ts = vre_av_reg_abs_ts[model_regs_multi]
-    vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[model_regs_multi]
+    # Columns in alphabetical order
+    vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts[c.v.model_regs_multi]
+    vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[c.v.model_regs_multi]
 
     vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
 
@@ -1156,11 +846,11 @@ def create_output_11(c):
 
     net_load_avg = c.v.net_load_ts.unstack(level='model').resample('D').mean().stack().reorder_levels(
         ['model', 'timestamp'])
-    ### Time dataframes done nationally////
+    # Time dataframes done nationally////
 
-    wet_season = gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    wet_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
-    dry_season = gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    dry_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
 
     ##########
@@ -1183,8 +873,10 @@ def create_output_11(c):
     net_load_min_dry = c.v.net_load_ts[
         c.v.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
         level='model').min().rename(columns={'value': 'net_load_min_dry'})
-    total_load_max = total_load_ts.compute().groupby(level='model').max().rename(columns={'value': 'total_load_max'})
-    total_load_min = total_load_ts.compute().groupby(level='model').min().rename(columns={'value': 'total_load_min'})
+    total_load_max = c.v.total_load_ts.compute().groupby(level='model').max().rename(
+        columns={'value': 'total_load_max'})
+    total_load_min = c.v.total_load_ts.compute().groupby(level='model').min().rename(
+        columns={'value': 'total_load_min'})
     ramp_max = ramp_ts.groupby(level='model').max().rename(columns={'value': 'ramp_max'})
     inertia_min = total_inertia_ts.groupby(level='model').min().drop(columns='InertiaHi').rename(
         columns={'InertiaLo': 'inertia_min'})
@@ -1219,8 +911,8 @@ def create_output_11(c):
         .values)
     net_load_avg_max['time_nlamax'] = net_load_avg.unstack(level='model').idxmax().values
     net_load_avg_min['time_nlamin'] = net_load_avg.unstack(level='model').idxmin().values
-    total_load_max['time_tlmax'] = total_load_ts.compute().unstack(level='model').idxmax().values
-    total_load_min['time_tlmin'] = total_load_ts.compute().unstack(level='model').idxmin().values
+    total_load_max['time_tlmax'] = c.v.total_load_ts.compute().unstack(level='model').idxmax().values
+    total_load_min['time_tlmin'] = c.v.total_load_ts.compute().unstack(level='model').idxmin().values
     ramp_max['time_ramp'] = ramp_ts.unstack(level='model').idxmax().values
     inertia_min['time_H'] = total_inertia_ts.InertiaLo.unstack(level='model').idxmin().values
     use_max['time_usemax'] = use_ts.compute().unstack(level='model').idxmax().values

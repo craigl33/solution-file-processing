@@ -63,7 +63,7 @@ def drive_cache(cache_type):
     return _drive_cache_decorator
 
 
-def mem_cache(func):
+def memory_cache(func):
     @functools.wraps(func)
     def _mem_cache_wrapper(self, *args, **kwargs):
         attr_name = f'_{func.__name__}'
@@ -73,17 +73,6 @@ def mem_cache(func):
         return getattr(self, attr_name)
 
     return _mem_cache_wrapper
-
-
-def apply_properties_and_caching(cls):
-    """Class decorator that converts methods into cached properties."""
-    # Not implemented yet
-    raise NotImplementedError
-    for attr_name, attr_value in cls.__dict__.items():
-        if callable(attr_value):
-            cached_method = drive_cache('variables')(attr_value)
-            setattr(cls, attr_name, property(cached_method))
-    return cls
 
 
 def catch_errors(func):

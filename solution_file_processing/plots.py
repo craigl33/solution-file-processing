@@ -49,7 +49,7 @@ def _get_plot_1_variables(c):
                        .fillna(0))
 
     reg_ids = list(np.unique(np.append(
-        load_by_reg.unstack(c.GEO_COLS).droplevel(level=[region for region in c.GEO_COLS if region != 'Region'],
+        c.os.load_by_reg.unstack(c.GEO_COLS).droplevel(level=[region for region in c.GEO_COLS if region != 'Region'],
                                                   axis=1).replace(0,
                                                                   np.nan).dropna(
             how='all', axis=1).columns,
