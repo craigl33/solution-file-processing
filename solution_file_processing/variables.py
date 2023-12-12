@@ -196,7 +196,7 @@ class Variables:
             .compute() \
             .unstack(level=self.c.GEO_COLS).fillna(0)
         
-                all_regs = customer_load_reg_ts.columns
+        all_regs = self.customer_load_reg_ts.columns
         all_reg_unity = pd.Series(index=all_regs, data = [1]*len(all_regs))
         vre_av_reg_abs_ts = (vre_av_reg_abs_ts * all_reg_unity).fillna(0)
 
