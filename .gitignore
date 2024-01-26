@@ -5,6 +5,9 @@ dev.ipynb
 main.py
 notes.md
 
+# log files, but keep the log folder
+logs/*.log
+
 ## General ignores
 # Editors
 .idea

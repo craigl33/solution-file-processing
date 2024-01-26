@@ -1,0 +1,23 @@
+# This is a template configuration file with example values. Create a new copy with any name. Do not edit it directly.
+# More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
+
+[path]
+model_dir = 'U:/data/Indonesia/2021_IPSE'
+soln_idx_path = 'U:/data/Indonesia/2023_03_28_generator_parameters_IDN.xlsx'
+
+[model]
+soln_choice = '20230509_IDN_APSvRUPTL_scenario'
+
+[settings]
+geo_cols = ['Island', 'Region', 'Subregion']
+reg_ts = true
+
+[run]
+log_file_path = 'U:/code/solution-file-processing/logs/IDN.log'
+log_timestamp = true
+variables_cache = true
+catch_errors = true
+
+[testing]
+baseline_output_dir = 'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/'
+similar_output_dirs = false

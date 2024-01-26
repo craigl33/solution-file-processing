@@ -1,0 +1,22 @@
+# The paths are based on the personal U: drive and will need to be changed for other users
+
+[path]
+model_dir = 'U:/data/Indonesia/2021_IPSE'
+soln_idx_path = 'U:/data/Indonesia/2023_03_28_generator_parameters_IDN.xlsx'
+
+[model]
+soln_choice = '20230509_IDN_APSvRUPTL_scenario'
+
+[settings]
+geo_cols = ['Island', 'Region', 'Subregion']
+reg_ts = true
+
+[run]
+log_file_path = 'U:/code/solution-file-processing/logs/IDN.log'
+log_timestamp = true
+variables_cache = true
+catch_errors = true
+
+[testing]
+baseline_output_dir = 'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/'
+similar_output_dirs = false

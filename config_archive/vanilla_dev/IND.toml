@@ -1,0 +1,25 @@
+# The paths are based on the personal U: drive and will need to be changed for other users
+
+[path]
+model_dir = 'U:/data/India/WEO_India_2022_scaling'
+soln_idx_path = 'U:/data/India/2023_03_14_generator_parameters_WEO_India_APS_scaled.xlsx'
+
+[model]
+soln_choice = '2023_03_28_digitalisaion_yu'
+
+[settings]
+geo_cols = ['Region', 'Subregion']
+reg_ts = true
+
+[run]
+log_file_path = 'U:/code/solution-file-processing/logs/IND.log'
+log_timestamp = true
+variables_cache = true
+catch_errors = true
+
+[testing]
+baseline_output_dir = false # There is no baseline output directory for China, was created with older R code
+similar_output_dirs = [
+    'Y:/RED/Modelling/Indonesia/2021_IPSE/05_DataProcessing/20230509_IDN_APSvRUPTL_scenario/',
+    'Y:/RED/Modelling/Thailand/2022-3_next_step_modelling/05_DataProcessing/20230626_THA_Base_LowerCO2p',
+]

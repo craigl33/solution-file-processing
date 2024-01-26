@@ -1,4 +1,9 @@
+"""
+TODO DOCSTRING
+"""
+
 VRE_TECHS = ['Solar', 'Wind']
+CONSTR_TECHS = ['Hydro', 'Bioenergy', 'Geothermal']
 
 PRETTY_MODEL_NAMES = {
     'IDN_2019_Validation': '2019',
