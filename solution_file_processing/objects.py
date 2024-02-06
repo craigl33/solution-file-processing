@@ -38,6 +38,7 @@ class Objects:
     node_yr_df: Annual node data
     line_yr_df: Annual line data
     fuelcontract_yr_df: Annual fuel contract data
+    fuel_yr_df: Annual fuel data
     gen_df: Interval generator data
     node_df: Interval node data
     reg_df: Interval region data
@@ -272,3 +273,14 @@ class Objects:
         """
         _df = self.c.get_processed_object('interval', 'purchasers', return_type='dask')
         return _df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def fuel_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        df = self.c.get_processed_object('year', 'fuels', return_type='pandas')
+        return df
+
