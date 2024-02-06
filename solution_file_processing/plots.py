@@ -49,7 +49,7 @@ def _get_plot_1_variables(c):
                        .fillna(0))
 
     reg_ids = list(np.unique(np.append(
-        c.os.load_by_reg.unstack(c.GEO_COLS).droplevel(level=[region for region in c.GEO_COLS if region != 'Region'],
+        c.v.load_by_reg.unstack(c.GEO_COLS).droplevel(level=[region for region in c.GEO_COLS if region != 'Region'],
                                                   axis=1).replace(0,
                                                                   np.nan).dropna(
             how='all', axis=1).columns,
@@ -151,83 +151,6 @@ def _get_plot_1_variables(c):
     reg_ids = reg_ids + ['Overall']
 
     return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
-
-
-# def _get_plot_2_variables(c):
-#     """
-#     Function to get all variables for the annual summary plots (aka PLOT 2 for now)
-
-    
-#     vre_by_reg
-#     re_by_reg
-#     curtailment_rate
-#     re_curtailment_rate_by_tech
-#     fuel_by_type
-#     co2_by_tech_reg
-#     co2_by_reg
-#     gen_op_costs_by_reg
-#     gen_op_and_vio_costs_reg
-#     gen_total_costs_by_reg
-#     # gen_total_costs_by_reg_2030
-#     lcoe_tech
-#     ramp_reg_ts
-#     daily_pk_reg_ts
-#     ramp_pc_ts
-#     th_ramp_reg_ts
-#     th_ramp_pc_ts
-#     ramp_ts
-#     nldc_orig
-#     nldc
-
-#     """
-
-#     load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'] \
-#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
-#         .agg({'value': 'sum'})
-#     customer_load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == ' Customer Load'] \
-#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
-#         .agg({'value': 'sum'})
-#     customer_load_reg_ts = c.v.customer_load_reg_ts
-#     net_load_by_reg_ts = c.v.net_load_reg_ts
-#     use_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Unserved Energy'] \
-#         .groupby(['model', 'timestamp'] + c.GEO_COLS) \
-#         .agg({'value': 'sum'})
-#     gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
-#     gen_cap_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity']
-#     vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts
-#     cf_tech_reg = calculate.get_cf_tech_reg(c)
-#     line_cap_reg = calculate.get_line_cap_reg(c)
-#     line_imp_exp_reg = calculate.get_line_imp_exp(c)
-#     vre_by_reg = calculate.get_vre_share_by_reg(c)
-#     re_by_reg = calculate.get_re_share_by_reg(c)
-#     curtailment_rate = calculate.get_curtailment_rate(c)
-#     re_curtailment_rate_by_tech = calculate.get_re_curtailed_by_tech(c)
-#     fuel_by_type = c.o.fuel_yr_df[c.o.fuel_yr_df.property == 'Offtake'].groupby(['model', 'timestamp'] + c.GEO_COLS) \
-#         .agg({'value': 'sum'})
-#     co2_by_tech_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2')&(c.o.em_gen_yr_df.property=='Production')].groupby(
-#     [ 'model'] + c.GEO_COLS + ['Category']).sum().value
-#     co2_by_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2')&(c.o.em_gen_yr_df.property=='Production')].groupby(
-#     [ 'model'] + c.GEO_COLS).sum().value
-#     gen_op_costs_by_reg = calculate.get_gen_op_costs_by_reg(c)
-
-    
-
-
-    
-
-    
-#     ###
-
-
-
-
-#     # gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
-
-#     # underlying_load_reg = (load_by_reg_ts - pumpload_reg_ts).rename('Underlying Load')
-#     # net_load_reg_sto_ts = (c.v.net_load_reg_ts.stack(c.GEO_COLS).reorder_levels(
-#     #     ['model'] + c.GEO_COLS + ['timestamp']) + pumpload_reg
-
-#     return reg_ids, doi_summary, use_reg_ts, gen_stack_by_reg
 
 
 @catch_errors
@@ -354,318 +277,189 @@ def create_plot_1b(c):
                     )
 
 
-def get_plot_data(c):
+def get_col_plot_data(c):
+    """
+    Get column plot data  - key outputs for summary plots.
+    """
+
+
+    return plot_cols, plot_type, plot_units, plot_cols_JVBSUMonly
+
+
+def create_plot_2(c):
+    
     """
     # todo Not implemented at all, just copied from old jupyter notebook
+    ### Plot 2: Annual summary plots by columnn
     """
+    fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")
+
+    customer_load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == ' Customer Load'] \
+    .groupby(['model', 'timestamp'] + c.GEO_COLS) \
+    .agg({'value': 'sum'})
+
+    fuel_by_type_reg = c.o.fuel_yr_df[c.o.fuel_yr_df.property == 'Offtake'].groupby(['model', 'timestamp', 'Type'] + c.GEO_COLS) \
+        .agg({'value': 'sum'})
+    
+
+
     plot_cols = {
         "load_by_reg":
             customer_load_by_reg.groupby(["model", "Region"]).sum().unstack(level="model") / 1000,
-        "load_by_isl":
-            customer_load_by_reg.groupby(["model", "Island"]).sum().unstack(level="model") / 1000,
-        # 'pk_load_by_reg': load_by_reg_ts.groupby(['model', 'Region']).max().unstack(level='model'),
-        "pk_load_by_isl": customer_load_reg_ts.groupby(geo_cols[0], axis=1).sum().stack(geo_cols[0]).groupby(
-            ["model", geo_cols[0]]).max().unstack(level="model") / 1000,
-        # 'pk_netload_by_reg': net_load_reg_ts.stack(geo_cols).groupby(['model', 'Region']).max().unstack(leel='model'),
-        "pk_netload_by_isl": net_load_reg_ts.groupby(geo_cols[0], axis=1)
+        "pk_load_by_reg": c.v.customer_load_reg_ts.groupby(c.GEO_COLS[0], axis=1).sum().stack(c.GEO_COLS[0]).groupby(
+            ["model", c.GEO_COLS[0]]).max().unstack(level="model") / 1000,
+        "pk_netload_by_reg": c.v.net_load_reg_ts.groupby(c.GEO_COLS[0], axis=1)
                              .sum()
-                             .stack(geo_cols[0])
-                             .groupby(["model", geo_cols[0]])
+                             .stack(c.GEO_COLS[0])
+                             .groupby(["model", c.GEO_COLS[0]])
                              .max()
                              .unstack(level="model")
                              / 1000,
-        "line_cap_isl": line_cap_isl["Export Limit"].rename("value").unstack(level="line")
+        "line_cap_reg": c.v.line_cap_reg["Export Limit"].rename("value").unstack(level="line")
                         / 1000,
-        "line_net_exports_isl": (
-                                        line_imp_exp_isl["Flow"] - line_imp_exp_isl["Flow Back"]
+        "line_net_exports_reg": (
+                                        c.v.line_imp_exp_reg["Flow"] - line_imp_exp_reg["Flow Back"]
                                 ).unstack("line")
                                 / 1000,
-        "line_exports_isl": (line_imp_exp_isl["Flow"]).unstack("line") / 1000,
-        "line_imports_isl": (line_imp_exp_isl["Flow Back"]).unstack("line") / 1000,
+        "line_exports_reg": (c.v.line_imp_exp_reg["Flow"]).unstack("line") / 1000,
+        "line_imports_reg": (c.v.line_imp_exp_reg["Flow Back"]).unstack("line") / 1000,
         #              'use_by_reg': use_by_reg.groupby(['model','Region']).sum().unstack(level='Region'),
-        "use_by_isl": use_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island")
+        "use_by_reg": c.v.use_by_reg(level=c.GEO_COLS[0])
                       / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
+        "gen_by_tech": c.v.gen_by_tech_reg.stack(c.GEO_COLS)
                        .groupby(["model", "Category"])
                        .sum()
                        .unstack(level="Category")
                        / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
+        "gen_by_tech": c.v.gen_by_tech_reg.stack(c.GEO_COLS)
                        .groupby(["model", "Category"])
                        .sum()
                        .unstack(level="Category")
                        / 1000,
-        "gen_by_WEOtech": gen_by_weoTech_reg.groupby(["model", "WEO_Tech_simpl"])
-                          .sum()
-                          .sum(axis=1)
-                          .unstack(level="WEO_Tech_simpl")
-                          / 1000,
-        #              'gen_by_reg': gen_by_tech_reg.stack(geo_cols).groupby(['model', 'Region']).sum().unstack(level='Region'),
-        "gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                      .groupby(["model", "Island"])
+    
+        "gen_by_reg": c.v.gen_by_tech_reg.stack(c.GEO_COLS)
+                      .groupby(["model", c.GEO_COLS[0]])
                       .sum()
-                      .unstack(level="Island")
+                      .unstack(level=c.GEO_COLS[0])
                       / 1000,
-        "net_gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                          .groupby(["model", "Island"])
+        "net_gen_by_reg": c.v.gen_by_tech_reg.stack(c.GEO_COLS)
+                          .groupby(["model", c.GEO_COLS[0]])
                           .sum()
-                          .unstack(level="Island")
+                          .unstack(level=c.GEO_COLS[0])
                           .fillna(0)
                           / 1000
-                          - load_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island") / 1000,
-        "gen_cap_by_isl": gen_cap_tech_reg.stack(geo_cols)
-                          .groupby(["model", "Island"])
+                          - load_by_reg.groupby(["model", c.GEO_COLS[0]]).sum().unstack(level=c.GEO_COLS[0]) / 1000,
+        "gen_cap_by_reg": c.v.gen_cap_tech_reg.stack(c.GEO_COLS)
+                          .groupby(["model", c.GEO_COLS[0]])
                           .sum()
-                          .unstack(level="Island")
+                          .unstack(level=c.GEO_COLS[0])
                           / 1000,
-        "gen_cap_by_tech": gen_cap_tech_reg.stack(geo_cols)
+        "gen_cap_by_tech": c.v.gen_cap_tech_reg.stack(c.GEO_COLS)
                            .groupby(["model", "Category"])
                            .sum()
                            .unstack(level="Category")
                            / 1000,
-        "gen_cap_by_WEOtech": gen_cap_by_weoTech_reg.groupby(["model", "WEO_Tech_simpl"])
-                              .sum()
-                              .sum(axis=1)
-                              .unstack(level="WEO_Tech_simpl")
-                              / 1000,
-        "cf_tech": cf_tech,
-        "cf_tech_transposed": cf_tech.T,
-        "vre_by_isl_byGen": vre_by_isl,
-        "vre_by_isl_byAv": vre_av_reg_abs_ts.groupby("model")
+        "cf_tech": c.v.cf_tech,
+        "cf_tech_transposed": c.v.cf_tech.T,
+        "vre_by_reg_byGen": c.v.vre_by_reg,
+        "vre_by_reg_byAv": vre_av_reg_abs_ts.groupby("model")
                            .sum()
-                           .groupby(geo_cols[0], axis=1)
+                           .groupby(c.GEO_COLS[0], axis=1)
                            .sum()
                            / 1000
-                           / gen_by_tech_reg.groupby("model").sum().groupby(geo_cols[0], axis=1).sum(),
-        "re_by_isl": re_by_isl,
-        "curtailment_rate": curtailment_rate / 100,
-        "re_curtailed_by_tech": re_curtailment_rate_by_tech,
-        "fuels_by_type": fuel_by_type.groupby(["model", "Type"])
-        .sum()
-        .unstack("Type")
-        .replace(0, np.nan)
-        .dropna(axis=1, how="all")
-        .fillna(0),
+                           / gen_by_tech_reg.groupby("model").sum().groupby(c.GEO_COLS[0], axis=1).sum(),
+        "re_by_reg": c.v.re_by_reg,
+        "curtailment_rate": c.v.curtailment_rate / 100,
+        "re_curtailed_by_tech": c.v.re_curtailment_rate_by_tech,
+        "fuels_by_type": c.v.fuel_by_type.groupby(["model", "Type"]),
         #              'fuels_by_subtype': fuel_by_type.groupby(['model', 'Category']).sum().unstack('Category').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
-        "co2_by_tech": co2_by_tech_reg.groupby(["model", "Category"])
+        "co2_by_tech": c.v.co2_by_tech_reg.groupby(["model", "Category"])
                        .sum()
                        .unstack(level="Category")
                        / 1e6,
-        "co2_by_fuels": co2_fuels_by_reg.groupby(["model", "Type"]).sum().unstack("Type")
+        "co2_by_fuels": c.v.co2_fuels_by_reg.groupby(["model", "Type"]).sum().unstack("Type")
                         / 1e6,
-        #              'co2_by_subfuels': co2_fuels_by_reg.groupby(['model', 'Category']).sum().unstack('Category')/1e6,
-        #              'co2_by_reg': co2_by_tech_reg.groupby(['model', 'Region']).sum().unstack(level='Region')/1e6,
-        "co2_by_isl": co2_by_tech_reg.groupby(["model", "Island"])
+        "co2_by_reg": c.v.co2_by_tech_reg.groupby(["model", c.GEO_COLS[0]])
                       .sum()
-                      .unstack(level="Island")
+                      .unstack(level=c.GEO_COLS[0])
                       / 1e6,
-        #              'co2_intensity_reg': co2_by_reg.unstack(geo_cols).groupby('Region', axis=1).sum()/gen_by_tech_reg.groupby('model').sum().groupby('Region',axis=1).sum(),
-        "co2_intensity_isl": co2_by_reg.unstack(geo_cols).groupby("Island", axis=1).sum()
-                             / gen_by_tech_reg.groupby("model").sum().groupby("Island", axis=1).sum(),
-        #              'gen_cap_by_reg': gen_cap_tech_reg.stack(geo_cols).groupby(['model', 'Region']).sum().unstack(level='Region'),
-        #              'op_costs_by_tech' : gen_op_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "op_costs_by_prop": gen_op_costs_by_reg.groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        "op_and_vio_costs_by_prop": gen_op_and_vio_costs_reg.groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'tsc_by_tech' : gen_total_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "tsc_by_prop": gen_total_costs_by_reg.groupby(["model", "property"])
+    "co2_intensity_reg": c.v.co2_by_reg.unstack(c.GEO_COLS).groupby(c.GEO_COLS[0], axis=1).sum()
+                             / gen_by_tech_reg.groupby("model").sum().groupby(c.GEO_COLS[0], axis=1).sum(),
+
+        "op_costs_by_prop": c.v.gen_op_costs_by_reg.groupby(["model", "property"])
         .sum()
         .unstack(level="property"),
         #              'lcoe_by_tech' : lcoe_tech.unstack(level='Category'),
         #              'lcoe_by_tech_T' : lcoe_tech.unstack(level='model'),
-        "ramp_pc_by_isl": pd.concat(
+        "ramp_pc_by_reg": pd.concat(
             [
                 (
-                        ramp_reg_ts.groupby(["model", geo_cols[0], "timestamp"]).sum()
-                        / daily_pk_reg_ts.stack(geo_cols)
-                        .groupby(["model", geo_cols[0], "timestamp"])
+                        ramp_reg_ts.groupby(["model", c.GEO_COLS[0], "timestamp"]).sum()
+                        / daily_pk_reg_ts.stack(c.GEO_COLS)
+                        .groupby(["model", c.GEO_COLS[0], "timestamp"])
                         .sum()
                 )
-                .groupby(["model", geo_cols[0]])
+                .groupby(["model", c.GEO_COLS[0]])
                 .max()
-                .unstack(level=geo_cols[0])
+                .unstack(level=c.GEO_COLS[0])
                 * 100,
                 ramp_pc_ts.groupby(["model"]).max().rename("IDN"),
             ],
             axis=1,
         ),
-        "th_ramp_pc_by_isl": pd.concat(
+        "th_ramp_pc_by_reg": pd.concat(
             [
                 (
-                        th_ramp_reg_ts.groupby(["model", geo_cols[0], "timestamp"]).sum()
-                        / daily_pk_reg_ts.stack(geo_cols)
-                        .groupby(["model", geo_cols[0], "timestamp"])
+                        c.v.th_ramp_reg_ts.groupby(["model", c.GEO_COLS[0], "timestamp"]).sum()
+                        / daily_pk_reg_ts.stack(c.GEO_COLS)
+                        .groupby(["model", c.GEO_COLS[0], "timestamp"])
                         .sum()
                 )
-                .groupby(["model", geo_cols[0]])
+                .groupby(["model", c.GEO_COLS[0]])
                 .max()
-                .unstack(level=geo_cols[0])
+                .unstack(level=c.GEO_COLS[0])
                 * 100,
-                th_ramp_pc_ts.groupby(["model"]).max().rename("IDN"),
+                c.v.th_ramp_pc_ts.groupby(["model"]).max().rename("IDN"),
             ],
             axis=1,
         ),
-        "ramp_by_isl": pd.concat(
+        "ramp_by_reg": pd.concat(
             [
-                ramp_reg_ts.unstack(geo_cols)
-                .groupby(level=geo_cols[0], axis=1)
+                c.v.ramp_reg_ts.unstack(c.GEO_COLS)
+                .groupby(level=c.GEO_COLS[0], axis=1)
                 .sum()
                 .groupby(["model"])
                 .max(),
-                ramp_ts.groupby(["model"]).max().value.rename("IDN"),
+                c.v.ramp_ts.groupby(["model"]).max().value.rename("IDN"),
             ],
             axis=1,
         ),
-        #              'th_ramp_by_isl' :pd.concat([th_ramp_reg_ts.unstack(geo_cols).groupby(level=geo_cols[0],axis=1).sum().groupby(['model']).max(), th_ramp_ts.groupby(['model']).max().value.rename('IDN')], axis=1)
-        "dsm_pk_contr": (nldc_orig.iloc[:100, :] - nldc.iloc[:100, :])
-        .mean()
-        .rename("value")
-        .to_frame(),
-    }
-
-    ###Java-Bali and Sumatra only
-    incl_regs = ["JVB", "SUM"]
-
-    plot_cols_JVBSUMonly = {
-        "load_by_isl": customer_load_by_reg.loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Island"])
-                       .sum()
-                       .unstack(level="model")
-                       / 1000,
-        #              'pk_load_by_reg': load_by_reg_ts.groupby(['model', 'Region']).max().unstack(level='model'),
-        "pk_load_by_isl": customer_load_reg_ts.loc[:, ix[incl_regs,]]
-                          .groupby(geo_cols[0], axis=1)
-                          .sum()
-                          .stack(geo_cols[0])
-                          .groupby(["model", geo_cols[0]])
-                          .max()
-                          .unstack(level="model")
-                          / 1000,
-        #              'pk_netload_by_reg': net_load_reg_ts.stack(geo_cols).groupby(['model', 'Region']).max().unstack(leel='model'),
-        "pk_netload_by_isl": net_load_reg_ts.loc[:, ix[incl_regs,]]
-                             .groupby(geo_cols[0], axis=1)
-                             .sum()
-                             .stack(geo_cols[0])
-                             .groupby(["model", geo_cols[0]])
-                             .max()
-                             .unstack(level="model")
-                             / 1000,
-        #              'use_by_reg': use_by_reg.groupby(['model','Region']).sum().unstack(level='Region'),
-        "use_by_isl": use_by_reg.loc[ix[:, incl_regs, :]]
-                      .groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                      .loc[ix[:, :, incl_regs, :]]
-                      .groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1000,
-        "net_gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                          .loc[ix[:, :, incl_regs, :]]
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          .fillna(0)
-                          / 1000
-                          - load_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island") / 1000,
-        "gen_cap_by_isl": gen_cap_tech_reg.stack(geo_cols)
-                          .loc[ix[:, :, incl_regs, :]]
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          / 1000,
-        "gen_cap_by_tech": gen_cap_tech_reg.stack(geo_cols)
-                           .loc[ix[:, :, incl_regs, :]]
-                           .groupby(["model", "Category"])
-                           .sum()
-                           .unstack(level="Category")
-                           / 1000,
-        "cf_tech": cf_tech_JVBSUMonly,
-        "cf_tech_transposed": cf_tech_JVBSUMonly.T,
-        "vre_by_isl_byGen": vre_by_isl_JVBSUMonly,
-        "vre_by_isl_byAv": vre_av_reg_abs_ts.loc[:, ix[incl_regs,]]
-                           .groupby("model")
-                           .sum()
-                           .groupby(geo_cols[0], axis=1)
-                           .sum()
-                           / 1000
-                           / gen_by_tech_reg.loc[:, ix[incl_regs,]]
-                           .groupby("model")
-                           .sum()
-                           .groupby(geo_cols[0], axis=1)
-                           .sum(),
-        "re_by_isl": re_by_isl_JVBSUMonly,
-        "curtailment_rate": curtailment_rate_JVBSUMonly / 100,
-        "op_costs_by_prop": gen_op_costs_by_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        "op_and_vio_costs_by_prop": gen_op_and_vio_costs_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'tsc_by_tech' : gen_total_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "tsc_by_prop": gen_total_costs_by_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'lcoe_by_tech' : lcoe_tech.unstack(level='Category'),
-        #              'lcoe_by_tech_T' : lcoe_tech.unstack(level='model'),
+        #              'th_ramp_by_reg' :pd.concat([th_ramp_reg_ts.unstack(c.GEO_COLS).groupby(level=c.GEO_COLS[0],axis=1).sum().groupby(['model']).max(), th_ramp_ts.groupby(['model']).max().value.rename('IDN')], axis=1)
+        "dsm_pk_contr": (c.v.nldc_orig.iloc[:100, :] - c.v.nldc.iloc[:100, :])
+ 
     }
 
     plot_type = {
         "load_by_reg": "clustered",
-        "load_by_isl": "clustered",
+        "load_by_reg": "clustered",
         "pk_load_by_reg": "clustered",
-        "pk_load_by_isl": "clustered",
+        "pk_load_by_reg": "clustered",
         "pk_netload_by_reg": "clustered",
-        "pk_netload_by_isl": "clustered",
-        "line_cap_isl": "clustered",
-        "line_net_exports_isl": "clustered",
-        "line_exports_isl": "clustered",
-        "line_imports_isl": "clustered",
+        "pk_netload_by_reg": "clustered",
+        "line_cap_reg": "clustered",
+        "line_net_exports_reg": "clustered",
+        "line_exports_reg": "clustered",
+        "line_imports_reg": "clustered",
         "use_by_reg": "stacked",
-        "use_by_isl": "stacked",
+        "use_by_reg": "stacked",
         "gen_by_tech": "stacked",
         "gen_by_WEOtech": "stacked",
         "gen_by_reg": "stacked",
-        "gen_by_isl": "stacked",
-        "net_gen_by_isl": "clustered",
-        "vre_by_isl_byGen": "clustered",
-        "vre_by_isl_byAv": "clustered",
-        "re_by_isl": "clustered",
+        "gen_by_reg": "stacked",
+        "net_gen_by_reg": "clustered",
+        "vre_by_reg_byGen": "clustered",
+        "vre_by_reg_byAv": "clustered",
+        "re_by_reg": "clustered",
         "fuels_by_type": "stacked",
         "fuels_by_subtype": "stacked",
         "co2_by_tech": "stacked",
@@ -673,13 +467,13 @@ def get_plot_data(c):
         "co2_by_subfuels": "stacked",
         "co2_by_tech": "stacked",
         "co2_by_reg": "stacked",
-        "co2_by_isl": "stacked",
+        "co2_by_reg": "stacked",
         "co2_intensity_reg": "clustered",
-        "co2_intensity_isl": "clustered",
+        "co2_intensity_reg": "clustered",
         "curtailment_rate": "clustered",
         "re_curtailed_by_tech": "clustered",
         "gen_cap_by_reg": "stacked",
-        "gen_cap_by_isl": "stacked",
+        "gen_cap_by_reg": "stacked",
         "gen_cap_by_tech": "stacked",
         "gen_cap_by_WEOtech": "stacked",
         "cf_tech": "clustered",
@@ -691,34 +485,34 @@ def get_plot_data(c):
         "tsc_by_prop": "stacked",
         "lcoe_by_tech": "clustered",
         "lcoe_by_tech_T": "clustered",
-        "ramp_pc_by_isl": "clustered",
-        "th_ramp_pc_by_isl": "clustered",
-        "ramp_by_isl": "clustered",
-        "th_ramp_by_isl": "clustered",
+        "ramp_pc_by_reg": "clustered",
+        "th_ramp_pc_by_reg": "clustered",
+        "ramp_by_reg": "clustered",
+        "th_ramp_by_reg": "clustered",
         "dsm_pk_contr": "clustered",
     }
 
     plot_units = {
         "load_by_reg": "TWh",
-        "load_by_isl": "TWh",
+        "load_by_reg": "TWh",
         "use_by_reg": "TWh",
-        "use_by_isl": "TWh",
+        "use_by_reg": "TWh",
         "gen_by_tech": "TWh",
         "gen_by_WEOtech": "TWh",
         "gen_by_reg": "TWh",
-        "gen_by_isl": "TWh",
-        "net_gen_by_isl": "TWh",
-        "vre_by_isl_byGen": "%",
-        "vre_by_isl_byAv": "%",
-        "re_by_isl": "%",
+        "gen_by_reg": "TWh",
+        "net_gen_by_reg": "TWh",
+        "vre_by_reg_byGen": "%",
+        "vre_by_reg_byAv": "%",
+        "re_by_reg": "%",
         "pk_load_by_reg": "GW",
-        "pk_load_by_isl": "GW",
+        "pk_load_by_reg": "GW",
         "pk_netload_by_reg": "GW",
-        "pk_netload_by_isl": "GW",
-        "line_cap_isl": "GW",
-        "line_net_exports_isl": "TWh",
-        "line_exports_isl": "TWh",
-        "line_imports_isl": "TWh",
+        "pk_netload_by_reg": "GW",
+        "line_cap_reg": "GW",
+        "line_net_exports_reg": "TWh",
+        "line_exports_reg": "TWh",
+        "line_imports_reg": "TWh",
         "fuels_by_type": "TJ",
         "fuels_by_subtype": "TJ",
         "co2_by_tech": "million tonnes",
@@ -726,13 +520,13 @@ def get_plot_data(c):
         "co2_by_subfuels": "million tonnes",
         "co2_by_tech": "million tonnes",
         "co2_by_reg": "million tonnes",
-        "co2_by_isl": "million tonnes",
+        "co2_by_reg": "million tonnes",
         "co2_intensity_reg": "kg/MWh",
-        "co2_intensity_isl": "kg/MWh",
+        "co2_intensity_reg": "kg/MWh",
         "curtailment_rate": "%",
         "re_curtailed_by_tech": "%",
         "gen_cap_by_reg": "GW",
-        "gen_cap_by_isl": "GW",
+        "gen_cap_by_reg": "GW",
         "gen_cap_by_tech": "GW",
         "gen_cap_by_WEOtech": "GW",
         "cf_tech": "%",
@@ -744,204 +538,12 @@ def get_plot_data(c):
         "tsc_by_prop": "USDm",
         "lcoe_by_tech": "USD/MWh",
         "lcoe_by_tech_T": "USD/MWh",
-        "ramp_pc_by_isl": "%/hr",
-        "th_ramp_pc_by_isl": "%/hr",
-        "ramp_by_isl": "MW/hr",
-        "th_ramp_by_isl": "MW/hr",
+        "ramp_pc_by_reg": "%/hr",
+        "th_ramp_pc_by_reg": "%/hr",
+        "ramp_by_reg": "MW/hr",
+        "th_ramp_by_reg": "MW/hr",
         "dsm_pk_contr": "GW",
     }
-
-    return plot_cols, plot_type, plot_units, plot_cols_JVBSUMonly
-
-
-def create_plot_2(c):
-    
-
-    """
-    # todo Not implemented at all, just copied from old jupyter notebook
-    ### Plot 2: Annual summary plots by columnn
-    """
-    fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")
-
-    plot_cols = {'load_by_reg': customer_load_by_reg.groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0])/1000,
-             
-             'pk_load_by_reg': pd.concat([ customer_load_reg_ts.stack(geo_cols).groupby(['model', geo_cols[0]]).max().unstack(level='model')/1000,
-                                          customer_load_reg_ts.sum(axis=1).groupby(['model']).max().rename('UKR').to_frame().T/1000], axis=0),
-             
-             'pk_netload_by_reg': pd.concat([ net_load_reg_ts.stack(geo_cols).groupby(['model', geo_cols[0]]).max().unstack(level='model')/1000, 
-                                   net_load_reg_ts.sum(axis=1).groupby(['model']).max().rename('UKR').to_frame().T/1000], axis=0),
-
-             
-#              'line_cap_isl': line_cap_isl['Export Limit'].rename('value').unstack(level = 'line')/1000,
-#              'line_net_exports_isl': (line_imp_exp_isl['Flow'] - line_imp_exp_isl['Flow Back']).unstack('line')/1000,
-#              'line_exports_isl': (line_imp_exp_isl['Flow']).unstack('line')/1000,
-#              'line_imports_isl': (line_imp_exp_isl['Flow Back']).unstack('line')/1000,
-             
-             'use_by_reg': use_by_reg.groupby(['model',geo_cols[0]]).sum().unstack(level=geo_cols[0])/1000,
-          
-             'gen_by_tech': gen_by_tech_reg.stack(geo_cols).groupby(['model', 'Category']).sum().unstack(level='Category')/1000, 
-             'gen_by_reg': gen_by_tech_reg.stack(geo_cols).groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0]), 
-
-             'net_gen_by_reg': gen_by_tech_reg.stack(geo_cols).groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0]).fillna(0)/1000-load_by_reg.groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0])/1000,
-             'gen_cap_by_reg': gen_cap_tech_reg.stack(geo_cols).groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0])/1000,
-             'gen_cap_by_tech': gen_cap_tech_reg.stack(geo_cols).groupby(['model', 'Category']).sum().unstack(level='Category')/1000,  
-
-             'cf_tech': cf_tech,
-             'cf_tech_transposed': cf_tech.T,
-             'vre_by_reg_byGen': vre_by_reg,
-             'vre_by_reg_byAv': pd.concat([vre_av_reg_abs_ts.groupby('model').sum().groupby(geo_cols[0], axis=1).sum()/1000/gen_by_tech_reg.groupby('model').sum().groupby(geo_cols[0], axis=1).sum(), 
-                                           (vre_av_reg_abs_ts.groupby('model').sum().sum(axis=1)/1000/gen_by_tech_reg.groupby('model').sum().sum(axis=1)).rename('UKR')],axis=1),
-             're_by_reg': re_by_reg,
-             
-             'curtailment_rate': curtailment_rate/100,
-             're_curtailed_by_tech': re_curtailment_rate_by_tech,
-             'fuels_by_type': fuel_by_type.groupby(['model', 'Type']).sum().unstack('Type').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
-             'fuels_by_subtype': fuel_by_type.groupby(['model', 'Category']).sum().unstack('Category').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
-             
-             'co2_by_tech': pd.concat([co2_by_tech_reg.groupby(['model', 'Category']).sum().unstack(level='Category')/1e6, co2_target_by_model],axis=1).fillna(0),
-#              'co2_by_subfuels': co2_fuels_by_reg.groupby(['model', 'Category']).sum().unstack('Category')/1e6,
-             'co2_by_reg': pd.concat([co2_by_tech_reg.groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0])/1e6, co2_target_by_model],axis=1).fillna(0),
-#              'co2_by_isl': co2_by_tech_reg.groupby(['model', geo_cols[0]]).sum().unstack(level=geo_cols[0])/1e6,
-             'co2_intensity_reg': co2_by_reg.unstack(geo_cols).groupby(geo_cols[0], axis=1).sum()/gen_by_tech_reg.groupby('model').sum().groupby(geo_cols[0],axis=1).sum(),
-#              'co2_intensity_isl': co2_by_reg.unstack(geo_cols).groupby(geo_cols[0], axis=1).sum()/gen_by_tech_reg.groupby('model').sum().groupby(geo_cols[0],axis=1).sum(),             
-             
-
-             'op_costs_by_tech' : gen_op_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-             'op_costs_by_prop' : gen_op_costs_by_reg.groupby(['model', 'property']).sum().unstack(level='property'),
-             'op_and_vio_costs_by_prop': gen_op_and_vio_costs_reg.groupby(['model', 'property']).sum().unstack(level='property'),
-             'tsc_by_tech' : gen_total_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-             'tsc_by_prop' : gen_total_costs_by_reg.groupby(['model', 'property']).sum().unstack(level='property'),
-             'tsc_by_tech_2030' : gen_total_costs_by_reg_2030.groupby(['model', 'Category']).sum().unstack(level='Category'),
-             'tsc_by_prop_2030' : gen_total_costs_by_reg_2030.groupby(['model', 'property']).sum().unstack(level='property'),
-             
-             'lcoe_by_tech' : lcoe_tech.unstack(level='Category'),
-             'lcoe_by_tech_T' : lcoe_tech.unstack(level='model'),
-             'ramp_pc_by_reg' :pd.concat([(ramp_reg_ts.groupby(['model', geo_cols[0], 'timestamp']).sum()/daily_pk_reg_ts.stack(geo_cols).groupby(['model', geo_cols[0], 'timestamp']).sum()).groupby(['model', geo_cols[0]]).max().unstack(level=geo_cols[0])*100, 
-                                          ramp_pc_ts.groupby(['model']).max().rename('UKR')], axis=1),
-             'th_ramp_pc_by_reg' :pd.concat([(th_ramp_reg_ts.groupby(['model', geo_cols[0], 'timestamp']).sum()/daily_pk_reg_ts.stack(geo_cols).groupby(['model', geo_cols[0], 'timestamp']).sum()).groupby(['model', geo_cols[0]]).max().unstack(level=geo_cols[0])*100, 
-                                          th_ramp_pc_ts.groupby(['model']).max().rename('UKR')], axis=1),
-             'ramp_by_reg' : pd.concat([ramp_reg_ts.unstack(geo_cols).groupby(level=geo_cols[0],axis=1).sum().groupby(['model']).max(), ramp_ts.groupby(['model']).max().value.rename('UKR')], axis=1),
-             
-             'dsm_pk_contr': (nldc_orig.iloc[:100,:] - nldc.iloc[:100,:]).mean().rename('value').to_frame()
-            }
- 
-
-
-
-
-    plot_type = {'load_by_reg': 'stacked',
-
-                          
-             'pk_load_by_reg':  'clustered',
-
-             'pk_netload_by_reg': 'clustered',
-
-             
-#              'line_cap_isl': 'clustered',
-#              'line_net_exports_isl': 'clustered',
-#              'line_exports_isl': 'clustered',
-#              'line_imports_isl': 'clustered',
-             
-             'use_by_reg': 'stacked',
-
-             'gen_by_tech': 'stacked', 
-             'gen_by_WEOtech': 'stacked', 
-             'gen_by_reg': 'stacked', 
-             'net_gen_by_reg': 'clustered', 
-             'vre_by_reg_byGen': 'clustered',
-             'vre_by_reg_byAv': 'clustered',
-             're_by_reg': 'clustered',
-             
-             'fuels_by_type': 'stacked',
-             'fuels_by_subtype': 'stacked',
-             'co2_by_tech': 'stacked',
-             'co2_by_fuels': 'stacked',
-             'co2_by_subfuels': 'stacked',
-             
-             'co2_by_tech':'stacked',
-             'co2_by_reg': 'stacked',
-
-             'co2_intensity_reg': 'clustered',
-    
-             'curtailment_rate': 'clustered',
-             're_curtailed_by_tech':'clustered',
-             'gen_cap_by_reg': 'stacked',
-
-             'gen_cap_by_tech': 'stacked',
-             'gen_cap_by_WEOtech': 'stacked',
-             'cf_tech': 'clustered',
-             'cf_tech_transposed': 'clustered',
-             'op_costs_by_tech' : 'stacked',
-             'op_costs_by_prop' :'stacked',
-             'op_and_vio_costs_by_prop' :'stacked',
-             'tsc_by_tech' : 'stacked',
-             'tsc_by_prop' : 'stacked',
-             'tsc_by_tech_2030' : 'stacked',
-             'tsc_by_prop_2030' : 'stacked',
-             
-             'lcoe_by_tech' : 'clustered',
-             'lcoe_by_tech_T' : 'clustered',
-             'ramp_pc_by_reg' :'clustered',
-             'th_ramp_pc_by_reg' :'clustered',
-             'ramp_by_reg' :'clustered',
-             'th_ramp_by_reg' :'clustered',
-             'dsm_pk_contr':'clustered'
-            }
-               
-
-
-    plot_units = {'load_by_reg': 'TWh',
-
-             'use_by_reg': 'TWh',
-
-             'gen_by_tech': 'TWh', 
-             'gen_by_WEOtech': 'TWh', 
-             'gen_by_reg': 'TWh', 
-
-             'net_gen_by_reg':'TWh',
-             'vre_by_reg_byGen': '%',
-             'vre_by_reg_byAv': '%',
-             're_by_reg': '%',       
-              
-             'pk_load_by_reg':  'GW',
-
-             'pk_netload_by_reg': 'GW',
-
-              
-             'fuels_by_type': 'TJ',
-             'fuels_by_subtype': 'TJ',
-             'co2_by_tech': 'million tonnes',
-             'co2_by_fuels': 'million tonnes',
-             'co2_by_subfuels': 'million tonnes',
-              
-             'co2_by_tech':'million tonnes',
-             'co2_by_reg': 'million tonnes',
-
-             'co2_intensity_reg': 'kg/MWh',
-
-             'curtailment_rate': '%',
-              're_curtailed_by_tech':'%',
-             'gen_cap_by_reg': 'GW',
-
-             'gen_cap_by_tech': 'GW',
-             'gen_cap_by_WEOtech': 'GW',
-             'cf_tech': '%',
-             'cf_tech_transposed': '%',
-             'op_costs_by_tech' : 'USDm',
-             'op_costs_by_prop' :'USDm',
-            'op_and_vio_costs_by_prop' :'USDm',
-             'tsc_by_tech' : 'USDm',
-             'tsc_by_prop' : 'USDm',
-             'tsc_by_tech_2030' : 'USDm',
-             'tsc_by_prop_2030' : 'USDm',
-             'lcoe_by_tech' : 'USD/MWh',
-             'lcoe_by_tech_T' : 'USD/MWh',
-             'ramp_pc_by_reg' :'%/hr',
-             'th_ramp_pc_by_reg' :'%/hr',
-             'ramp_by_reg' :'MW/hr',
-             'th_ramp_by_reg' :'MW/hr',
-             'dsm_pk_contr': 'GW'}
-
 
 
     with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
@@ -1230,9 +832,9 @@ def create_plot_7(c):
             .droplevel(0, axis=1)  # Drop not needed multiindex ('value' column)
             / 1e6
     )
-    co2_by_isl_plt = (
+    co2_by_reg_plt = (
             co2_by_tech_reg
-            .groupby(["model", "Island"])
+            .groupby(["model", c.GEO_COLS[0]])
             .sum()
             .unstack("model")
             .fillna(0)
@@ -1263,7 +865,7 @@ def create_plot_7(c):
         with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
             ref_co2_tech = co2_by_tech[ref_m]
             ref_co2_reg = co2_by_reg_plt[ref_m]
-            ref_co2_isl = co2_by_isl_plt[ref_m]
+            ref_co2_reg = co2_by_reg_plt[ref_m]
             ref_em_type = em_by_type[ref_m]
 
             co2_savings_by_tech = (
@@ -1272,8 +874,8 @@ def create_plot_7(c):
             co2_savings_by_reg = (
                 (-co2_by_reg_plt).drop(columns=ref_m).subtract(-ref_co2_reg, axis=0).T
             )
-            co2_savings_by_isl = (
-                (-co2_by_isl_plt).drop(columns=ref_m).subtract(-ref_co2_isl, axis=0).T
+            co2_savings_by_reg = (
+                (-co2_by_reg_plt).drop(columns=ref_m).subtract(-ref_co2_reg, axis=0).T
             )
 
             em_savings_by_reg = (
@@ -1286,9 +888,9 @@ def create_plot_7(c):
             co2_savings_by_reg_pc = (-co2_by_reg_plt).drop(columns=ref_m).subtract(
                 -ref_co2_reg, axis=0
             ).T / ref_co2_reg.sum()
-            co2_savings_by_isl_pc = (-co2_by_isl_plt).drop(columns=ref_m).subtract(
-                -ref_co2_isl, axis=0
-            ).T / ref_co2_isl.sum()
+            co2_savings_by_reg_pc = (-co2_by_reg_plt).drop(columns=ref_m).subtract(
+                -ref_co2_reg, axis=0
+            ).T / ref_co2_reg.sum()
             em_savings_by_reg_pc = (-em_by_type).drop(columns=ref_m).subtract(
                 -ref_em_type, axis=0
             ).T / ref_em_type
@@ -1310,9 +912,9 @@ def create_plot_7(c):
                 total_scatter_col="Total reduction",
             )
             write_xlsx_column(
-                df=co2_savings_by_isl,
+                df=co2_savings_by_reg,
                 writer=writer,
-                sheet_name="co2_savings_by_isl_abs",
+                sheet_name="co2_savings_by_reg_abs",
                 subtype="stacked",
                 units="million tonnes",
                 total_scatter_col="Total reduction",
@@ -1344,9 +946,9 @@ def create_plot_7(c):
                 total_scatter_col="Relative reduction",
             )
             write_xlsx_column(
-                df=co2_savings_by_isl_pc,
+                df=co2_savings_by_reg_pc,
                 writer=writer,
-                sheet_name="co2_savings_by_isl_pc",
+                sheet_name="co2_savings_by_reg_pc",
                 subtype="stacked",
                 units="",
                 total_scatter_col="Relative reduction",

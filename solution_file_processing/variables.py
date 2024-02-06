@@ -433,7 +433,7 @@ class Variables:
         Get the line capacity total between each region
         """
         df = self.line_cap.reset_index()
-        df = df[df.regFrom != df.regTo]
+        df = df[(df.regFrom != df.regTo)&(df.property == 'Export Limit')]
         df.loc[:, 'line'] = df.regFrom + '-' + df.regTo
         df = df.groupby(['model', 'line']).sum(numeric_only=True)
 
@@ -442,6 +442,8 @@ class Variables:
                           'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'value': [0] * len(self.c.o.line_yr_df.model.unique())})
+            
+        c.v.line_cap_reg.droplevel(0, axis=1)
 
         return df
 
