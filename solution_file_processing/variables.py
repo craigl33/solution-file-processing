@@ -341,8 +341,8 @@ class Variables:
         TODO DOCSTRING
         """
         # For Capex calcs
-        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.c.o.gen_yr_df.property == 'Installed Capacity'] \
-            .groupby(['model'] + self.c.c.GEO_COLS + ['CostCategory']) \
+        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['CostCategory']) \
             .agg({'value': 'sum'}) \
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0)
@@ -501,6 +501,7 @@ class Variables:
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
+            .compute() \
             .unstack('Category') \
             .fillna(0) \
             .stack('Category') \
@@ -521,6 +522,7 @@ class Variables:
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
+            .compute() \
             .unstack('Category') \
             .fillna(0) \
             .stack('Category') \
@@ -830,18 +832,11 @@ class Variables:
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         re_by_reg = gen_by_tech_reg.reset_index()
         re_by_reg.loc[:, 'RE'] = re_by_reg.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
-        print(re_by_reg)
+        ### New simplified implementation to avoid errors. 
         re_by_reg = (re_by_reg
-                     .groupby(['model', 'RE'])
-                     .sum()
-                     .groupby(level=self.c.GEO_COLS[0], axis=1)
-                     .sum())
-        re_by_reg.loc[:, 'Overall'] = re_by_reg.sum(axis=1)
-        re_by_reg = (re_by_reg
-                     .loc[pd.IndexSlice[:, 'RE'],]
-                     .droplevel('RE')
-                     / re_by_reg.groupby('model')
-                     .sum())
+                     .groupby(['model', 'RE', self.c.GEO_COLS[0]])
+                     .sum(numeric_only=True).value.unstack('RE'))
+        re_by_reg = (re_by_reg['RE']/re_by_reg.sum(axis=1)).unstack(self.c.GEO_COLS[0])
 
         return re_by_reg
 
@@ -855,9 +850,8 @@ class Variables:
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         vre_by_reg = gen_by_tech_reg.reset_index()
         vre_by_reg.loc[:, 'VRE'] = vre_by_reg.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
-        vre_by_reg = vre_by_reg.groupby(['model', 'VRE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
-        vre_by_reg.loc[:, 'Overall'] = vre_by_reg.sum(axis=1)
-        vre_by_reg = vre_by_reg.loc[pd.IndexSlice[:, 'VRE'],].droplevel('VRE') / vre_by_reg.groupby('model').sum()
+        vre_by_reg = vre_by_reg.groupby(['model', 'VRE', self.c.GEO_COLS[0]]).sum(numeric_only=True).value.unstack('VRE')
+        vre_by_reg = (vre_by_reg['VRE']/vre_by_reg.sum(axis=1)).unstack(self.c.GEO_COLS[0])
 
         return vre_by_reg
 

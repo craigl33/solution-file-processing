@@ -27,7 +27,7 @@ sfp.summary.create_output_11(config)
 sfp.summary.create_output_12(config)
 sfp.summary.create_output_13(config)
 
-# Create timeseries outputs (stored in output/timeseries)
+# # Create timeseries outputs (stored in output/timeseries)
 sfp.timeseries.create_output_1(config)
 sfp.timeseries.create_output_2(config)
 sfp.timeseries.create_output_3(config)
@@ -42,5 +42,5 @@ sfp.timeseries.create_output_10(config)
 sfp.timeseries.create_output_11(config)
 
 
-# Create plots (stored in output/plots)
-# todo
+# # Create plots (stored in output/plots)
+# # todo
