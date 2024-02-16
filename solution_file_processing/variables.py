@@ -1030,7 +1030,7 @@ class Variables:
 
     @property
     @memory_cache
-    def user_ts(self):
+    def use_ts(self):
         """
         TODO DOCSTRING
         """
@@ -1254,8 +1254,7 @@ class Variables:
         """
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
-        net_load_ts = pd.DataFrame(self.c.v.customer_load_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
-            ['model', 'timestamp']).sum(), columns=['value'])
+        net_load_ts = pd.DataFrame(self.c.v.customer_load_ts['value'] - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_ts
 
     @property
@@ -1267,9 +1266,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_curtail_ts = pd.DataFrame(
-            self.c.v.customer_load_ts - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1).groupby(
-                ['model', 'timestamp']).sum(),
-            columns=['value'])
+            self.c.v.customer_load_ts['value'] - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_curtail_ts
 
     @property
@@ -1281,9 +1278,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_orig_ts = pd.DataFrame(
-            self.customer_load_orig_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
-                ['model', 'timestamp']).sum(),
-            columns=['value'])
+            self.customer_load_orig_ts['value'] - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_orig_ts
 
     @property

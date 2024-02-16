@@ -12,6 +12,7 @@ config = sfp.SolutionFilesConfig('config_archive/ukraine/UKR.toml')
 
 # sfp.summary.create_output_10(config)
 # sfp.plots._get_plot_1_variables(config)
-sfp.summary.create_output_9(config)
+sfp.timeseries.create_output_6(config)
+
 # sfp.timeseries.create_output_6(config)
 # sfp.plots._get_plot_1_variables(config)
