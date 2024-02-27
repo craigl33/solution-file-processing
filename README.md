@@ -38,9 +38,9 @@ That's it. Julia needs also to be installed on the system and if Julia should be
 
 If problems occur, see the Troubleshooting section in the [Documentation](docs/Documentation.md).
 
-Final step is to install the package locally, if you don't want to load it only relative to the project folder: 
+The final step is to install the package locally (if you don't want to load it only relative to the project folder): 
 
-    python -m pip install -e .
+    pip install -e .
 
 ## Usage
 In the same project folder, create a new python file and import the package:
