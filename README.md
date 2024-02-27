@@ -22,7 +22,7 @@ This package is used to process the PLEXOS solution files. It can be used to una
 ## Setup
 Just clone the repository to create a local copy:
 
-    git clone solution-file-processing
+    git clone https://gitlab.iea.org/iea/ems/rise/solution-file-processing.git
 
 To install the dependencies, it is recommended to use a virtual environment. Both can be done automatically with the `environment.yml` file. This will create an environment named `solution-file-processing`:
 
@@ -37,6 +37,10 @@ This creates a conda environment named `solution-file-processing` and installs a
 That's it. Julia needs also to be installed on the system and if Julia should be used within python (only for unpacking the .zips to .h5 files) it also has to be initialized within python. There is a function for that in the code.
 
 If problems occur, see the Troubleshooting section in the [Documentation](docs/Documentation.md).
+
+Final step is to install the package locally, if you don't want to load it only relative to the project folder: 
+
+    python -m pip install -e .
 
 ## Usage
 In the same project folder, create a new python file and import the package:
