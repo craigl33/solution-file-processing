@@ -796,11 +796,13 @@ def create_output_11(c):
     print("Creating interval output 11...")
     # Temp get variables
 
+    # 'Value' series needs to be a DataFrame for the multi-index ('value', GEO_COL[0], GEO_COL[1]) to be consistent
     vre_gen_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Generation') &
                                      (c.o.gen_df.Category.isin(VRE_TECHS))]
                           .groupby((['model'] + c.GEO_COLS + ['timestamp']))
                           .sum()
                           .value
+                          .to_frame()
                           .compute()
                           .unstack(level=c.GEO_COLS)
                           .fillna(0))
@@ -808,14 +810,16 @@ def create_output_11(c):
     vre_regs = c.v.vre_av_reg_abs_ts.columns
 
     # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
+    # Value is included as the 0-level index which is problematic for 
     for reg in list(c.v.model_regs_multi):
         if reg not in vre_regs:
             print(reg)
             c.v.vre_av_reg_abs_ts.loc[:, reg] = 0
             vre_gen_reg_abs_ts.loc[:, reg] = 0
 
-    # Columns in alphabetical order
+    # Columns in alphabetical order. 
     vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts[c.v.model_regs_multi]
+    ### 
     vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[c.v.model_regs_multi]
 
     vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
@@ -848,9 +852,9 @@ def create_output_11(c):
         ['model', 'timestamp'])
     # Time dataframes done nationally////
 
-    wet_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    wet_season = c.v.gen_by_tech_ts.droplevel(0,axis=1).loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
-    dry_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    dry_season = c.v.gen_by_tech_ts.droplevel(0,axis=1).loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
 
     ##########
@@ -873,9 +877,9 @@ def create_output_11(c):
     net_load_min_dry = c.v.net_load_ts[
         c.v.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
         level='model').min().rename(columns={'value': 'net_load_min_dry'})
-    total_load_max = c.v.total_load_ts.compute().groupby(level='model').max().rename(
+    total_load_max = c.v.total_load_ts.groupby(level='model').max().rename(
         columns={'value': 'total_load_max'})
-    total_load_min = c.v.total_load_ts.compute().groupby(level='model').min().rename(
+    total_load_min = c.v.total_load_ts.groupby(level='model').min().rename(
         columns={'value': 'total_load_min'})
     ramp_max = ramp_ts.groupby(level='model').max().rename(columns={'value': 'ramp_max'})
     inertia_min = total_inertia_ts.groupby(level='model').min().drop(columns='InertiaHi').rename(

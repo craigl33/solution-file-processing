@@ -143,14 +143,20 @@ class Variables:
                 self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
             ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
             level='Category').fillna(0)
-        gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
+        D = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
                           .groupby(['model', 'Category', 'timestamp'])
                           .agg({'value': 'sum'})
                           .compute()
                           .unstack(level='Category')
                           .fillna(0)
                           .droplevel(0, axis=1))
-        storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
+        
+        ### There is a slight issue with gen_by_tech in the case of key missing technologies (e.g. Storage and Hydro, perhaps others like wind and solar)
+        ### It may be worth using the SolutionIndex itself to try to "fill" these
+        try:
+            storage_gen_ts = self.c.v.gen_by_tech_ts.droplevel(0,axis=1).Storage.rename('value').to_frame()
+        except AttributeError:
+            storage_gen_ts = pd.DataFrame(data={'value':[0]*self.c.v.gen_by_tech_ts.shape[0]}, index=self.c.v.gen_by_tech_ts.index, )
 
         _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
             vre_av_abs_ts
@@ -435,6 +441,7 @@ class Variables:
         df = self.line_cap.reset_index()
         df = df[(df.regFrom != df.regTo)&(df.property == 'Export Limit')]
         df.loc[:, 'line'] = df.regFrom + '-' + df.regTo
+        #todo ? change to groupby agg?
         df = df.groupby(['model', 'line']).sum(numeric_only=True)
 
         if df.shape[0] == 0:
@@ -442,8 +449,6 @@ class Variables:
                           'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'value': [0] * len(self.c.o.line_yr_df.model.unique())})
-            
-        c.v.line_cap_reg.droplevel(0, axis=1)
 
         return df
 
