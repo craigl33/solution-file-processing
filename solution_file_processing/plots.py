@@ -29,6 +29,8 @@ def _get_plot_1_variables(c):
     gen_by_tech_reg = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation']
     gen_techs = c.o.gen_yr_df.Category.drop_duplicates().values
     if 'Cofiring' in gen_techs:
+    ### This would differ from project to project. Should probably be explicitly calculated
+        
         bio_ratio = 0.1
         gen_by_cofiring_bio = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
         gen_by_cofiring_coal = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']

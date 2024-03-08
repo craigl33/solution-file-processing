@@ -187,6 +187,9 @@ class Objects:
             _df = dd.concat([_df, bat_df], axis=0)
         except ValueError:
             print("No batteries object exists. Will not be added to generators interval dataframe.")
+        ### This error could be handled better 
+        except AssertionError:
+            print("Merging of SolutionIndex led to empty DataFrame for batteries/interval")
 
         #
         # Cofiring change: Update Category and CapacityCategory with data from Cofiring and CofiringCategory

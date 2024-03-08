@@ -129,9 +129,9 @@ RE/VRE Shares:
     """
     print("Creating output 4...")
 
-    c.v.re_by_reg.assign(units='%').reset_index().to_csv(
+    c.v.re_by_reg.assign(units='-').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '04_re_by_reg.csv'), index=False)
-    c.v.vre_by_reg.assign(units='%').reset_index().to_csv(
+    c.v.vre_by_reg.assign(units='-').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '04_vre_by_reg.csv'), index=False)
 
     print('Created file 04_re_by_reg.csv.')

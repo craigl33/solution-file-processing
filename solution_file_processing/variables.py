@@ -143,14 +143,20 @@ class Variables:
                 self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
             ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().unstack(
             level='Category').fillna(0)
-        gen_by_tech_ts = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
+        D = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
                           .groupby(['model', 'Category', 'timestamp'])
                           .agg({'value': 'sum'})
                           .compute()
                           .unstack(level='Category')
                           .fillna(0)
                           .droplevel(0, axis=1))
-        storage_gen_ts = gen_by_tech_ts.Storage.rename('value').to_frame()
+        
+        ### There is a slight issue with gen_by_tech in the case of key missing technologies (e.g. Storage and Hydro, perhaps others like wind and solar)
+        ### It may be worth using the SolutionIndex itself to try to "fill" these
+        try:
+            storage_gen_ts = self.c.v.gen_by_tech_ts.droplevel(0,axis=1).Storage.rename('value').to_frame()
+        except AttributeError:
+            storage_gen_ts = pd.DataFrame(data={'value':[0]*self.c.v.gen_by_tech_ts.shape[0]}, index=self.c.v.gen_by_tech_ts.index, )
 
         _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
             vre_av_abs_ts
@@ -341,8 +347,8 @@ class Variables:
         TODO DOCSTRING
         """
         # For Capex calcs
-        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.c.o.gen_yr_df.property == 'Installed Capacity'] \
-            .groupby(['model'] + self.c.c.GEO_COLS + ['CostCategory']) \
+        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['CostCategory']) \
             .agg({'value': 'sum'}) \
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0)
@@ -435,6 +441,7 @@ class Variables:
         df = self.line_cap.reset_index()
         df = df[(df.regFrom != df.regTo)&(df.property == 'Export Limit')]
         df.loc[:, 'line'] = df.regFrom + '-' + df.regTo
+        #todo ? change to groupby agg?
         df = df.groupby(['model', 'line']).sum(numeric_only=True)
 
         if df.shape[0] == 0:
@@ -442,8 +449,6 @@ class Variables:
                           'reg_from': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'reg_to': ['None'] * len(self.c.o.line_yr_df.model.unique()),
                           'value': [0] * len(self.c.o.line_yr_df.model.unique())})
-            
-        c.v.line_cap_reg.droplevel(0, axis=1)
 
         return df
 
@@ -501,6 +506,7 @@ class Variables:
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category', ] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
+            .compute() \
             .unstack('Category') \
             .fillna(0) \
             .stack('Category') \
@@ -521,6 +527,7 @@ class Variables:
             .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
             .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
+            .compute() \
             .unstack('Category') \
             .fillna(0) \
             .stack('Category') \
@@ -830,18 +837,11 @@ class Variables:
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         re_by_reg = gen_by_tech_reg.reset_index()
         re_by_reg.loc[:, 'RE'] = re_by_reg.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
-        print(re_by_reg)
+        ### New simplified implementation to avoid errors. 
         re_by_reg = (re_by_reg
-                     .groupby(['model', 'RE'])
-                     .sum()
-                     .groupby(level=self.c.GEO_COLS[0], axis=1)
-                     .sum())
-        re_by_reg.loc[:, 'Overall'] = re_by_reg.sum(axis=1)
-        re_by_reg = (re_by_reg
-                     .loc[pd.IndexSlice[:, 'RE'],]
-                     .droplevel('RE')
-                     / re_by_reg.groupby('model')
-                     .sum())
+                     .groupby(['model', 'RE', self.c.GEO_COLS[0]])
+                     .sum(numeric_only=True).value.unstack('RE'))
+        re_by_reg = (re_by_reg['RE']/re_by_reg.sum(axis=1)).unstack(self.c.GEO_COLS[0])
 
         return re_by_reg
 
@@ -855,9 +855,8 @@ class Variables:
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         vre_by_reg = gen_by_tech_reg.reset_index()
         vre_by_reg.loc[:, 'VRE'] = vre_by_reg.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
-        vre_by_reg = vre_by_reg.groupby(['model', 'VRE']).sum().groupby(level=self.c.GEO_COLS[0], axis=1).sum()
-        vre_by_reg.loc[:, 'Overall'] = vre_by_reg.sum(axis=1)
-        vre_by_reg = vre_by_reg.loc[pd.IndexSlice[:, 'VRE'],].droplevel('VRE') / vre_by_reg.groupby('model').sum()
+        vre_by_reg = vre_by_reg.groupby(['model', 'VRE', self.c.GEO_COLS[0]]).sum(numeric_only=True).value.unstack('VRE')
+        vre_by_reg = (vre_by_reg['VRE']/vre_by_reg.sum(axis=1)).unstack(self.c.GEO_COLS[0])
 
         return vre_by_reg
 
@@ -1036,7 +1035,7 @@ class Variables:
 
     @property
     @memory_cache
-    def user_ts(self):
+    def use_ts(self):
         """
         TODO DOCSTRING
         """
@@ -1260,8 +1259,7 @@ class Variables:
         """
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
-        net_load_ts = pd.DataFrame(self.c.v.customer_load_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
-            ['model', 'timestamp']).sum(), columns=['value'])
+        net_load_ts = pd.DataFrame(self.c.v.customer_load_ts['value'] - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_ts
 
     @property
@@ -1273,9 +1271,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_curtail_ts = pd.DataFrame(
-            self.c.v.customer_load_ts - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1).groupby(
-                ['model', 'timestamp']).sum(),
-            columns=['value'])
+            self.c.v.customer_load_ts['value'] - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_curtail_ts
 
     @property
@@ -1287,9 +1283,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_orig_ts = pd.DataFrame(
-            self.customer_load_orig_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1).groupby(
-                ['model', 'timestamp']).sum(),
-            columns=['value'])
+            self.customer_load_orig_ts['value'] - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_orig_ts
 
     @property
