@@ -13,59 +13,57 @@ print = log.info
 
 np.random.seed(sum(map(ord, 'calplot')))
 
-iea_palette = {'grey5': '#f2f2f2', 'grey10': '#e6e6e6', 'pl': '#b187ef', 'bl': '#49d3ff', 'tl': '#00e0e0',
+IEA_PALETTE = {'grey5': '#f2f2f2', 'grey10': '#e6e6e6', 'pl': '#b187ef', 'bl': '#49d3ff', 'tl': '#00e0e0',
                'gl': '#68f394', 'yl': '#fff45a',
                'ol': '#ffb743', 'rl': '#ff684d', 'gl': '#68f394', 'yl': '#fff45a', 'grey40': '#949494',
                'grey50': '#6f6f6f',
                'p': '#af6ab1', 'b': '#3e7ad3', 't': '#00ada1', 'g': '#1dbe62', 'y': '#fed324',
                'o': '#f1a800', 'r': '#e34946', 'grey20': '#afafaf', 'black': '#000000', 'white': '#ffffff',
-               'iea_b': '#0044ff', 'iea_b50': '#80a2ff'}
+               'iea_b': '#0044ff', 'iea_b50': '#80a2ff', 'brown':'#6E4F00'}
 
-extended_palette = dict(
+EXTENDED_PALETTE = dict(
     {'{}'.format(i): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20b').colors[i]) for i in np.arange(0, 20)},
     **{'{}'.format(i + 20): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[i]) for i in
        np.arange(0, 20)})
 
 ### For overflow, i.e. things that go beyond the 16 or so colors of IEA palette.
-iea_palette_plus = dict(iea_palette, **extended_palette)
-
-tech_palette = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10', 'Gas': 'p', 'Abated gas': 'p',
-                'Oil': 'grey50', 'Hydro': 'bl', 'Geothermal': 'r', 'Bioenergy': 'gl', 'Solar': 'y', 'Wind': 'g',
-                'Fuel Cell': 't', 'Other': 't', 'Battery': 'b', 'Storage': 'b'}
+IEA_PALETTE_PLUS = dict(IEA_PALETTE, **EXTENDED_PALETTE)
 
 # model_palette = {'2019':'rl', '2025 Base':'o', '2025 SolarPlus':'bl', '2025 SolarPlus Lite':'pl',  '2025 SolarPlus Extra':'gl' }
 
 
 ### We should add load vs customer load (to see charging effect),
 ### Similarly could add load + exports to get effective load
-STACK_PALETTE = {'Nuclear': 't', 'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'grey20', 'Cofiring': 'grey5', 'Abated coal': 'rl',
-                 'Gas': 'p', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
+
+# reg_palette = {'APB_BALI': 'bl', 'APB_JBR': 'b', 'APB_JKB': 'pl', 'APB_JTD': 't', 'APB_JTM': 'y'}
+# subreg_palette = {'BAL': 'bl', 'BNT': 'b', 'DIY': 'gl', 'JBR': 't', 'JKT': 'ol', 'JTE': 'pl', 'JTM': 'grey20',
+#                   'SMN': 'r', 'SMS': 'tl'}
+# isl_palette = {'JVB': 'bl', 'SUM': 'gl', 'KLM': 'rl', 'SLW': 'ol', 'MPN': 'pl', 'IDN': 'yl'}
+
+TECH_PALETTE = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10', 'Gas': 'p', 'Abated gas': 'p',
+                'Oil': 'grey50', 'Hydro': 'bl', 'Geothermal': 'r', 'Bioenergy': 'gl', 'Solar': 'y', 'Wind': 'g',
+                'Fuel Cell': 't', 'Other': 't', 'Battery': 'b', 'Storage': 'b'}
+
+
+
+STACK_PALETTE = {'Nuclear': 'p', 'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'brown', 'Cofiring': 'grey5', 'Abated coal': 'rl',
+                 'Gas': 'grey20', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
                  'Fuel Cell': 'tl', 'Storage': 'b',
                  'Solar': 'y', 'Wind': 'g', 'Total Load': 'black', 'Load2': 'white', 'Exports': 'p', 'Net Load': 'r',
-                 'Curtailment': 'yl', 'Unserved Energy': 'r', 'Underlying Load': 'p', 'Storage Load': 'grey50',
+                 'Curtailment': 'yl', 'Unserved Energy': 'r', 'Underlying Load': 'p', 'Storage Load': 'grey50', 'CHP':'black',
                  }
-
-reg_palette = {'APB_BALI': 'bl', 'APB_JBR': 'b', 'APB_JKB': 'pl', 'APB_JTD': 't', 'APB_JTM': 'y'}
-subreg_palette = {'BAL': 'bl', 'BNT': 'b', 'DIY': 'gl', 'JBR': 't', 'JKT': 'ol', 'JTE': 'pl', 'JTM': 'grey20',
-                  'SMN': 'r', 'SMS': 'tl'}
-isl_palette = {'JVB': 'bl', 'SUM': 'gl', 'KLM': 'rl', 'SLW': 'ol', 'MPN': 'pl', 'IDN': 'yl'}
-
-iea_palette_l8 = ['rl', 'ol', 'gl', 'bl', 'pl', 'grey10', 'yl',
+IEA_PALETTE_L8 = ['rl', 'ol', 'gl', 'bl', 'pl', 'grey10', 'yl',
                   'tl']  ### got rid of light yellow as its a poor choice for plots.
-iea_palette_d8 = ['r', 'o', 'y', 'g', 't', 'b', 'p', 'grey50']
-iea_palette_16 = iea_palette_l8 + iea_palette_d8
+IEA_PALETTE_D8 = ['r', 'o', 'y', 'g', 't', 'b', 'p', 'grey50']
+IEA_PALETTE_16 = IEA_PALETTE_L8 + IEA_PALETTE_D8
+IEA_PALETTE_14 = ['rl', 'ol', 'bl', 'gl', 'pl', 'grey10', 'y', 'tl', 'g', 't', 'b', 'grey50', 'yl', 'r', 'p']
 
-iea_palette_14 = ['rl', 'ol', 'bl', 'gl', 'pl', 'grey10', 'y', 'tl', 'g', 't', 'b', 'grey50', 'yl', 'r', 'p']
-iea_cmap_l8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_l8])
-iea_cmap_d8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_d8])
-iea_cmap_16 = colors.ListedColormap([iea_palette[c] for c in iea_palette_16])
-iea_cmap_14 = colors.ListedColormap([iea_palette[c] for c in iea_palette_14])
+IEA_CMAP_L8 = colors.ListedColormap([IEA_PALETTE[c] for c in IEA_PALETTE_L8])
+IEA_CMAP_D8 = colors.ListedColormap([IEA_PALETTE[c] for c in IEA_PALETTE_D8])
+IEA_CMAP_16 = colors.ListedColormap([IEA_PALETTE[c] for c in IEA_PALETTE_16])
+IEA_CMAP_14 = colors.ListedColormap([IEA_PALETTE[c] for c in IEA_PALETTE_14])
 
-tab20bc = colors.ListedColormap([extended_palette[i] for i in extended_palette.keys()])
-
-# model_palette = dict(zip([m for m in pretty_model_names.values() if m in model_names], iea_palette_14[:len(model_names)]))
-combined_palette = dict(tech_palette, **subreg_palette, **reg_palette,
-                        **isl_palette)  # , **model_palette, **weo_Tech_palette)
+tab20bc = colors.ListedColormap([EXTENDED_PALETTE[i] for i in EXTENDED_PALETTE.keys()])
 
 
 def write_xlsx_column(
@@ -73,7 +71,7 @@ def write_xlsx_column(
         writer,
         excel_file=None,
         sheet_name="Sheet1",
-        palette=combined_palette,
+        palette=IEA_CMAP_16,
         subtype="stacked",
         units="",
         total_scatter_col=None,
@@ -159,11 +157,11 @@ def write_xlsx_column(
             ## Col_num iterates from first data column, which varies if it is multiindex columns or not
 
             try:
-                fill_colour = iea_palette_plus[
+                fill_colour = IEA_PALETTE_PLUS[
                     palette[df.columns[col_num - df.index.nlevels]]
                 ]
             except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
+                fill_colour = IEA_CMAP_16.colors[col_num - df.index.nlevels]
 
             # fill_colour = matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[20-col_num-df.index.nlevels])
 
@@ -368,14 +366,14 @@ def write_xlsx_stack(
         excel_col_num = col_num + df.index.nlevels
 
         try:
-            fill_colour = iea_palette_plus[palette[df.columns[col_num]]]
+            fill_colour = IEA_PALETTE_PLUS[palette[df.columns[col_num]]]
         except KeyError:
             print("Non-specified colour for: {}".format(df.columns[col_num]))
             try:
-                fill_colour = iea_cmap_16.colors[col_num]
+                fill_colour = IEA_CMAP_16.colors[col_num]
             except IndexError:
                 print("Too many columns for colour palette, starts repeating.")
-                fill_colour = iea_cmap_16.colors[col_num - 16]
+                fill_colour = IEA_CMAP_16.colors[col_num - 16]
 
         if df.columns[col_num] == "Load2":
             chart.add_series(
@@ -399,8 +397,8 @@ def write_xlsx_stack(
                     "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "pattern": {
                         "pattern": "light_upward_diagonal",
-                        "fg_color": iea_palette["y"],
-                        "bg_color": iea_palette["r"],
+                        "fg_color": IEA_PALETTE["y"],
+                        "bg_color": IEA_PALETTE["r"],
                     },
                     "border": {"none": True},
                     "y2_axis": True,
@@ -433,7 +431,7 @@ def write_xlsx_stack(
                     "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "line": {
                         "width": 1.00,
-                        "color": iea_palette["r"],
+                        "color": IEA_PALETTE["r"],
                         "dash_type": "dash",
                     },
                 }
@@ -560,7 +558,7 @@ def write_xlsx_scatter(
         excel_file=None,
         sheet_name="Sheet1",
         colour=None,
-        palette=combined_palette,
+        palette=IEA_PALETTE_16,
         units="",
         alpha=80,
         to_combine=False,
@@ -627,11 +625,11 @@ def write_xlsx_scatter(
             fill_colour = colour
         else:
             try:
-                fill_colour = iea_palette_plus[
+                fill_colour = IEA_PALETTE_PLUS[
                     palette[df.columns[col_num - df.index.nlevels]]
                 ]
             except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
+                fill_colour = IEA_CMAP_16.colors[col_num - df.index.nlevels]
 
         chart.add_series(
             {
@@ -719,7 +717,7 @@ def write_xlsx_line(
         excel_file=None,
         sheet_name="Sheet1",
         subtype="timeseries",
-        palette=combined_palette,
+        palette=IEA_PALETTE_16,
         units="",
         ldc_idx=None,
         label_position="next_to",
@@ -809,11 +807,11 @@ def write_xlsx_line(
     ## Col_num iterates from first data column, which varies if it is multiindex columns or not
     for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
         try:
-            line_colour = iea_palette_plus[
+            line_colour = IEA_PALETTE_PLUS[
                 palette[df.columns[col_num - df.index.nlevels]]
             ]
         except KeyError:
-            line_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
+            line_colour = IEA_CMAP_16.colors[col_num - df.index.nlevels]
 
         chart.add_series(
             {

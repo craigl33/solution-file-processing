@@ -915,8 +915,8 @@ def create_output_11(c):
         .values)
     net_load_avg_max['time_nlamax'] = net_load_avg.unstack(level='model').idxmax().values
     net_load_avg_min['time_nlamin'] = net_load_avg.unstack(level='model').idxmin().values
-    total_load_max['time_tlmax'] = c.v.total_load_ts.compute().unstack(level='model').idxmax().values
-    total_load_min['time_tlmin'] = c.v.total_load_ts.compute().unstack(level='model').idxmin().values
+    total_load_max['time_tlmax'] = c.v.total_load_ts.unstack(level='model').idxmax().values
+    total_load_min['time_tlmin'] = c.v.total_load_ts.unstack(level='model').idxmin().values
     ramp_max['time_ramp'] = ramp_ts.unstack(level='model').idxmax().values
     inertia_min['time_H'] = total_inertia_ts.InertiaLo.unstack(level='model').idxmin().values
     use_max['time_usemax'] = use_ts.compute().unstack(level='model').idxmax().values
@@ -927,6 +927,7 @@ def create_output_11(c):
          net_load_max_wet, net_load_min_wet, net_load_max_dry, net_load_min_dry,
          total_load_max, total_load_min, ramp_max, inertia_min, use_max, use_dly_max],
         axis=1).stack().unstack(level='model').rename_axis('property', axis=0)
+        
 
     doi_summary.to_csv(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'), index=True)
     print('Created file 11a_days_of_interest_summary.csv.')
