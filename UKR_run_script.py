@@ -44,3 +44,9 @@ sfp.timeseries.create_output_11(config)
 
 # # Create plots (stored in output/plots)
 # # todo
+sfp.plots.create_plot_1a(config)
+sfp.plots.create_plot_1b(config)
+sfp.plots.create_plot_2(config)
+# sfp.plots.create_plot_3(config)
+# sfp.plots.create_plot_6(config)
+# sfp.plots.create_plot_7(config)

@@ -85,7 +85,9 @@ similar_output_dirs = false
 In general any code can be modified, but there are especially two things which are easy to add and can be useful for future runs and projects.
 
 ### Add new variables and objects
-A list of PLEXOS objects are already added to the script. They can be easily accessed via the configuration object and are automatically created from the .h5 files and cached. More information on that in all Comments and Docstrings in the caching.py file. The same goes for any optional variables. If new objects (different PLEXOS obejct or based on a different timescale) or new variables are needed, they can be added as a new property to the respective class and then be used in the same manner as the existing ones. Objects and variables have a very similar structure.
+A list of PLEXOS objects are already added to the script. They can be easily accessed via the configuration object and are automatically created from the .h5 files and cached. More information on that in all Comments and Docstrings in the caching.py file. The same goes for any optional variables. If new objects (different PLEXOS objects or based on a different timescale) or new variables are needed, they can be added as a new property to the respective class and then be used in the same manner as the existing ones. Objects and variables have a very similar structure.
+
+Note that not all properties are saved from the raw PLEXOS solution file. Instead, specific properties are filtered when creating the Objects using the FILTER_PROPS list from the constants.py file. This can be edited as necessary. For the new properties to be reflected in the Objects, you will need to delete any existing cache file.
 
 
 #### Objects

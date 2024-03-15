@@ -2,11 +2,11 @@
 # More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
 
 [path]
-model_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security'
-soln_idx_path = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/01_Data/01_Generation/2024_03_04_generator_parameters_UKR.xlsx'
+model_dir = 'S:/China/China proj 2023'
+soln_idx_path = 'S:/China/China proj 2023/06_Data/02_PowerPlants/2023_02_03_generator_parameters_China_ETP_v1.5_separate_biomass_operational_class.xlsx'
 
 [model]
-soln_choice = 'mya_v1'
+soln_choice = '2024_03_06_test_processing'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
@@ -14,11 +14,11 @@ reg_ts = true
 
 [run]
 working_dir = 'C:/Users/hart_c/showcase/solution-file-processing'
-log_file_path = 'C:/Users/hart_c/showcase/solution-file-processing/logs/UKR.log'
+log_file_path = 'C:/Users/hart_c/showcase/solution-file-processing/logs/CHN.log'
 log_timestamp = true
 variables_cache = true
 catch_errors = true
 
 [testing]
-#baseline_output_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/05_DataProcessing/mya_v1/'
+#baseline_output_dir = 'S:/China/China proj 2023/05_DataProcessing/2024_03_06_test_processing/'
 #similar_output_dirs = false
