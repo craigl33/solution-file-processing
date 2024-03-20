@@ -44,6 +44,7 @@ class Objects:
     reg_df: Interval region data
     res_gen_df: Interval reserves generator data
     purch_df: Interval purchaser data
+    zone_df: Zone (National vs foreign zones)
 
     """
 
@@ -138,6 +139,19 @@ class Objects:
         df = self.c.get_processed_object('year', 'emissions_generators', return_type='pandas')
 
         return df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def em_fuel_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+
+        df = self.c.get_processed_object('year', 'emissions_fuels', return_type='pandas')
+
+        return df
+
 
     @property
     @memory_cache
@@ -150,6 +164,7 @@ class Objects:
         df = self.c.get_processed_object('year', 'nodes', return_type='pandas')
 
         return df
+    
 
     @property
     @memory_cache
@@ -239,7 +254,7 @@ class Objects:
 
         _df = self.c.get_processed_object('interval', 'nodes', return_type='dask')
         return _df
-
+    
     @property
     @memory_cache
     @drive_cache('objects')

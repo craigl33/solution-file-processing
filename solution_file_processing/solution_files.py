@@ -220,10 +220,14 @@ class SolutionFilesConfig:
                 except KeyError:
                     continue
 
-                try:
-                    obj_props = [prop for prop in properties if prop in FILTER_PROPS[object]]
-                except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
+                # For annual timescale, we use all properties
+                if timescale == 'year':
                     obj_props = properties
+                else:
+                    try:
+                        obj_props = [prop for prop in properties if prop in FILTER_PROPS[object]]
+                    except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
+                        obj_props = properties
 
                 for obj_prop in obj_props:
 

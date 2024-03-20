@@ -131,6 +131,8 @@ PRETTY_MODEL_NAMES = {
 FILTER_OUT_OBJS = ['constraints', 'contingencyreserves_regions', 'decisionvariables', 'storages', 'timeslices',
                    'variables']
 
+### Traditionally, this was only used for timeseries DFs. This may need editing for certain outputs (to see)
+### Otherwise, we need to check whether its an interval DF or not, and then filter or not
 FILTER_PROPS = {
     'generators': ['Available Capacity', 'Generation', 'Installed Capacity', 'Min Energy Violation', 'Units',
                    'Units Generating', 'Units Out', 'Units Started', 'Forced Outage', 'Maintenance', 'Firm Capacity'],
@@ -142,10 +144,13 @@ FILTER_PROPS = {
                 'Transmission Losses', 'Unserved Energy', 'Unserved Energy Hours', 'Price', 'Shadow Price', 'SRMC'],
     # 'Exports', 'Imports'
 
-    'nodes': ['Customer Load', 'Exports', 'Generation', 'Generation Capacity',
+    'nodes': ['Customer Load', 'Net DC Export', 'Exports', 'Generation', 'Generation Capacity',
               'Imports', 'Load', 'Min Load', 'Native Load', 'Peak Load', 'Price', 'Pump Load', 'Battery Load',
               'Unserved Energy', 'Price', 'Shadow Price', 'SRMC'],
-    'lines': ['Export Limit', 'Flow', 'Import Limit', 'Loading', 'Loss', 'Units'],
+
+    'zones': ['Customer Load', 'Exports', 'Net Interchange', 'Generation', 'Imports', 'Unserved Energy'],
+
+    'lines': ['Export Limit', 'Flow', 'Flow Back', 'Import Limit', 'Loading', 'Loss', 'Units'],
 
     # ## differ by emission_gens or plain emissions
     # filter_props['emissions_generators'] = ['Cost', 'Intensity', 'Generator Production', ]
