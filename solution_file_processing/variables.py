@@ -4,8 +4,10 @@ TODO DOCSTRING
 import numpy as np
 import pandas as pd
 import dask.dataframe as dd
+import os
 
 from solution_file_processing.constants import VRE_TECHS, CONSTR_TECHS
+from solution_file_processing.timeseries import create_output_11
 
 from solution_file_processing.utils.utils import drive_cache, memory_cache
 from solution_file_processing import log
@@ -80,7 +82,6 @@ class Variables:
             .agg({'value': 'sum'}) \
             .value \
             .compute() \
-            .value \
             .unstack(level='CapacityCategory') \
             .fillna(0)
 
@@ -258,6 +259,56 @@ class Variables:
         vre_av_reg_abs_ts = (vre_av_reg_abs_ts * all_reg_unity).fillna(0)
 
         return vre_av_reg_abs_ts
+    
+    @property
+    @memory_cache
+    def vre_gen_reg_abs_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        vre_gen_reg_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                            (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .groupby((['model'] + self.c.GEO_COLS + ['timestamp'])) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .value \
+            .unstack(level=self.c.GEO_COLS).fillna(0)
+        
+        all_regs = self.customer_load_reg_ts.columns
+        all_reg_unity = pd.Series(index=all_regs, data = [1]*len(all_regs))
+        vre_gen_reg_abs_ts = (vre_gen_reg_abs_ts * all_reg_unity).fillna(0)
+
+        return vre_gen_reg_abs_ts
+    
+    @property
+    @memory_cache
+    def vre_curtailed_reg_ts(self):
+        """
+        TODO DOCSTRING
+        """
+                # Get vre_curtailed_reg_ts
+        ### To move to variables.py
+        ### Define model regs in multi-level format
+        ### This could be done when calculating the vre_gen and av stuff too
+        model_regs_multi = self.model_regs_multi
+        model_regs_multi = pd.MultiIndex.from_tuples([[i for i in x if i != 'value'] for x in model_regs_multi])
+
+        vre_av_reg_abs_ts = self.vre_av_reg_abs_ts
+        vre_gen_reg_abs_ts = self.vre_gen_reg_abs_ts
+        vre_regs = vre_av_reg_abs_ts.columns
+
+        ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
+        for reg in list(model_regs_multi):
+            if reg not in vre_regs:
+                vre_av_reg_abs_ts.loc[:, reg] = 0
+                vre_gen_reg_abs_ts.loc[:, reg] = 0
+
+        ### Columns in alphabetical order
+        vre_av_reg_abs_ts = vre_av_reg_abs_ts[model_regs_multi]
+        vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[model_regs_multi]
+        vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
+
+        return vre_curtailed_reg_ts
 
     @property
     @memory_cache
@@ -840,11 +891,12 @@ class Variables:
         return use_reg_daily_ts
 
     def _get_cofiring_generation(
-            self):  # todo this needs better implementation, also see bug with different versions in outputs 3 and 12
+            self):
         """
         Function for getting the Generation by technology data, taking into account cofiring aspects. 
         This is a legacy calculation from the Indonesia IPSE report. This should be updated and changed 
-        
+        TODO this needs better implementation, also see bug with different versions in outputs 3 and 12
+
         """
 
         # todo this needs improvements, this is different implemented in outputs 3 and output 12 (summary)
@@ -1749,3 +1801,219 @@ class Variables:
         nldc_sto_curtail = nldc_sto_curtail.reset_index(drop=True)
         
         return nldc_sto_curtail
+    
+
+    @property
+    @memory_cache
+    def exports_by_reg_ts(self):
+        """
+        Time-series dataframe of the exports (+ve) and imports (-ve) between two nodes
+        This variable was set-up specifically for monitoring trade with the EU in the Ukraine model
+        This could also be defined as islands or otherwise in other regions
+        """
+        df = self.c.o.node_df[self.c.o.node_df.property == 'Net DC Export']\
+                            .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
+                            .agg({'value': 'sum'}) \
+                            .compute()
+
+        return df
+    
+    @property
+    @memory_cache
+    def exports_ts(self):
+        """
+        Time-series dataframe of the exports (+ve) and imports (-ve)  between two nodes, summed over all national nodes.
+        Currently, only national nodes are processed. This may change in the future or in different projects. 
+        """
+        df = self.c.o.node_df[self.c.o.node_df.property == 'Net DC Export']\
+                            .groupby(['model', 'timestamp']) \
+                            .agg({'value': 'sum'}) \
+                            .compute()
+
+        return df
+    
+    @property
+    @memory_cache
+    def load_w_exports_reg_ts(self):
+        """
+         ime-series dataframe of the load with exports representing as load in regions
+
+        """
+        load_w_exports_reg_ts = self.load_by_reg_ts + self.exports_by_reg_ts.where(self.exports_by_reg_ts > 0).fillna(0)
+
+        return load_w_exports_reg_ts
+    
+    @property
+    @memory_cache
+    def net_load_w_exports_reg_ts(self):
+        """
+        Time-series dataframe of the net load with exports representing as load in regions
+        """
+        net_load_by_reg_ts = self.net_load_reg_ts.stack(self.c.GEO_COLS).reorder_levels(['model'] + self.c.GEO_COLS + ['timestamp'])
+    
+        net_load_w_exports_reg_ts = net_load_by_reg_ts + self.exports_by_reg_ts.where(self.exports_by_reg_ts > 0).fillna(0)
+
+        return net_load_w_exports_reg_ts
+        
+    @property
+    @memory_cache
+    def load_w_exports_ts(self):
+        """
+        Time-series dataframe of the load with exports to external systems.
+
+        """
+        
+        load_w_exports_reg_ts = self.load_by_reg_ts + self.exports_by_reg_ts.where(self.exports_by_reg_ts > 0).fillna(0)
+
+        return load_w_exports_reg_ts
+    
+    @property
+    @memory_cache
+    def net_load_w_exports_ts(self):
+        """
+        Time-series dataframe of the net load with exports to external systems.
+        Non-national nodes are currently excluded from the SFP.
+        """
+        net_load_ts = self.net_load_ts 
+        
+        net_load_w_exports_ts = net_load_ts + self.exports_ts.where(self.exports_ts > 0).fillna(0)
+
+        return net_load_w_exports_ts
+    
+
+    @property
+    @memory_cache
+    def pumpload_reg_ts(self):
+        pumpload_reg_ts = (self.c.o.node_df[(self.c.o.node_df.property == 'Pump Load') |
+                                (self.c.o.node_df.property == 'Battery Load')]
+                    .groupby(['model'] + self.c.GEO_COLS + ['timestamp'])
+                    .agg({'value':'sum'})
+                    .compute())
+        
+        return pumpload_reg_ts
+    
+    @property
+    @memory_cache
+    def reg_ids(self):
+        reg_ids = list(np.unique(np.append(
+                self.load_by_reg.value.unstack(self.c.GEO_COLS).droplevel(level=[r for r in self.c.GEO_COLS if r != self.c.GEO_COLS[0]], axis=1).replace(0,np.nan).dropna(
+                    how='all', axis=1).columns,
+                self.gen_by_tech_reg.droplevel(level=[r for r in self.c.GEO_COLS if r != self.c.GEO_COLS[0]], axis=1).replace(0,np.nan).dropna(
+                    how='all', axis=1).columns)))
+        # Make reg_ids flat list ('value', 'Region') -> 'Region'
+        # Doesnt seem relevant in new implementation
+        # reg_ids = [x[1] for x in reg_ids]
+        return reg_ids
+
+
+    @property
+    @memory_cache
+    def gen_stack_by_reg(self):
+        # -----
+        # Get: reg_ids
+
+        load_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Load'] \
+            .groupby(['model', 'timestamp'] + self.c.GEO_COLS) \
+            .agg({'value': 'sum'})
+
+        # Get gen_by_tech_reg
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+        gen_techs = self.c.o.gen_yr_df.Category.drop_duplicates().values
+        
+        if 'Cofiring' in gen_techs:
+        ### This would differ from project to project. Should probably be explicitly calculated
+            
+            bio_ratio = 0.1
+            gen_by_cofiring_bio = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+            gen_by_cofiring_coal = gen_by_tech_reg[gen_by_tech_reg.Category == 'Cofiring']
+            gen_by_tech_reg = gen_by_tech_reg[gen_by_tech_reg.Category != 'Cofiring']
+
+            gen_by_cofiring_bio.loc[:, 'value'] = gen_by_cofiring_bio.value * bio_ratio
+            gen_by_cofiring_bio = gen_by_cofiring_bio.replace('Cofiring', 'Bioenergy')
+
+            gen_by_cofiring_coal.loc[:, 'value'] = gen_by_cofiring_coal.value * (1 - bio_ratio)
+            gen_by_cofiring_coal = gen_by_cofiring_coal.replace('Cofiring', 'Coal')
+
+            gen_by_tech_reg = pd.concat([gen_by_tech_reg, gen_by_cofiring_bio, gen_by_cofiring_coal], axis=0)
+
+        gen_by_tech_reg = (gen_by_tech_reg
+                        .groupby(['model'] + self.c.GEO_COLS + ['Category'])
+                        .agg({'value': 'sum'})
+                        .unstack(level=self.c.GEO_COLS)
+                        .fillna(0))
+
+        reg_ids = list(np.unique(np.append(
+            self.load_by_reg.unstack(self.c.GEO_COLS).droplevel(level=[region for region in self.c.GEO_COLS if region != 'Region'],
+                                                    axis=1).replace(0,
+                                                                    np.nan).dropna(
+                how='all', axis=1).columns,
+            gen_by_tech_reg.droplevel(level=[region for region in self.c.GEO_COLS if region != 'Region'], axis=1).replace(0,
+                                                                                                                    np.nan).dropna(
+                how='all', axis=1).columns)))
+        # Make reg_ids flat list ('value', 'Region') -> 'Region'
+        reg_ids = [x[1] for x in reg_ids]
+
+        # -----
+        # Get: doi_summary
+        if not os.path.exists(os.path.join(self.c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv')):
+            create_output_11(self.c)
+        doi_summary = pd.read_csv(os.path.join(self.c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'),
+                                index_col=0,
+                                parse_dates=True)
+
+        # -----
+        # Get: use_reg_ts
+
+        use_reg_ts = self.c.o.node_df[self.c.o.node_df.property == 'Unserved Energy'].groupby(
+            ['model'] + self.c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
+            level=self.c.GEO_COLS)
+
+        # -----
+        # Get: gen_stack_by_reg
+
+        # Get needed variables
+        load_by_reg_ts = self.load_by_reg_ts.unstack(
+            level='timestamp').fillna(0).stack('timestamp')
+
+        pumpload_reg_ts = self.pumpload_reg_ts
+        underlying_load_reg = load_by_reg_ts - pumpload_reg_ts
+
+        exports_by_reg_ts = self.exports_by_reg_ts
+        exports_by_reg_ts = self.exports_by_reg_ts
+
+        
+        imports_by_reg_ts = self.exports_by_reg_ts.where(
+            self.exports_by_reg_ts < 0).fillna(0).abs()
+        exports_by_reg_ts = self.exports_by_reg_ts.where(self.exports_by_reg_ts > 0).fillna(0)
+
+        net_load_reg_sto_ts = self.net_load_reg_ts.stack(self.c.GEO_COLS).reorder_levels(
+            ['model'] + self.c.GEO_COLS + ['timestamp']).rename('value').to_frame() + pumpload_reg_ts
+
+        net_load_w_exports_reg_ts = net_load_reg_sto_ts + exports_by_reg_ts
+        
+
+        # Get vre_curtailed_reg_ts
+        ### To move to variables.py
+    
+        vre_curtailed_reg_ts = self.vre_curtailed_reg_ts
+
+        gen_stack_by_reg = pd.concat([self.gen_by_tech_reg_ts.fillna(0),
+                                    exports_by_reg_ts.value.rename('Exports'),
+                                    imports_by_reg_ts.value.rename('Imports'),
+                                    net_load_reg_sto_ts.value.rename('Net Load'),
+                                    net_load_w_exports_reg_ts.value.rename('Net Load w/ Exports'),
+                                    underlying_load_reg.value.rename('Underlying Load'),
+                                    pumpload_reg_ts.value.rename('Storage Load'),
+                                    load_by_reg_ts.value.rename('Total Load'),
+                                    load_by_reg_ts.value.rename('Load2'),
+                                    vre_curtailed_reg_ts.stack(self.c.GEO_COLS)
+                                    .reorder_levels(['model'] + self.c.GEO_COLS + ['timestamp'])
+                                    .rename('Curtailment'),
+                                    use_reg_ts.stack(self.c.GEO_COLS)
+                                    .reorder_levels(['model'] + self.c.GEO_COLS + ['timestamp'])
+                                    .rename(columns={'value': 'Unserved Energy'}),
+                                    ], axis=1)
+        
+        return gen_stack_by_reg
+
+        

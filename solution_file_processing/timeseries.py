@@ -100,17 +100,14 @@ def create_output_2(c):
     print("Creating interval output 2...")
 
     c.v.gen_by_tech_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02a_gen_by_tech_ts.csv'), index=False)
     c.v.gen_by_subtech_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02b_gen_by_tech_ts.csv'), index=False)
     c.v.av_cap_by_tech_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '02c_av_cap_by_subtech_ts.csv'), index=False)
@@ -138,7 +135,6 @@ def create_output_3(c):
     print("Creating interval output 3...")
 
     c.v.vre_av_abs_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03a_vre_available_ts.csv'), index=False)
@@ -147,12 +143,10 @@ def create_output_3(c):
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03b_vre_gen_ts.csv'), index=False)
     c.v.vre_curtailed_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_vre_curtailed_ts.csv'), index=False)
     c.v.re_curtailed_ts \
-        .droplevel(level=0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_RE_curtailed_ts.csv'), index=False)
@@ -165,21 +159,8 @@ def create_output_3(c):
     # Due to the size, we do the gen DFs per model
     if c.cfg['settings']['reg_ts']:
 
-        vre_av_reg_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
-                                       (c.o.gen_df.Category.isin(VRE_TECHS))] \
-            .groupby((['model'] + c.GEO_COLS + ['timestamp'])) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack(level=c.GEO_COLS) \
-            .fillna(0)
-
-        vre_gen_reg_abs_ts = c.o.gen_df[(c.o.gen_df.property == 'Generation') &
-                                        (c.o.gen_df.Category.isin(VRE_TECHS))] \
-            .groupby((['model'] + c.GEO_COLS + ['timestamp'])) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack(level=c.GEO_COLS) \
-            .fillna(0)
+        vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts
+        vre_gen_reg_abs_ts = c.v.vre_gen_reg_abs_ts
 
         vre_regs = vre_av_reg_abs_ts.columns
 
@@ -246,6 +227,7 @@ def create_output_3(c):
             .groupby(['model', 'Category'] + c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
             .compute() \
+            .value \
             .unstack(level='Category') \
             .fillna(0)
 
@@ -302,23 +284,32 @@ def create_output_4(c):
             gen_by_subtech_reg_model_ts = c.v.gen_by_subtech_reg_ts.loc[pd.IndexSlice[m,],].stack('CapacityCategory')
 
             gen_by_tech_reg_model_ts \
+                .rename('value') \
+                .to_frame() \
                 .assign(units='MW') \
                 .reset_index() \
                 .to_csv(os.path.join(save_dir_model, '04_gen_by_tech_reg_ts.csv'), index=False)
             gen_by_subtech_reg_model_ts \
+                .rename('value') \
+                .to_frame() \
                 .assign(units='MW') \
                 .reset_index() \
                 .to_csv(os.path.join(save_dir_model, '04_gen_by_subtech_reg_ts.csv'), index=False)
 
-            print(f'Created file 04_gen_by_tech_reg_ts.csv.')
-            print(f'Created file 04_gen_by_subtech_reg_ts.csv.')
+            print('Created file 04_gen_by_tech_reg_ts.csv.')
+            print('Created file 04_gen_by_subtech_reg_ts.csv.')
 
     return
 
     # Ouput 4: Costs and savings.
 
-    gen_cost_props_w_penalty = ['Emissions Cost', 'Fuel Cost', 'Max Energy Violation Cost',
-                                'Min Energy Violation Cost', 'Ramp Down Cost', 'Ramp Up Cost', 'Start & Shutdown Cost']
+    gen_cost_props_w_penalty = ['Emissions Cost', 
+                                'Fuel Cost', 
+                                'Max Energy Violation Cost',
+                                'Min Energy Violation Cost', 
+                                'Ramp Down Cost', 
+                                'Ramp Up Cost', 
+                                'Start & Shutdown Cost']
 
     # Excludes VO&M as this is excluded for some generators because of bad scaling of the objective function
     gen_op_cost_props = ['Emissions Cost', 'Fuel Cost', 'Start & Shutdown Cost']
@@ -339,6 +330,8 @@ def create_output_4(c):
     # gen_fom.loc[:, 'property'] = 'FO&M Cost'
     gen_fom.assign(value=lambda x: x.value / x.FOM)
     gen_fom.assign(property='FO&M Cost')
+
+    gen_capex = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Installed Capacity',:]
     gen_capex.loc[:, 'property'] = 'Investment Cost'
     gen_capex.assign(value=lambda x: x.value / x.CAPEX)
     gen_capex.assign(property='Investment Cost')
@@ -477,8 +470,11 @@ def create_output_4(c):
 def create_output_5(c):
     """
     Output 5: to plot undispatched capacity for USE (and maybe other metrics)
-    todo not implemented
+    TODO not implemented
     """
+
+
+
     print('Creating interval output 5 is not implemented yet.')
     return
 
@@ -726,22 +722,18 @@ def create_output_8ii(c):
         .assign(units='MW.hr-1') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08d_3hr_ramp_pc_ts.csv'), index=False)
     c.v.ramp_by_gen_tech_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08e_ramp_by_gen_tech_ts.csv'), index=False)
     c.v.ramp_by_gen_subtech_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08f_ramp_by_gen_subtech_ts.csv'), index=False)
     c.v.th_ramp_by_gen_tech_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08g_3hr_ramp_by_gen_tech_ts.csv'), index=False)
     c.v.th_ramp_by_gen_subtech_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW.hr-1') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '08h_3hr_ramp_by_gen_subtech_ts.csv'), index=False)
@@ -773,12 +765,10 @@ def create_output_10(c):
     print("Creating interval output 10...")
 
     c.v.gen_out_tech_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10a_outages_by_tech_ts.csv'), index=False)
     c.v.gen_out_by_type_ts \
-        .droplevel(0, axis=1) \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '10b_outages_by_outtype_ts.csv'), index=False)
@@ -797,15 +787,12 @@ def create_output_11(c):
     # Temp get variables
 
     # 'Value' series needs to be a DataFrame for the multi-index ('value', GEO_COL[0], GEO_COL[1]) to be consistent
-    vre_gen_reg_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Generation') &
-                                     (c.o.gen_df.Category.isin(VRE_TECHS))]
-                          .groupby((['model'] + c.GEO_COLS + ['timestamp']))
-                          .sum()
-                          .value
-                          .to_frame()
-                          .compute()
-                          .unstack(level=c.GEO_COLS)
-                          .fillna(0))
+
+
+    # Columns in alphabetical order. 
+    vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts[c.v.model_regs_multi]
+    ### 
+    vre_gen_reg_abs_ts = c.v.vre_gen_reg_abs_ts[c.v.model_regs_multi]
 
     vre_regs = c.v.vre_av_reg_abs_ts.columns
 
@@ -814,13 +801,9 @@ def create_output_11(c):
     for reg in list(c.v.model_regs_multi):
         if reg not in vre_regs:
             print(reg)
-            c.v.vre_av_reg_abs_ts.loc[:, reg] = 0
+            vre_av_reg_abs_ts.loc[:, reg] = 0
             vre_gen_reg_abs_ts.loc[:, reg] = 0
 
-    # Columns in alphabetical order. 
-    vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts[c.v.model_regs_multi]
-    ### 
-    vre_gen_reg_abs_ts = vre_gen_reg_abs_ts[c.v.model_regs_multi]
 
     vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
 
@@ -852,9 +835,9 @@ def create_output_11(c):
         ['model', 'timestamp'])
     # Time dataframes done nationally////
 
-    wet_season = c.v.gen_by_tech_ts.droplevel(0,axis=1).loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    wet_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
-    dry_season = c.v.gen_by_tech_ts.droplevel(0,axis=1).loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
+    dry_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
         [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
 
     ##########

@@ -13,13 +13,30 @@ print = log.info
 
 np.random.seed(sum(map(ord, 'calplot')))
 
-IEA_PALETTE = {'grey5': '#f2f2f2', 'grey10': '#e6e6e6', 'pl': '#b187ef', 'bl': '#49d3ff', 'tl': '#00e0e0',
-               'gl': '#68f394', 'yl': '#fff45a',
-               'ol': '#ffb743', 'rl': '#ff684d', 'gl': '#68f394', 'yl': '#fff45a', 'grey40': '#949494',
+IEA_PALETTE = {'grey5': '#f2f2f2', 
+               'grey10': '#e6e6e6', 
+               'pl': '#b187ef', 
+               'bl': '#49d3ff', 
+               'tl': '#00e0e0',
+               'gl': '#68f394', 
+               'yl': '#fff45a',
+               'ol': '#ffb743', 
+               'rl': '#ff684d', 
+               'grey40': '#949494',
                'grey50': '#6f6f6f',
-               'p': '#af6ab1', 'b': '#3e7ad3', 't': '#00ada1', 'g': '#1dbe62', 'y': '#fed324',
-               'o': '#f1a800', 'r': '#e34946', 'grey20': '#afafaf', 'black': '#000000', 'white': '#ffffff',
-               'iea_b': '#0044ff', 'iea_b50': '#80a2ff', 'brown':'#6E4F00'}
+               'p': '#af6ab1', 
+               'b':'#3e7ad3', 
+               't': '#00ada1', 
+               'g': '#1dbe62', 
+               'y': '#fed324',
+               'o': '#f1a800', 
+               'r': '#e34946', 
+               'grey20': '#afafaf', 
+               'black': '#000000', 
+               'white': '#ffffff',
+               'iea_b': '#0044ff', 
+               'iea_b50': '#80a2ff', 
+               'brown':'#6E4F00'}
 
 EXTENDED_PALETTE = dict(
     {'{}'.format(i): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20b').colors[i]) for i in np.arange(0, 20)},
@@ -46,12 +63,14 @@ TECH_PALETTE = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10',
 
 
 
-STACK_PALETTE = {'Nuclear': 'p', 'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'brown', 'Cofiring': 'grey5', 'Abated coal': 'rl',
-                 'Gas': 'grey20', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
+STACK_PALETTE = { 'Imports':'white','Nuclear': 'p', 'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'brown', 'Cofiring': 'grey5', 'Abated coal': 'rl',
+                 'Gas': 'grey20', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Exports': 'black', 'Other': 't',
                  'Fuel Cell': 'tl', 'Storage': 'b',
-                 'Solar': 'y', 'Wind': 'g', 'Total Load': 'black', 'Load2': 'white', 'Exports': 'p', 'Net Load': 'r',
-                 'Curtailment': 'yl', 'Unserved Energy': 'r', 'Underlying Load': 'p', 'Storage Load': 'grey50', 'CHP':'black',
+                 'Solar': 'y', 'Wind': 'g', 'Load w/ Exports':'iea_b50','Total Load': 'black', 'Load2': 'white', 'Net Load w/ Exports':'iea_b',
+                 'Net Load': 'r',
+                 'Curtailment': 'yl', 'Unserved Energy': 'r', 'Underlying Load': 'p', 'Storage Load': 'grey50', 
                  }
+
 IEA_PALETTE_L8 = ['rl', 'ol', 'gl', 'bl', 'pl', 'grey10', 'yl',
                   'tl']  ### got rid of light yellow as its a poor choice for plots.
 IEA_PALETTE_D8 = ['r', 'o', 'y', 'g', 't', 'b', 'p', 'grey50']
@@ -94,7 +113,7 @@ def write_xlsx_column(
         df = df.loc[:, sort_cols]
 
     if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
+        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter") # pylint: disable=abstract-class-instantiated
 
     ### Whether we caluclate the scatter col or not. Should probably rename the variable from total_col, as its not always a total
     if (total_scatter_col != None) & (total_scatter_col not in df.columns):
@@ -334,13 +353,12 @@ def write_xlsx_stack(
     cm_to_pixel = 37.7953
 
     ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
+    sort_cols = [i for i in palette.keys() if i in df.columns] + \
+                 [j for j in df.columns if j not in palette.keys()]
     df = df.loc[:, sort_cols]
 
     if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
+        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter") # pylint: disable=abstract-class-instantiated
 
     df.to_excel(writer, sheet_name=sheet_name)
 
@@ -404,13 +422,34 @@ def write_xlsx_stack(
                     "y2_axis": True,
                 }
             )
+
+        
+        elif df.columns[col_num] == "Imports":
+            chart.add_series(
+                {
+                    "name": [sheet_name, 0, excel_col_num],
+                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
+                    "pattern": {
+                        "pattern": "percent_5",
+                        "fg_color": IEA_PALETTE["black"],
+                        "bg_color": IEA_PALETTE["white"],
+                    },
+                    "border": {"none": True},
+                    "y2_axis": False,
+                }
+            )
+        
+        elif df.columns[col_num] == "Exports":
+            continue
+
         elif df.columns[col_num] == "Total Load":
             chart2.add_series(
                 {
                     "name": [sheet_name, 0, excel_col_num],
                     "categories": [sheet_name, 1, 0, df.shape[0], 0],
                     "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
-                    "line": {"width": 0.25, "color": "black", "dash_type": "solid"},
+                    "line": {"width": 0.25, "color": STACK_PALETTE[df.columns[col_num]], "dash_type": "solid"},
                 }
             )
         elif df.columns[col_num] == "Underlying Load":
@@ -431,7 +470,33 @@ def write_xlsx_stack(
                     "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
                     "line": {
                         "width": 1.00,
-                        "color": IEA_PALETTE["r"],
+                        "color": fill_colour,
+                        "dash_type": "dash",
+                    },
+                }
+            )
+        elif df.columns[col_num] == "Net Load w/ Exports":
+            chart2.add_series(
+                {
+                    "name": [sheet_name, 0, excel_col_num],
+                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
+                    "line": {
+                        "width": 1.5,
+                        "color": fill_colour,
+                        "dash_type": "dash",
+                    },
+                }
+            )
+        elif df.columns[col_num] == "Load w/ Exports":
+            chart2.add_series(
+                {
+                    "name": [sheet_name, 0, excel_col_num],
+                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
+                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
+                    "line": {
+                        "width": 1.00,
+                        "color": fill_colour,
                         "dash_type": "dash",
                     },
                 }
@@ -568,7 +633,7 @@ def write_xlsx_scatter(
     cm_to_pixel = 37.7953
 
     if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
+        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter") # pylint: disable=abstract-class-instantiated
 
     df.to_excel(writer, sheet_name=sheet_name)
 
@@ -746,7 +811,7 @@ def write_xlsx_line(
             df.index = ldc_idx
 
     if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
+        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter") # pylint: disable=abstract-class-instantiated
 
     df.to_excel(writer, sheet_name=sheet_name)
 

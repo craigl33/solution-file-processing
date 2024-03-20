@@ -6,7 +6,7 @@ model_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security'
 soln_idx_path = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/01_Data/01_Generation/2024_03_04_generator_parameters_UKR.xlsx'
 
 [model]
-soln_choice = 'mya_v1'
+soln_choice = 'mya_v2'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
@@ -20,5 +20,5 @@ variables_cache = true
 catch_errors = true
 
 [testing]
-#baseline_output_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/05_DataProcessing/mya_v1/'
+#baseline_output_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/05_DataProcessing/mya_v2/'
 #similar_output_dirs = false

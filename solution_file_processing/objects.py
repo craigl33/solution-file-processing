@@ -165,19 +165,6 @@ class Objects:
 
         return df
     
-    
-    @property
-    @memory_cache
-    @drive_cache('objects')
-    def zone_yr_df(self):
-        """"
-        TODO DOCSTRING
-        """
-
-        df = self.c.get_processed_object('year', 'zones', return_type='pandas')
-
-        return df
-
 
     @property
     @memory_cache
@@ -268,17 +255,6 @@ class Objects:
         _df = self.c.get_processed_object('interval', 'nodes', return_type='dask')
         return _df
     
-    @property
-    @memory_cache
-    @drive_cache('objects')
-    def zone_df(self):
-        """"
-        TODO DOCSTRING
-        """
-
-        _df = self.c.get_processed_object('interval', 'zones', return_type='dask')
-        return _df
-
     @property
     @memory_cache
     @drive_cache('objects')

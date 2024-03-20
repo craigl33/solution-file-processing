@@ -95,22 +95,29 @@ def create_output_3(c):
 
     (c.v.gen_by_tech_reg
      .stack(c.GEO_COLS)
+     .rename('value')
+     .to_frame()
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03a_gen_by_tech_reg.csv'), index=True))
     (c.v.gen_by_tech_reg_orig
      .stack(c.GEO_COLS)
+     .rename('value')
+     .to_frame()
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03a_gen_by_tech_reg_orig.csv'), index=True))
     (c.v.gen_by_costTech_reg
      .stack(c.GEO_COLS)
+     .rename('value')
+     .to_frame()
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03c_gen_by_costTech_reg.csv'), index=True))
     (c.v.gen_by_weoTech_reg
      .stack(c.GEO_COLS)
+     .rename('value')
+     .to_frame()
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03d_gen_by_weoTech_reg.csv'), index=True))
     (c.v.gen_by_plant
-     .droplevel(level=0, axis=1)
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03e_gen_by_plants.csv'), index=True))
 
@@ -146,8 +153,12 @@ def create_output_5(c):
     """
     print("Creating output 5...")
 
-    c.v.unit_starts_by_tech.stack().assign(units='starts').reset_index().to_csv(
-        os.path.join(c.DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
+    c.v.unit_starts_by_tech.stack() \
+            .rename('value') \
+            .to_frame() \
+            .assign(units='starts') \
+            .reset_index() \
+            .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '05_unit_starts_by_tech.csv'), index=False)
 
     print('Created file 05_unit_starts_by_tech.csv.')
 
@@ -160,8 +171,12 @@ def create_output_6(c):
     """
     print("Creating output 6...")
 
-    c.v.gen_max_by_tech_reg.stack(c.GEO_COLS).assign(units='MW').reset_index().to_csv(
-        os.path.join(c.DIR_05_1_SUMMARY_OUT, '06a_gen_max_by_tech_reg.csv'), index=False)
+    c.v.gen_max_by_tech_reg.stack(c.GEO_COLS) \
+        .rename('value') \
+        .to_frame() \
+        .assign(units='MW') \
+        .reset_index() \
+        .to_csv( os.path.join(c.DIR_05_1_SUMMARY_OUT, '06a_gen_max_by_tech_reg.csv'), index=False)
 
     print('Created file 06a_gen_max_by_tech_reg.csv.')
 
@@ -192,12 +207,12 @@ def create_output_8(c):
     """
     print("Creating output 8...")
 
-    c.v.vre_cap.stack(c.GEO_COLS).assign(units='MW').reset_index().to_csv(
+    c.v.vre_cap.stack(c.GEO_COLS).rename('value').to_frame().assign(units='MW').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '08a_vre_cap.csv'),
         index=False)
-    c.v.vre_av_abs.stack(c.GEO_COLS).assign(units='GWh').reset_index().to_csv(
+    c.v.vre_av_abs.stack(c.GEO_COLS).rename('value').to_frame().assign(units='GWh').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '08b_vre_daily_abs.csv'), index=False)
-    c.v.vre_av_norm.stack(c.GEO_COLS).assign(units='-').reset_index().to_csv(
+    c.v.vre_av_norm.stack(c.GEO_COLS).rename('value').to_frame().assign(units='-').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '08c_vre_daily_norm.csv'), index=False)
 
     print('Created file 08a_vre_cap.csv.')
@@ -216,12 +231,12 @@ def create_output_9(c):
     """
     print("Creating output 9...")
 
-    c.v.vre_curtailed.stack(c.GEO_COLS).assign(units='GWh').reset_index().to_csv(
+    c.v.vre_curtailed.stack(c.GEO_COLS).rename('value').to_frame().assign(units='GWh').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '09a_vre_daily_curtailed.csv'), index=False)
     c.v.curtailment_rate.assign(units='%').reset_index().to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '09b_curtailment_rate.csv'),
         index=False)
-    c.v.all_re_curtailed.stack(c.GEO_COLS).assign(units='GWh') \
+    c.v.all_re_curtailed.stack(c.GEO_COLS).rename('value').to_frame().assign(units='GWh') \
         .reset_index() \
         .to_csv(
         os.path.join(c.DIR_05_1_SUMMARY_OUT, '09c_all_RE_daily_curtailed.csv'), index=False)
@@ -251,8 +266,6 @@ def create_output_10(c):
 
     line_cap = c.v.line_cap
     line_imp_exp = c.v.line_imp_exp
-    line_cap.columns = line_cap.columns.droplevel(level=0)
-    line_imp_exp.columns = line_imp_exp.columns.droplevel(level=0)
     line_cap \
         .assign(units='MW') \
         .reset_index() \
@@ -280,16 +293,22 @@ def create_output_11(c):
 
     c.v.gen_cap_tech_reg \
         .stack(c.GEO_COLS) \
+        .rename('value') \
+        .to_frame() \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11a_cap_by_tech_reg.csv'), index=False)
     c.v.gen_cap_subtech_reg \
         .stack(c.GEO_COLS) \
+        .rename('value') \
+        .to_frame() \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
     c.v.gen_cap_costTech_reg \
         .stack(c.GEO_COLS) \
+        .rename('value') \
+        .to_frame() \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
@@ -310,6 +329,8 @@ def create_output_12(c):
 
     c.v.cf_tech_reg \
         .stack(c.GEO_COLS) \
+        .rename('value') \
+        .to_frame() \
         .assign(units='%') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '12a_cf_tech_reg.csv'), index=False)
@@ -329,7 +350,7 @@ def create_output_13(c):
     - 13a_co2_by_tech_reg.csv
     - 13b_co2_by_reg.csv
     """
-    print("Creating output 14...")
+    print("Creating output 13...")
 
     c.v.co2_by_tech_reg \
         .assign(units='tonnes') \

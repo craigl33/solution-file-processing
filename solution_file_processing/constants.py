@@ -144,12 +144,12 @@ FILTER_PROPS = {
                 'Transmission Losses', 'Unserved Energy', 'Unserved Energy Hours', 'Price', 'Shadow Price', 'SRMC'],
     # 'Exports', 'Imports'
 
-    'nodes': ['Customer Load', 'Exports', 'Generation', 'Generation Capacity',
+    'nodes': ['Customer Load', 'Net DC Export', 'Exports', 'Generation', 'Generation Capacity',
               'Imports', 'Load', 'Min Load', 'Native Load', 'Peak Load', 'Price', 'Pump Load', 'Battery Load',
               'Unserved Energy', 'Price', 'Shadow Price', 'SRMC'],
 
     'zones': ['Customer Load', 'Exports', 'Net Interchange', 'Generation', 'Imports', 'Unserved Energy'],
-    
+
     'lines': ['Export Limit', 'Flow', 'Flow Back', 'Import Limit', 'Loading', 'Loss', 'Units'],
 
     # ## differ by emission_gens or plain emissions
