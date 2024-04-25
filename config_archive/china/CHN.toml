@@ -2,11 +2,11 @@
 # More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
 
 [path]
-model_dir = 'S:/China/China proj 2023'
-soln_idx_path = 'S:/China/China proj 2023/06_Data/02_PowerPlants/2023_02_03_generator_parameters_China_ETP_v1.5_separate_biomass_operational_class.xlsx'
+model_dir = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants'
+soln_idx_path = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants/2024_03_2_generator_parameters_China_0.1_updating_plant_list.xlsx'
 
 [model]
-soln_choice = '2024_03_06_test_processing'
+soln_choice = 'first_runs'
 
 [settings]
 geo_cols = ['Region', 'Subregion']

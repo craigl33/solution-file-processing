@@ -753,8 +753,8 @@ class Variables:
         gen_vom = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].fillna(0)
         # gen_vom.loc[:, 'value'] = gen_vom.apply(lambda x: x.value * x.VOM, axis=1).fillna(0)
         # gen_vom.loc[:, 'property'] = 'VO&M Cost'
-        gen_vom.assign(value=lambda x: x.value / x.VOM)
-        gen_vom.assign(property='VO&M Cost')
+        gen_vom = gen_vom.assign(value=lambda x: x.value * x.VOM.fillna(0))
+        gen_vom = gen_vom.assign(property='VO&M Cost')
 
         gen_op_costs = pd.concat([gen_op_costs, gen_vom], axis=0)
 
@@ -770,15 +770,15 @@ class Variables:
         # Calculated outside of PLEXOS as these are not costed into the optimisation
         # As DASK DFs cannot be multiindex, we need to proceed carefully with the following gen_by_name_calculation
         ramp_by_gen_name = gen_by_name_ts[ ['model', 'name'] + self.c.GEO_COLS + ['Category', 'property', 'value']]
-        ramp_by_gen_name.assign(value=ramp_by_gen_name.value - ramp_by_gen_name.value.shift(1))
-        ramp_by_gen_name.assign(property = 'Ramp')
+        ramp_by_gen_name = ramp_by_gen_name.assign(value=ramp_by_gen_name.value - ramp_by_gen_name.value.shift(1))
+        ramp_by_gen_name = ramp_by_gen_name.assign(property = 'Ramp')
 
         ramp_costs_by_gen_name = dd.merge(ramp_by_gen_name, self.c.soln_idx[['name', 'RampCost']],
                                             on='name',
                                             how='left')
 
-        ramp_costs_by_gen_name.assign(value = ramp_costs_by_gen_name.value.abs() * ramp_costs_by_gen_name.RampCost.fillna(0))
-        ramp_costs_by_gen_name.assign(property = 'Ramp Cost')
+        ramp_costs_by_gen_name = ramp_costs_by_gen_name.assign(value = ramp_costs_by_gen_name.value.abs() * ramp_costs_by_gen_name.RampCost.fillna(0))
+        ramp_costs_by_gen_name = ramp_costs_by_gen_name.assign(property = 'Ramp Cost')
 
         gen_ramp_costs_by_reg = ramp_costs_by_gen_name.reset_index().groupby(
             ['model'] + self.c.GEO_COLS + ['Category', 'property']).agg({'value': 'sum'}).compute() / 1e6
@@ -800,45 +800,26 @@ class Variables:
 
         """
 
-        # raise NotImplementedError("This is not working yet. self.gen_capex needs to be implemented")
-        # Excludes VO&M as this is excluded for some generators because of bad scaling of the objective function
-        gen_op_cost_props = ['Emissions Cost', 'Fuel Cost', 'Start & Shutdown Cost']
-
-        # Standard costs reported as USD'000
-        gen_op_costs = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property.isin(gen_op_cost_props)]
-
-        # Scale costs to be also USD'000
-        gen_vom = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].fillna(0)
-        # gen_vom.loc[:, 'value'] = gen_vom.apply(lambda x: x.value * x.VOM, axis=1).fillna(0)
-        # gen_vom.loc[:, 'property'] = 'VO&M Cost'
-        gen_vom.assign(value=lambda x: x.value / x.VOM)
-        gen_vom.assign(property='VO&M Cost')
-
-        gen_fom = self.c.o.gen_yr_df.loc[self.c.o.gen_yr_df.property == 'Installed Capacity', :]
-        # gen_fom.loc[:, 'value'] = gen_fom.apply(lambda x: x.value * x.FOM, axis=1).fillna(0)
-        # gen_fom.loc[:, 'property'] = 'FO&M Cost'
-        gen_fom.assign(value=lambda x: x.value / x.FOM)
-        gen_fom.assign(property='FO&M Cost')
+        gen_op_costs_by_reg = self.gen_op_costs_by_reg
 
         try:
             # self.c.v.gen_capex.loc[:, 'property'] = 'Investment Cost'
             # self.gen_capex.assign(value=lambda x: x.value / x.CAPEX)
             # self.gen_capex.assign(property='Investment Cost')
             gen_capex = self.c.o.gen_yr_df.loc[self.c.o.gen_yr_df.property == 'Installed Capacity',:]
-            gen_capex.assign(value = lambda x: x.value*x.CAPEX)
-            gen_capex.assign(property = "Investment Cost")
+            gen_capex = gen_capex.assign(value = lambda x: x.value*x.CAPEX)
+            gen_capex = gen_capex.assign(property = "Investment Cost")
         except KeyError:
             ### If CAPEX isn't defined in the generators parameters sheet, this won't work
-            gen_capex = dd.from_pandas(pd.DataFrame(None))
+            gen_capex = pd.DataFrame(None)
 
-        gen_total_costs = dd.concat([gen_op_costs, gen_vom, gen_fom, gen_capex], axis=0)
+        gen_capex_by_reg  = gen_capex.groupby(
+            ['model'] + self.c.GEO_COLS + ['Category', 'property']) \
+                .agg({'value': 'sum'}) \
+                .applymap(lambda x: x / 1e3)
+        
 
-
-        # Scale to USDm
-        gen_total_costs_by_reg = gen_total_costs \
-            .groupby(['model'] + self.c.GEO_COLS + ['Category', 'property']) \
-            .agg({'value': 'sum'}) \
-            .applymap(lambda x: x / 1e3)
+        gen_total_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_capex_by_reg], axis=0)
 
         return gen_total_costs_by_reg
 
@@ -1031,6 +1012,85 @@ class Variables:
 
         return vre_by_reg
     
+    
+    @property
+    @memory_cache
+    def vre_av_by_reg(self):
+        """
+        Get the share of a subset of generation (e.g. RE or VRE), with the subset technologies passed as a list
+        """
+
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].reset_index()
+        
+        vre_av_by_reg = self.vre_av_reg_abs_ts.groupby("model") \
+                           .sum() \
+                           .groupby(self.c.GEO_COLS[0], axis=1) \
+                           .sum()/1000
+        
+        gen_by_tech_reg.loc[:, 'VRE'] = gen_by_tech_reg.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
+        
+        non_vre_gen_by_reg = gen_by_tech_reg.groupby(['model', 'VRE', self.c.GEO_COLS[0]]) \
+            .agg({'value':'sum'}) \
+            .value \
+            .unstack('VRE')['Non-VRE'].rename('value').unstack(self.c.GEO_COLS[0])
+        
+        vre_av_by_reg = vre_av_by_reg/(vre_av_by_reg + non_vre_gen_by_reg)
+
+        return vre_av_by_reg
+
+    @property
+    @memory_cache
+    def re_share(self):
+        """
+        Get the share of a RE generation
+        """
+        re_techs = ['Solar', 'Wind', 'Bioenergy', 'Geothermal', 'Other', 'Marine', 'Hydro']
+        gen_by_tech = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+        re_share = gen_by_tech.reset_index()
+        re_share.loc[:, 'RE'] = re_share.Category.apply(lambda x: 'RE' if x in re_techs else 'Non-RE')
+        ### New simplified implementation to avoid errors. 
+        re_share = (re_share
+                     .groupby(['model', 'RE'])
+                     .agg({'value':'sum'}).value.unstack('RE'))
+        re_share = (re_share['RE']/re_share.sum(axis=1))
+
+        return re_share
+
+    @property
+    @memory_cache
+    def vre_share(self):
+        """
+        Get the share of a subset of generation (e.g. RE or VRE), with the subset technologies passed as a list
+        """
+
+        gen_by_tech = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+        vre_share = gen_by_tech.reset_index()
+        vre_share.loc[:, 'VRE'] = vre_share.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
+        vre_share = vre_share.groupby(['model', 'VRE']).agg({'value':'sum'}).value.unstack('VRE')
+        vre_share = (vre_share['VRE']/vre_share.sum(axis=1))
+
+        return vre_share
+    
+    
+    @property
+    @memory_cache
+    def vre_av_share(self):
+        """
+        Get the share of a subset of generation (e.g. RE or VRE), with the subset technologies passed as a list
+        """
+
+        gen_by_tech = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation'].reset_index()
+        vre_av_gen = self.vre_av_abs_ts.groupby(['model']).sum().sum(axis=1)/1000
+        gen_by_tech.loc[:, 'VRE'] = gen_by_tech.Category.apply(lambda x: 'VRE' if x in VRE_TECHS else 'Non-VRE')
+        
+        non_vre_gen = gen_by_tech.groupby(['model', 'VRE']) \
+            .agg({'value':'sum'}) \
+            .value \
+            .unstack('VRE')['Non-VRE'].rename('value')
+        
+        vre_av_share = (vre_av_gen/(vre_av_gen + non_vre_gen))
+
+        return vre_av_share    
 
     @property
     @memory_cache

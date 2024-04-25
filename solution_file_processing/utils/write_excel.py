@@ -90,7 +90,7 @@ def write_xlsx_column(
         writer,
         excel_file=None,
         sheet_name="Sheet1",
-        palette=IEA_CMAP_16,
+        palette=None,
         subtype="stacked",
         units="",
         total_scatter_col=None,

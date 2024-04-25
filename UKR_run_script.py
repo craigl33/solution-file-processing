@@ -12,7 +12,7 @@ config = sfp.SolutionFilesConfig('config_archive/ukraine/UKR.toml')  # e.g. 'con
 # config.install_dependencies()
 config.convert_solution_files_to_h5()
 
-# Create summary outputs (stored in output/summary)
+# # Create summary outputs (stored in output/summary)
 sfp.summary.create_output_1(config)
 sfp.summary.create_output_2(config)
 sfp.summary.create_output_3(config)
@@ -42,11 +42,11 @@ sfp.timeseries.create_output_10(config)
 sfp.timeseries.create_output_11(config)
 
 
-# # Create plots (stored in output/plots)
-# # todo
+# # # Create plots (stored in output/plots)
+# # # todo
 sfp.plots.create_plot_1a(config)
 sfp.plots.create_plot_1b(config)
 sfp.plots.create_plot_2(config)
 sfp.plots.create_plot_3(config)
-sfp.plots.create_plot_6(config)
-sfp.plots.create_plot_7(config)
+# # sfp.plots.create_plot_6(config)
+# # sfp.plots.create_plot_7(config)
