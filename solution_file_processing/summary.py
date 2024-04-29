@@ -87,9 +87,8 @@ def create_output_3(c):
     Creates following output files:
     - 03a_gen_by_tech_reg.csv
     - 03a_gen_by_tech_reg_orig.csv
-    - 03c_gen_by_costTech_reg.csv
-    - 03d_gen_by_weoTech_reg.csv
-    - 03e_gen_by_plants.csv
+    - 03c_gen_by_plexos_tech_reg.csv
+    - 03d_gen_by_plants.csv
     """
     print("Creating output 3...")
 
@@ -105,27 +104,20 @@ def create_output_3(c):
      .to_frame()
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03a_gen_by_tech_reg_orig.csv'), index=True))
-    (c.v.gen_by_costTech_reg
+    (c.v.gen_by_plexos_tech_reg
      .stack(c.GEO_COLS)
      .rename('value')
      .to_frame()
      .assign(units='GWh')
-     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03c_gen_by_costTech_reg.csv'), index=True))
-    (c.v.gen_by_weoTech_reg
-     .stack(c.GEO_COLS)
-     .rename('value')
-     .to_frame()
-     .assign(units='GWh')
-     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03d_gen_by_weoTech_reg.csv'), index=True))
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03c_gen_by_plexos_tech_reg.csv'), index=True))
     (c.v.gen_by_plant
      .assign(units='GWh')
-     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03e_gen_by_plants.csv'), index=True))
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03d_gen_by_plants.csv'), index=True))
 
     print('Created file 03a_gen_by_tech_reg.csv.')
     print('Created file 03a_gen_by_tech_reg_orig.csv.')
-    print('Created file 03c_gen_by_costTech_reg.csv.')
-    print('Created file 03d_gen_by_weoTech_reg.csv.')
-    print('Created file 03e_gen_by_plants.csv.')
+    print('Created file 03c_gen_by_plexos_tech_reg.csv.')
+    print('Created file 03d_gen_by_plants.csv.')
 
 
 @catch_errors

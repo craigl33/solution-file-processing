@@ -10,7 +10,7 @@ import numpy as np
 from .utils.utils import catch_errors
 from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETTE, IEA_PALETTE_16, EXTENDED_PALETTE
 # from .utils.write_excel import IEA_CMAP_14, IEA_CMAP_16, IEA_CMAP_D8, IEA_CMAP_L8
-from .constants import VRE_TECHS
+from .constants import VRE_TECHS, PRETTY_MODEL_NAMES
 from .timeseries import create_output_11 as create_ts_output_11
 # from .timeseries import create_output_4 as create_timeseries_output_4
 from . import log
@@ -320,10 +320,10 @@ def create_plot_2(c):
         "curtailment_rate": c.v.curtailment_rate / 100,
         "re_curtailed_by_tech": c.v.re_curtailment_rate_by_tech,
         ### fuels by type shouldnt be 
-        "fuels_by_type": c.v.fuel_by_type.groupby(["model", "Type"])
+        "fuels_by_type": c.v.fuel_by_type.groupby(["model", "Category"])
                             .sum()
                             .value
-                            .unstack(level="Type")
+                            .unstack(level="Category")
                             .fillna(0),
         #              'fuels_by_subtype': fuel_by_type.groupby(['model', 'Category']).sum().unstack('Category').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
         "co2_by_tech": c.v.co2_by_tech_reg.groupby(["model", "Category"])
@@ -331,10 +331,10 @@ def create_plot_2(c):
                        .value
                        .unstack(level="Category")
                        / 1e6,
-        "co2_by_fuels": c.v.co2_by_fuel_reg.groupby(["model", "Type"])
+        "co2_by_fuels": c.v.co2_by_fuel_reg.groupby(["model", "Category"])
                         .sum()
                         .value
-                        .unstack("Type")
+                        .unstack("Category")
                         / 1e6,
         "co2_by_reg": c.v.co2_by_tech_reg.groupby(["model", c.GEO_COLS[0]])
                       .sum()
@@ -484,6 +484,7 @@ def create_plot_2(c):
 
     # Model palette
     model_ids = list(set(c.v.load_by_reg.reset_index()['model'].values))
+    model_ids = [m for m in PRETTY_MODEL_NAMES if m in model_ids] + [m for m in model_ids if m not in PRETTY_MODEL_NAMES]
     # Use extended palette so it can have more than 16 variables
     model_palette = {model_ids[i]: IEA_PALETTE_16[i] for i in range(len(model_ids))}
 

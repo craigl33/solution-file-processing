@@ -155,11 +155,11 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
     if out_type == 'rel':
         df = df.rename(columns={0: 'value'})[['parent', 'child', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='child', right_on='name')
+        df = dd.merge(df, soln_idx, left_on='child', right_on='PLEXOSname')
     else:
         df = df.rename(columns={0: 'value'})[['name', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='name', right_on='name')
+        df = dd.merge(df, soln_idx, left_on='name', right_on='PLEXOSname')
 
     # Replace timestamp year with common year if provided
     if common_yr:

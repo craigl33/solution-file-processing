@@ -2,14 +2,15 @@
 # More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
 
 [path]
-model_dir = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants'
-soln_idx_path = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants/2024_03_2_generator_parameters_China_0.1_updating_plant_list.xlsx'
+model_inputs_dir = 'S:/China/2024_China_EFC/01_InputData/01_GeneratorParameters/APS_2030' # raw model inputs for VOM, FOM, ramp costs and CAPEX
+model_dir = 'S:/China/2024_China_EFC/'
+soln_idx_path = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants/2024_03_2_generator_parameters_China_0.2_auto_soln_idx.xlsx'
 
 [model]
-soln_choice = 'first_runs'
+soln_choice = 'test_v1'
 
 [settings]
-geo_cols = ['Region', 'Subregion']
+geo_cols = ['Region'] # Only using one region/subregion grouping. This can be modified later to, for eg, include Zones or what not
 reg_ts = true
 
 [run]

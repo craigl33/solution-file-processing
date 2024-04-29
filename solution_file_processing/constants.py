@@ -126,6 +126,16 @@ PRETTY_MODEL_NAMES = {
     "THA22_2037plus_EVFlex50_Batt_NoTOP_PPflex": '2037 VRE Plus + Sto + EV50 + ContrFlex',
     "THA22_2037plus_EVFlex50_Batt_PPflex": '2037 VRE Plus + Sto + EV50',
 
+    ##########
+
+    'UKR_2021_Validation' : '2021 (Validation)',
+    'UKR_2023_Base_DamagedTx' : '2023 (Damage validation)',
+    'UKR_2023_w_Load2021_DamagedTx' : '2023 with 2021 historical demand',
+    'UKR_2025_BAU_DamagedTx' : '2025 (NZW BAU demand)',
+    'UKR_2030_IR_Load-BAU_LT_ST_SolGas_CO2' : '2030 (NZW BAU demand)',
+    'UKR_2030_IR_Load-BR_ST_LT_SolGas_CO2' : '2030 (NZW BR demand)',
+    'UKR_2030_Load-BR_2021_Cap_ST_LT_SolGas_CO2' : '2030 (NZW BR demand) w/ 2021 capacity'
+
 }
 
 FILTER_OUT_OBJS = ['constraints', 'contingencyreserves_regions', 'decisionvariables', 'storages', 'timeslices',

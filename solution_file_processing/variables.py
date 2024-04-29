@@ -327,24 +327,24 @@ class Variables:
         TODO DOCSTRING
         """
         gen_units_gen = self.c.o.gen_df[self.c.o.gen_df.property == 'Units Generating'] \
-            .groupby(['model', 'name', 'timestamp']) \
+            .groupby(['model', 'PLEXOSname', 'timestamp']) \
             .agg({'value': 'sum'}) \
             .compute()
 
         gen_units = self.c.o.gen_df[self.c.o.gen_df.property == 'Units'] \
-            .groupby(['model', 'name', 'timestamp']) \
+            .groupby(['model', 'PLEXOSname', 'timestamp']) \
             .agg({'value': 'sum'}) \
             .compute()
 
         # Take only the sum to maintain the capacity value & inertia constant in the dataframe
         gen_cap = self.c.o.gen_df[self.c.o.gen_df.property == 'Installed Capacity'] \
-            .groupby(['model', 'name', 'timestamp']) \
+            .groupby(['model', 'PLEXOSname', 'timestamp']) \
             .agg({'value': 'sum'}) \
             .compute()
 
         gen_cap = pd.merge(gen_cap.reset_index(),
-                           self.c.soln_idx[['name', 'InertiaLOW', 'InertiaHI']], on='name', how='left') \
-            .set_index(['model', 'name', 'timestamp'])
+                           self.c.soln_idx[['PLEXOSname', 'InertiaLOW', 'InertiaHI']], on='PLEXOSname', how='left') \
+            .set_index(['model', 'PLEXOSname', 'timestamp'])
 
         #  As installed capacity is [Units] * [Max Capacity], we must calculate the unit capacity
         gen_inertia_lo = (gen_units_gen.value / gen_units.value) * (gen_cap.value * gen_cap.InertiaLOW)
@@ -355,28 +355,24 @@ class Variables:
                                left_index=True,
                                right_index=True)
 
-        try:
-            gen_inertia = pd.merge(gen_inertia.reset_index(),
-                                   self.c.soln_idx[
-                                       ['name', 'Island', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
-                                   on='name')
-        except KeyError:
-            gen_inertia = pd.merge(gen_inertia.reset_index(),
-                                   self.c.soln_idx[
-                                       ['name', 'Region', 'Subregion', 'Category', 'CapacityCategory']],
-                                   on='name')
+        
+        gen_inertia = pd.merge(gen_inertia.reset_index(),
+                                self.c.soln_idx[
+                                    ['PLEXOSname'] + self.c.GEO_COLS + ['Category', 'CapacityCategory']],
+                                on='PLEXOSname')
 
         df = gen_inertia
 
         return df
+    
 
     @property
     @memory_cache
     def model_names(self):
         """"
-        TODO DOCSTRING
+        Model names as per the generator annual object. 
         """
-        model_names = list(np.sort(self.c.o.reg_df.model.drop_duplicates()))
+        model_names = list(np.sort(self.c.o.gen_yr_df.model.drop_duplicates()))
         return model_names
 
     @property
@@ -445,18 +441,18 @@ class Variables:
 
     @property
     @memory_cache
-    def gen_cap_costTech_reg(self):
+    def gen_cap_plexos_tech_reg(self):
         """
         TODO DOCSTRING
         """
         # For Capex calcs
-        gen_cap_costTech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
-            .groupby(['model'] + self.c.GEO_COLS + ['CostCategory']) \
+        gen_cap_plexos_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['PLEXOS technology']) \
             .agg({'value': 'sum'}) \
             .value \
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0)
-        return gen_cap_costTech_reg
+        return gen_cap_plexos_tech_reg
 
     @property
     @memory_cache
@@ -769,12 +765,12 @@ class Variables:
         # Ramp costs by reg in USDm
         # Calculated outside of PLEXOS as these are not costed into the optimisation
         # As DASK DFs cannot be multiindex, we need to proceed carefully with the following gen_by_name_calculation
-        ramp_by_gen_name = gen_by_name_ts[ ['model', 'name'] + self.c.GEO_COLS + ['Category', 'property', 'value']]
+        ramp_by_gen_name = gen_by_name_ts[ ['model', 'PLEXOSname'] + self.c.GEO_COLS + ['Category', 'property', 'value']]
         ramp_by_gen_name = ramp_by_gen_name.assign(value=ramp_by_gen_name.value - ramp_by_gen_name.value.shift(1))
         ramp_by_gen_name = ramp_by_gen_name.assign(property = 'Ramp')
 
-        ramp_costs_by_gen_name = dd.merge(ramp_by_gen_name, self.c.soln_idx[['name', 'RampCost']],
-                                            on='name',
+        ramp_costs_by_gen_name = dd.merge(ramp_by_gen_name, self.c.soln_idx[['PLEXOSname', 'RampCost']],
+                                            on='PLEXOSname',
                                             how='left')
 
         ramp_costs_by_gen_name = ramp_costs_by_gen_name.assign(value = ramp_costs_by_gen_name.value.abs() * ramp_costs_by_gen_name.RampCost.fillna(0))
@@ -880,7 +876,8 @@ class Variables:
 
         """
 
-        # todo this needs improvements, this is different implemented in outputs 3 and output 12 (summary)
+        # Currently not used. But need to figure out how to make this calculation work for all 
+        # models using the TOML file
 
         gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         gen_by_tech_reg_orig = gen_by_tech_reg.copy()  # For not seperating cofiring. good for CF comparison
@@ -911,7 +908,8 @@ class Variables:
         """"
         TODO DOCSTRING
         """
-        gen_by_tech_reg, _ = self._get_cofiring_generation()
+        # _, gen_by_tech_reg_orig = self._get_cofiring_generation()
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         gen_by_tech_reg = (gen_by_tech_reg
                            .groupby(['model'] + self.c.GEO_COLS + ['Category'])
                            .agg({'value': 'sum'})
@@ -926,7 +924,8 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        _, gen_by_tech_reg_orig = self._get_cofiring_generation()
+        # _, gen_by_tech_reg_orig = self._get_cofiring_generation()
+        gen_by_tech_reg_orig = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         gen_by_tech_reg_orig = (gen_by_tech_reg_orig
                                 .groupby(['model'] + self.c.GEO_COLS + ['Category'])
                                 .agg({'value': 'sum'})
@@ -935,34 +934,35 @@ class Variables:
                                 .fillna(0))
         return gen_by_tech_reg_orig
 
-    @property
-    @memory_cache
-    def gen_by_costTech_reg(self):
-        """
-        TODO DOCSTRING
-        """
-        gen_by_tech_reg, _ = self._get_cofiring_generation()
-        gen_by_costTech_reg = (gen_by_tech_reg
-                               .groupby(['model'] + self.c.GEO_COLS + ['CostCategory'])
-                               .agg({'value': 'sum'})
-                               .value
-                               .unstack(level=self.c.GEO_COLS)
-                               .fillna(0))
-        return gen_by_costTech_reg
+    # @property
+    # @memory_cache
+    # def gen_by_costTech_reg(self):
+    #     """
+    #     TODO DOCSTRING
+    #     """
+    #     # gen_by_tech_reg, _ = self._get_cofiring_generation()
+    #     gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+    #     gen_by_costTech_reg = (gen_by_tech_reg
+    #                            .groupby(['model'] + self.c.GEO_COLS + ['CostCategory'])
+    #                            .agg({'value': 'sum'})
+    #                            .value
+    #                            .unstack(level=self.c.GEO_COLS)
+    #                            .fillna(0))
+    #     return gen_by_costTech_reg
 
     @property
     @memory_cache
-    def gen_by_weoTech_reg(self):
+    def gen_by_plexos_tech_reg(self):
         """
         TODO DOCSTRING
         """
-        gen_by_weoTech_reg = (self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
-                              .groupby(['model'] + self.c.GEO_COLS + ['WEO_Tech_simpl'])
+        gen_by_plexos_tech_reg = (self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
+                              .groupby(['model'] + self.c.GEO_COLS + ['PLEXOS technology'])
                               .agg({'value': 'sum'})
                               .value
                               .unstack(level=self.c.GEO_COLS)
                               .fillna(0))
-        return gen_by_weoTech_reg
+        return gen_by_plexos_tech_reg
 
     @property
     @memory_cache
@@ -970,9 +970,10 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        gen_by_tech_reg, _ = self._get_cofiring_generation()
+        # gen_by_tech_reg, _ = self._get_cofiring_generation()
+        gen_by_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Generation']
         gen_by_plant = (gen_by_tech_reg
-                        .groupby(['model', 'name'])
+                        .groupby(['model', 'PLEXOSname'])
                         .agg({'value': 'sum'})
                         .value
                         .unstack(level='model')
@@ -1128,7 +1129,7 @@ class Variables:
         TODO DOCSTRING
         """
         tx_losses = self.c.o.line_yr_df[self.c.o.line_yr_df.property == 'Loss'] \
-            .groupby(['model', 'timestamp', 'name']) \
+            .groupby(['model', 'timestamp', 'PLEXOSname']) \
             .agg({'value': 'sum'})
         return tx_losses
 
@@ -1256,7 +1257,7 @@ class Variables:
         TODO DOCSTRING
         """
         fuel_by_type = self.c.o.fuel_yr_df[(self.c.o.fuel_yr_df.property == 'Offtake')] \
-            .groupby(['model'] + self.c.GEO_COLS + ['Type']) \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
             .agg({'value': 'sum'})
      
         
@@ -1271,7 +1272,7 @@ class Variables:
         """
         co2_by_fuel_reg = self.c.o.em_fuel_yr_df[self.c.o.em_fuel_yr_df.parent.str.contains('CO2') &
                                            (self.c.o.em_fuel_yr_df.property == 'Production')] \
-            .groupby(['model'] + self.c.GEO_COLS + ['Type']) \
+            .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
             .agg({'value': 'sum'})
 
         return co2_by_fuel_reg
