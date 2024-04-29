@@ -277,7 +277,7 @@ def create_output_11(c):
     Creates following output files:
     - 11a_cap_by_tech_reg.csv
     - 11b_gen_cap_by_subtech_reg.csv
-    - 11c_gen_cap_by_costTech_reg.csv
+    - 11c_gen_cap_plexos_tech_reg.csv
     - 11d_gen_cap_by_weoTech_reg.csv
     - 11d_gen_cap_w_IPPs_by_tech_reg.csv
     """
@@ -297,17 +297,17 @@ def create_output_11(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11b_gen_cap_by_subtech_reg.csv'), index=False)
-    c.v.gen_cap_costTech_reg \
+    c.v.gen_cap_plexos_tech_reg \
         .stack(c.GEO_COLS) \
         .rename('value') \
         .to_frame() \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_by_costTech_reg.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '11c_gen_cap_plexos_tech_reg.csv'), index=False)
 
     print('Created file 11a_cap_by_tech_reg.csv.')
     print('Created file 11b_gen_cap_by_subtech_reg.csv.')
-    print('Created file 11c_gen_cap_by_costTech_reg.csv.')
+    print('Created file 11c_gen_cap_by_plexos_tech_reg.csv.')
 
 
 @catch_errors
