@@ -291,7 +291,9 @@ class Variables:
         ### Define model regs in multi-level format
         ### This could be done when calculating the vre_gen and av stuff too
         model_regs_multi = self.model_regs_multi
-        model_regs_multi = pd.MultiIndex.from_tuples([[i for i in x if i != 'value'] for x in model_regs_multi])
+        ## Convert model regions to multi-index if there are multiple levels (i.e. region, subregion, etc.)
+        if len(self.c.GEO_COLS) > 1:
+            model_regs_multi = pd.MultiIndex.from_tuples([[i for i in x if i != 'value'] for x in model_regs_multi])
 
         vre_av_reg_abs_ts = self.vre_av_reg_abs_ts
         vre_gen_reg_abs_ts = self.vre_gen_reg_abs_ts
@@ -1453,6 +1455,196 @@ class Variables:
             .fillna(0)
         re_curtailed_ts = pd.concat([self.vre_curtailed_ts, min_energy_vio_tech_ts])
         return re_curtailed_ts
+    
+    @property
+    @memory_cache
+    def ev_profiles_ts(self):
+        """
+        EV load profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+        
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+
+        if purch_df.shape[0] > 0:
+            ev_profiles_ts = purch_df[
+                purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(
+                ['model', 'timestamp']).sum()
+            if not ev_profiles_ts.shape[0] == 0: 
+                ev_profiles_ts = (ev_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                ['model', 'timestamp'])
+            else:
+                ev_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        else:
+            ev_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        return ev_profiles_ts
+            
+    @property
+    @memory_cache
+    def ev_profiles_orig_ts(self):
+        """
+        EV original load profiles before shifting. This uses the [x] property on the Purchaser object to get the original profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+        
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+
+        if purch_df.shape[0] > 0:
+            ev_profiles_orig_ts = purch_df[
+                purch_df.name.str.contains('_EV') & (purch_df.property == 'x')].groupby(
+                ['model', 'timestamp']).sum()
+            if not ev_profiles_orig_ts.shape[0] == 0:
+                ev_profiles_orig_ts = (ev_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack(
+                    'model').reorder_levels(['model', 'timestamp'])
+            else:
+                ev_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                        index=self.c.v.customer_load_ts.index).rename('value')
+        else:
+            ev_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                        index=self.c.v.customer_load_ts.index).rename('value')
+            
+        return ev_profiles_orig_ts
+    
+
+    @property
+    @memory_cache
+    def dsm_profiles_ts(self):
+        """
+        DSM profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+        
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+
+        if purch_df.shape[0] > 0:
+            dsm_profiles_ts = purch_df[
+                purch_df.name.str.contains('_Shift') & (purch_df.property == 'Load')].groupby(
+                ['model', 'timestamp']).sum()
+            if not dsm_profiles_ts.shape[0] == 0:
+                dsm_profiles_ts = (dsm_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp'])
+            else:
+                dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')   
+        else:
+            dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        return dsm_profiles_ts
+    
+    @property
+    @memory_cache
+    def dsm_profiles_orig_ts(self):
+        """
+        DSM profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+
+        if purch_df.shape[0] > 0:
+            dsm_profiles_orig_ts = purch_df[
+                purch_df.name.str.contains('_Shift') & (purch_df.property == 'x')].groupby(
+                ['model', 'timestamp']).sum()
+            if not dsm_profiles_orig_ts.shape[0] == 0:
+                dsm_profiles_orig_ts = (dsm_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp'])
+            else:
+                dsm_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        else:
+            dsm_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        return dsm_profiles_orig_ts
+    
+    @property
+    @memory_cache
+    def electrolyser_profiles_ts(self):
+        """
+        Electrolyser profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+        
+        if purch_df.shape[0] > 0:
+            electrolyser_profiles_ts = purch_df[
+                purch_df.name.str.contains('_Elec') & (purch_df.property == 'Load')].groupby(
+                ['model', 'timestamp']).sum()
+            if not electrolyser_profiles_ts.shape[0] == 0:
+                electrolyser_profiles_ts = (electrolyser_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp'])
+            else:
+                electrolyser_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')   
+        else:
+            electrolyser_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        return electrolyser_profiles_ts
+    
+    @property
+    @memory_cache
+    def electrolyser_profiles_orig_ts(self):
+        """
+        DSM profiles
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+
+        try:
+            purch_df = self.c.o.purch_df.compute()
+        except ValueError:
+            purch_df = pd.DataFrame(None)
+        
+        if purch_df.shape[0] > 0:
+            electrolyser_profiles_orig_ts = purch_df[
+                purch_df.name.str.contains('_Elec') & (purch_df.property == 'x')].groupby(
+                ['model', 'timestamp']).sum()
+            if not electrolyser_profiles_orig_ts.shape[0] == 0:
+                electrolyser_profiles_orig_ts = (electrolyser_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp'])
+            else:
+                electrolyser_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        else:
+            electrolyser_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index).rename('value')
+        return electrolyser_profiles_orig_ts
+
+
 
     @property
     @memory_cache
@@ -1462,54 +1654,14 @@ class Variables:
         """
         # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
         # Series with indices matching the columns of the DF for filling in missing columns
-        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
-        try:
-            purch_df = self.c.o.purch_df.compute()
-        except ValueError:
-            purch_df = pd.DataFrame(None)
 
-        if purch_df.shape[0] > 0:
-            ev_profiles_ts = purch_df[
-                purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum().value
-            ev_profiles_orig_ts = purch_df[
-                purch_df.name.str.contains('_EV') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum().value
-            if not ev_profiles_ts.shape[0] == 0:
-                ev_profiles_orig_ts = (ev_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                    'model').reorder_levels(['model', 'timestamp'])
 
-            dsm_profiles_ts = purch_df[
-                purch_df.name.str.contains('_Shift') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum().value
-            dsm_profiles_orig_ts = purch_df[
-                purch_df.name.str.contains('_Shift') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum().value
-            if not dsm_profiles_ts.shape[0] == 0:
-                dsm_profiles_orig_ts = (dsm_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                    'model').reorder_levels(['model', 'timestamp'])
+        native_load_ts = self.c.o.node_df[self.c.o.node_df.property == 'Native Load'].groupby(
+            ['model', 'timestamp']).sum().value.compute()
 
-            electr_profiles_ts = purch_df[
-                purch_df.name.str.contains('_Elec') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum().value
-            electr_profiles_orig_ts = purch_df[
-                purch_df.name.str.contains('_Elec') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum().value
-            if electr_profiles_ts.shape[0] == 0:
-                electr_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                                    index=self.c.v.customer_load_ts.index)
-            else:
-                electr_profiles_orig_ts = (electr_profiles_orig_ts.unstack('model') * model_filler).fillna(0).stack(
-                    'model').reorder_levels(['model', 'timestamp'])
-
-            native_load_ts = self.c.o.node_df[self.c.o.node_df.property == 'Native Load'].groupby(
-                ['model', 'timestamp']).sum().value.compute()
-
-            customer_load_orig_ts = (
-                    native_load_ts + ev_profiles_orig_ts + dsm_profiles_orig_ts + electr_profiles_orig_ts)
+        customer_load_orig_ts = (
+                native_load_ts + self.ev_profiles_orig_ts + self.dsm_profiles_orig_ts + self.electrolyser_profiles_orig_ts)
             # .fillna(customer_load_ts) ### For those profiles where EVs are missing, for e.g. ... other DSM to be added
-        else:
-            customer_load_orig_ts = self.c.v.customer_load_ts
 
         return customer_load_orig_ts
 
@@ -1523,7 +1675,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_curtail_ts = pd.DataFrame(
-            self.c.v.customer_load_ts['value'] - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
+            self.c.v.customer_load_ts - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_curtail_ts
 
     @property
@@ -1535,7 +1687,7 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_orig_ts = pd.DataFrame(
-            self.customer_load_orig_ts['value'] - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
+            self.customer_load_orig_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_orig_ts
 
     @property
