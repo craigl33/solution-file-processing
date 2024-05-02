@@ -555,64 +555,51 @@ def create_output_7(c):
     print("Creating interval output 7...")
 
     nl_max_dly_reg = c.v.net_load_reg_ts \
-        .groupby('Region', axis=1) \
+        .groupby(c.GEO_COLS[0], axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
-    nl_max_dly_subreg = c.v.net_load_reg_ts \
-        .groupby('Subregion', axis=1) \
+    
+    nl_min_dly_reg = c.v.net_load_reg_ts \
+        .groupby(c.GEO_COLS[0], axis=1) \
         .sum() \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .max()
-    try:
-        nl_max_dly_isl = c.v.net_load_reg_ts \
-            .groupby('Island', axis=1) \
+        .min()
+    
+    nl_dly_gap_reg = nl_max_dly_reg - nl_min_dly_reg
+    nl_dly_gap_reg_pc = (nl_max_dly_reg - nl_min_dly_reg) / nl_max_dly_reg
+    
+    if len(c.GEO_COLS) > 1:
+        nl_max_dly_subreg = c.v.net_load_reg_ts \
+            .groupby(c.GEO_COLS[1], axis=1) \
             .sum() \
             .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
             .max()
-    except KeyError:
-        nl_max_dly_isl = c.v.net_load_reg_ts \
-            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-            .max()
+        nl_min_dly_subreg = c.v.net_load_reg_ts \
+        .groupby('Subregion', axis=1) \
+        .sum() \
+        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
+        .min()
+        nl_dly_gap_subreg = nl_max_dly_subreg - nl_min_dly_subreg
+        nl_dly_gap_subreg_pc = (nl_max_dly_subreg - nl_min_dly_subreg) / nl_max_dly_subreg
+    else:
+        nl_max_dly_subreg = pd.DataFrame(None)
+        nl_min_dly_subreg = pd.DataFrame(None)
+        nl_dly_gap_subreg = pd.DataFrame(None)
+        nl_dly_gap_subreg_pc = pd.DataFrame(None)
+
     nl_max_dly = c.v.net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .max()
 
-    nl_min_dly_reg = c.v.net_load_reg_ts \
-        .groupby('Region', axis=1) \
-        .sum() \
-        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .min()
-    nl_min_dly_subreg = c.v.net_load_reg_ts \
-        .groupby('Subregion', axis=1) \
-        .sum() \
-        .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-        .min()
-    try:
-        nl_min_dly_isl = c.v.net_load_reg_ts \
-            .groupby('Island', axis=1) \
-            .sum() \
-            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-            .min()
-    except KeyError:
-        nl_min_dly_isl = c.v.net_load_reg_ts \
-            .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
-            .min()
-
     nl_min_dly = c.v.net_load_reg_ts \
         .sum(axis=1) \
         .groupby(['model', pd.Grouper(level='timestamp', freq='D')]) \
         .min()
-
-    nl_dly_gap_reg = nl_max_dly_reg - nl_min_dly_reg
-    nl_dly_gap_subreg = nl_max_dly_subreg - nl_min_dly_subreg
-    nl_dly_gap_isl = nl_max_dly_isl - nl_min_dly_isl
+    
     nl_dly_gap = nl_max_dly - nl_min_dly
 
-    nl_dly_gap_reg_pc = (nl_max_dly_reg - nl_min_dly_reg) / nl_max_dly_reg
-    nl_dly_gap_subreg_pc = (nl_max_dly_subreg - nl_min_dly_subreg) / nl_max_dly_subreg
-    nl_dly_gap_isl_pc = (nl_max_dly_isl - nl_min_dly_isl) / nl_max_dly_isl
     nl_dly_gap_pc = (nl_max_dly - nl_min_dly) / nl_max_dly
 
     nl_dly_gap_reg \
@@ -623,39 +610,29 @@ def create_output_7(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07b_dly_gap_subreg.csv'), index=False)
-    nl_dly_gap_isl \
-        .assign(units='MW') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07c_dly_gap_isl.csv'), index=False)
     nl_dly_gap \
         .reset_index() \
         .assign(units='MW') \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07d_dly_gap.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07c_dly_gap.csv'), index=False)
     nl_dly_gap_reg_pc \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07e_dly_gap_reg_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07d_dly_gap_reg_pc.csv'), index=False)
     nl_dly_gap_subreg_pc \
         .assign(units='MW') \
         .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07f_dly_gap_subreg_pc.csv'), index=False)
-    nl_dly_gap_isl_pc \
-        .assign(units='MW') \
-        .reset_index() \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07g_dly_gap_isl_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07e_dly_gap_subreg_pc.csv'), index=False)
     nl_dly_gap_pc \
         .reset_index() \
         .assign(units='MW') \
-        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07h_dly_gap_pc.csv'), index=False)
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '07f_dly_gap_pc.csv'), index=False)
 
     print('Created file 07a_dly_gap_reg.csv.')
     print('Created file 07b_dly_gap_subreg.csv.')
-    print('Created file 07c_dly_gap_isl.csv.')
-    print('Created file 07d_dly_gap.csv.')
-    print('Created file 07e_dly_gap_reg_pc.csv.')
-    print('Created file 07f_dly_gap_subreg_pc.csv.')
-    print('Created file 07g_dly_gap_isl_pc.csv.')
-    print('Created file 07h_dly_gap_pc.csv.')
+    print('Created file 07c_dly_gap.csv.')
+    print('Created file 07d_dly_gap_reg_pc.csv.')
+    print('Created file 07e_dly_gap_subreg_pc.csv.')
+    print('Created file 07f_dly_gap_pc.csv.')
 
 
 @catch_errors

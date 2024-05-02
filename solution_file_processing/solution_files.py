@@ -13,7 +13,7 @@ from h5plexos.query import PLEXOSSolution
 import math
 
 from .utils.utils import get_files, enrich_df, silence_prints
-from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
+from .constants import FILTER_PROPS, PRETTY_MODEL_NAMES
 from solution_file_processing.objects import Objects
 from solution_file_processing.variables import Variables
 from . import log

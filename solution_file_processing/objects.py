@@ -81,7 +81,7 @@ class Objects:
             return x
 
         try:
-            _df['WEO_Tech_simpl'] = _df['WEO tech'].map(_clean_weo_tech)
+            _df['WEO_Tech_simpl'] = _df['WEO_tech'].map(_clean_weo_tech)
         except KeyError:
             print("No WEO tech column")
 
@@ -216,7 +216,7 @@ class Objects:
         _df = _df.drop(columns=['Cofiring', 'CofiringCategory'], errors='ignore')
         # Only add cofiring columns if they exist in soln_idx
         if 'Cofiring' in self.c.soln_idx.columns and 'CofiringCategory' in self.c.soln_idx.columns:
-            _df = dd.merge(_df, self.c.soln_idx[['name', 'Cofiring', 'CofiringCategory']], on='name', how='left')
+            _df = dd.merge(_df, self.c.soln_idx[['PLEXOSname', 'Cofiring', 'CofiringCategory']], on='PLEXOSname', how='left')
             cofiring_scens = [c for c in PRETTY_MODEL_NAMES.values() if
                               ('2030' in c) | (c == '2025 Base') | (c == '2025 Enforced Cofiring')]
 

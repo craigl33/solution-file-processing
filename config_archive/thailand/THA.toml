@@ -6,7 +6,7 @@ model_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security'
 soln_idx_path = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/01_Data/01_Generation/20240415_generator_parameters_UKR.xlsx'
 
 [model]
-soln_choice = 'lt_plus_v3'
+soln_choice = 'lt_runs_plus_v2'
 
 [settings]
 geo_cols = ['Region', 'Subregion']

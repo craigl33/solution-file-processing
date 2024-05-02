@@ -90,7 +90,7 @@ def write_xlsx_column(
         writer,
         excel_file=None,
         sheet_name="Sheet1",
-        palette=IEA_CMAP_16,
+        palette=IEA_PALETTE_16,
         subtype="stacked",
         units="",
         total_scatter_col=None,
@@ -116,7 +116,7 @@ def write_xlsx_column(
         writer = pd.ExcelWriter(excel_file, engine="xlsxwriter") # pylint: disable=abstract-class-instantiated
 
     ### Whether we caluclate the scatter col or not. Should probably rename the variable from total_col, as its not always a total
-    if (total_scatter_col != None) & (total_scatter_col not in df.columns):
+    if (total_scatter_col is not None) & (total_scatter_col not in df.columns):
         df.loc[:, total_scatter_col] = df.sum(axis=1)
 
     df.to_excel(writer, sheet_name=sheet_name)

@@ -8,9 +8,9 @@ import pandas as pd
 import numpy as np
 
 from .utils.utils import catch_errors
-from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETTE, IEA_PALETTE_16
+from .utils.write_excel import write_xlsx_column, write_xlsx_stack, STACK_PALETTE, IEA_PALETTE_16, EXTENDED_PALETTE
 # from .utils.write_excel import IEA_CMAP_14, IEA_CMAP_16, IEA_CMAP_D8, IEA_CMAP_L8
-from .constants import VRE_TECHS
+from .constants import VRE_TECHS, PRETTY_MODEL_NAMES
 from .timeseries import create_output_11 as create_ts_output_11
 # from .timeseries import create_output_4 as create_timeseries_output_4
 from . import log
@@ -281,7 +281,10 @@ def create_plot_2(c):
         "line_exports_reg": (c.v.line_imp_exp_reg["Flow"]).unstack("line") / 1000,
         "line_imports_reg": (c.v.line_imp_exp_reg["Flow Back"]).unstack("line") / 1000,
         #              'use_by_reg': use_by_reg.groupby(['model','Region']).sum().unstack(level='Region'),
-        "use_by_reg": c.v.use_by_reg.groupby(level=['model', c.GEO_COLS[0]]).sum()/ 1000,
+        "use_by_reg": c.v.use_by_reg.groupby(level=['model', c.GEO_COLS[0]]) \
+                        .sum() \
+                        .value \
+                        .unstack(c.GEO_COLS[0])/ 1000,
         "gen_by_tech": c.v.gen_by_tech_reg.stack(c.GEO_COLS)
                        .groupby(["model", "Category"])
                        .sum()
@@ -311,30 +314,31 @@ def create_plot_2(c):
                            / 1000,
         "cf_tech": c.v.cf_tech,
         "cf_tech_transposed": c.v.cf_tech.T,
-        "vre_by_reg_byGen": c.v.vre_by_reg,
-        "vre_by_reg_byAv": c.v.vre_av_reg_abs_ts.groupby("model")
-                           .sum()
-                           .groupby(c.GEO_COLS[0], axis=1)
-                           .sum()
-                           / 1000,
-        "re_by_reg": c.v.re_by_reg,
+        "vre_by_reg_byGen": pd.concat([c.v.vre_by_reg, c.v.vre_share.rename('Overall')], axis=1),
+        "vre_by_reg_byAv": pd.concat([c.v.vre_av_by_reg, c.v.vre_av_share.rename('Overall')], axis=1),
+        "re_by_reg": pd.concat([c.v.re_by_reg, c.v.vre_share.rename('Overall')],axis=1),
         "curtailment_rate": c.v.curtailment_rate / 100,
         "re_curtailed_by_tech": c.v.re_curtailment_rate_by_tech,
         ### fuels by type shouldnt be 
-        "fuels_by_type": c.v.fuel_by_type.groupby(["model", c.GEO_COLS[0], "Type"])
+        "fuels_by_type": c.v.fuel_by_type.groupby(["model", "Category"])
                             .sum()
                             .value
-                            .unstack(level="Type")
+                            .unstack(level="Category")
                             .fillna(0),
         #              'fuels_by_subtype': fuel_by_type.groupby(['model', 'Category']).sum().unstack('Category').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
         "co2_by_tech": c.v.co2_by_tech_reg.groupby(["model", "Category"])
                        .sum()
+                       .value
                        .unstack(level="Category")
                        / 1e6,
-        "co2_by_fuels": c.v.co2_by_fuel_reg.groupby(["model", "Type"]).sum().unstack("Type")
+        "co2_by_fuels": c.v.co2_by_fuel_reg.groupby(["model", "Category"])
+                        .sum()
+                        .value
+                        .unstack("Category")
                         / 1e6,
         "co2_by_reg": c.v.co2_by_tech_reg.groupby(["model", c.GEO_COLS[0]])
                       .sum()
+                      .value
                       .unstack(level=c.GEO_COLS[0])
                       / 1e6,
         "co2_intensity_reg": c.v.co2_by_reg.unstack(c.GEO_COLS).groupby(c.GEO_COLS[0], axis=1).sum()
@@ -478,8 +482,15 @@ def create_plot_2(c):
     reg_ids = list(set(c.v.load_by_reg.reset_index()[c.GEO_COLS[0]].values))
     reg_palette = {reg_ids[i]: IEA_PALETTE_16[i] for i in range(len(reg_ids))}
 
+    # Model palette
+    model_ids = list(set(c.v.load_by_reg.reset_index()['model'].values))
+    model_ids = [m for m in PRETTY_MODEL_NAMES if m in model_ids] + [m for m in model_ids if m not in PRETTY_MODEL_NAMES]
+    # Use extended palette so it can have more than 16 variables
+    model_palette = {model_ids[i]: IEA_PALETTE_16[i] for i in range(len(model_ids))}
+
     # Regions and technologies will always be consistent this way. May need to be copied to other parts of the code
-    combined_palette = dict(STACK_PALETTE, **reg_palette)
+    combined_palette = dict(STACK_PALETTE, **reg_palette, **model_palette)
+
 
     with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
         for i, df in plot_cols.items():
@@ -549,21 +560,24 @@ def create_plot_6(c):
 
     gen_op_costs_by_tech = c.v.gen_op_costs_by_reg.groupby(["model", "Category"]) \
         .sum() \
+        .value \
         .unstack("model") \
         .fillna(0)
     
     gen_total_costs_by_reg = c.v.gen_total_costs_by_reg
     gen_total_costs_by_tech = gen_total_costs_by_reg.groupby(["model", "Category"]) \
         .sum() \
+        .value \
         .unstack("model") \
         .fillna(0)
 
     gen_op_costs_by_prop = (
-        c.v.gen_op_costs_by_reg.groupby(["model", "property"]).sum().unstack("model").fillna(0)
+        c.v.gen_op_costs_by_reg.groupby(["model", "property"]).sum().value.unstack("model").fillna(0)
     )
     gen_total_costs_by_prop = (
         c.v.gen_total_costs_by_reg.groupby(["model", "property"])
         .sum()
+        .value
         .unstack("model")
         .fillna(0)
     )

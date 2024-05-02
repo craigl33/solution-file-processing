@@ -12,7 +12,7 @@ config = sfp.SolutionFilesConfig('config_archive/china/CHN.toml')  # e.g. 'confi
 # config.install_dependencies()
 config.convert_solution_files_to_h5()
 
-# # Create summary outputs (stored in output/summary)
+# # # Create summary outputs (stored in output/summary)
 # sfp.summary.create_output_1(config)
 # sfp.summary.create_output_2(config)
 # sfp.summary.create_output_3(config)
@@ -27,7 +27,7 @@ config.convert_solution_files_to_h5()
 # sfp.summary.create_output_12(config)
 # sfp.summary.create_output_13(config)
 
-# # # Create timeseries outputs (stored in output/timeseries)
+# # Create timeseries outputs (stored in output/timeseries)
 # sfp.timeseries.create_output_1(config)
 # sfp.timeseries.create_output_2(config)
 # sfp.timeseries.create_output_3(config)
@@ -42,5 +42,11 @@ config.convert_solution_files_to_h5()
 # sfp.timeseries.create_output_11(config)
 
 
-# # # Create plots (stored in output/plots)
-# # # todo
+# # # # Create plots (stored in output/plots)
+# # # # todo
+# sfp.plots.create_plot_1a(config)
+# sfp.plots.create_plot_1b(config)
+sfp.plots.create_plot_2(config)
+sfp.plots.create_plot_3(config)
+# # # sfp.plots.create_plot_6(config)
+# # # sfp.plots.create_plot_7(config)
