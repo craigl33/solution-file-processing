@@ -6,7 +6,7 @@ main directory and edit it there.
 import solution_file_processing as sfp
 
 # Initialize config with toml file
-config = sfp.SolutionFilesConfig('config_files/ukraine/UKR.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
+config = sfp.SolutionFilesConfig('config_files/ukraine/UKR2.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
 
 # Only when running the first time
 # config.install_dependencies()
@@ -14,15 +14,14 @@ config.convert_solution_files_to_h5()
 
 # # # # Create plots (stored in output/plots)
 
-# sfp.plots.create_plot_2(config)
-sfp.plots.create_plot_2b_ref_plots(config, ref_m='2023')
-sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN')
-
+sfp.plots.create_plot_2(config)
+# sfp.plots.create_plot_2b_ref_plots(config)
 sfp.plots.create_plot_1a(config)
 sfp.plots.create_plot_1b(config)
-# sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN_eSG')
+sfp.plots.create_plot_2b_ref_plots(config, ref_m='2023')
+sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN')
 # sfp.plots.create_plot_3(config)
-sfp.plots.create_plot_6_ldc(config)
+# sfp.plots.create_plot_6_ldc(config)
 
 sfp.plots.create_plot_8_services(config)
 # sfp.plots.create_plot_4_costs(config) #unimplemented

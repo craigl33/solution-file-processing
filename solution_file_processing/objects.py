@@ -42,6 +42,7 @@ class Objects:
     gen_df: Interval generator data
     node_df: Interval node data
     reg_df: Interval region data
+    res_df: Interval reserves data
     res_gen_df: Interval reserves generator data
     purch_df: Interval purchaser data
     zone_df: Zone (National vs foreign zones)
@@ -62,7 +63,7 @@ class Objects:
         _df = self.c.get_processed_object('year', 'generators', return_type='pandas')
 
         try:
-            bat_yr_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+            bat_yr_df = self.batt_yr_df
             _df = pd.concat([_df, bat_yr_df], axis=0)
         except ValueError:
             print("No batteries object exists. Will not be added to generators year dataframe.")
@@ -131,6 +132,20 @@ class Objects:
     @property
     @memory_cache
     @drive_cache('objects')
+    def batt_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+
+        df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+        # Batteries report installed capacity per storage duration (i.e. MWh), so we need to divide by storage duration to get the total installed capacity
+        df['value'] = df.value.where(df.property != 'Installed Capacity', df.value/df.StorageDuration)
+        
+        return df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
     def em_gen_yr_df(self):
         """"
         TODO DOCSTRING
@@ -139,7 +154,8 @@ class Objects:
         df = self.c.get_processed_object('year', 'emissions_generators', return_type='pandas')
 
         return df
-    
+
+
     @property
     @memory_cache
     @drive_cache('objects')
@@ -187,6 +203,32 @@ class Objects:
         """
         df = self.c.get_processed_object('year', 'fuelcontracts', return_type='pandas')
         return df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def res_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+    
+
+        df = self.c.get_processed_object('year', 'reserves', return_type='pandas')     
+
+        return df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def res_df(self):
+        """"
+        TODO DOCSTRING
+        """
+
+        df = self.c.get_processed_object('interval', 'reserves', return_type='pandas')    
+
+        return df
+        
 
     @property
     @memory_cache
@@ -198,8 +240,8 @@ class Objects:
         _df = self.c.get_processed_object('interval', 'generators', return_type='dask')
 
         try:
-            bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
-            _df = dd.concat([_df, bat_df], axis=0)
+            batt_df = self.batt_df
+            _df = dd.concat([_df, batt_df], axis=0)
         except ValueError:
             print("No batteries object exists. Will not be added to generators interval dataframe.")
         ### This error could be handled better 
@@ -243,6 +285,21 @@ class Objects:
             print("No cofiring column in soln_idx. Skipping.")
 
         return _df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def batt_df(self):
+        """"
+        TODO DOCSTRING
+        """
+
+        df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
+        # Batteries report installed capacity per storage duration (i.e. MWh), so we need to divide by storage duration to get the total installed capacity
+
+        df['value'] = df.value.where(df.property != 'Installed Capacity', df.value/df.StorageDuration)
+
+        return df
 
     @property
     @memory_cache
@@ -280,7 +337,46 @@ class Objects:
         except ValueError:
             print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
 
+        # Reserve type is overwritten with the characteristic from the Reserve object as opposed to the Generator object
+        # This method of mapping indices based on properties to membership-based objects could be transferred to other
+        # objects such as Emissions_Generators or Emissions_Fuels, etc as well and simplify the SolutionIndex 
+
+        # This is currently employing 2 different methods based on the slution index. However, this should be changed to
+        # use a common method with a common solution index using the newly defined Type column from the model_indices table
+        # in the plexos_model_setup module
+        try:
+            _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname')['Type'].first())
+        except KeyError:
+            _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname').first().index.str.split('_').str[0])
+
         return _df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def res_gen_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        _df = self.c.get_processed_object('year', 'reserves_generators', return_type='pandas')
+
+        try:
+            bat_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+            _df = pd.concat([_df, bat_df], axis=0)
+        except ValueError:
+            print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
+
+        # Reserve type is overwritten with the characteristic from the Reserve object as opposed to the Generator object
+        # This is currently employing 2 different methods based on the slution index. However, this should be changed to
+        # use a common method with a common solution index using the newly defined Type column from the model_indices table
+        # in the plexos_model_setup module
+        try:
+            _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname')['Type'].first())
+        except KeyError:
+            _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname').first().index.str.split('_').str[0])
+
+        return _df
+
 
     @property
     @memory_cache

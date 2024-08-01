@@ -1,5 +1,7 @@
 """
-TODO DOCSTRING
+Class for outputting timeseries results of the model run. This used to be the main script for calculation of time-series variables, however
+that functtionality has been moved to the Variable class. This script is now used to output the time-series results to csv files, and could be significantly
+simplified, or even discarded in the future.
 """
 
 import os
@@ -266,7 +268,7 @@ def create_output_3(c):
 @catch_errors
 def create_output_4(c):
     """
-    todo not implemented
+    Creates output files per model in /{model}/: for generation costs (OPEX) and LCOE by technology and subtechnology
     """
     print("Creating interval output 4...")
 
@@ -464,19 +466,6 @@ def create_output_4(c):
     print('Created file 04d_gen_total_costs_reg_w_penalty_costs.csv.')
     print('Created file 04e_lcoe_tech_reg.csv.')
     print('Created file 04f_lcoe_tech.csv.')
-
-
-@catch_errors
-def create_output_5(c):
-    """
-    Output 5: to plot undispatched capacity for USE (and maybe other metrics)
-    TODO not implemented
-    """
-
-
-
-    print('Creating interval output 5 is not implemented yet.')
-    return
 
 
 @catch_errors
@@ -726,11 +715,6 @@ def create_output_8ii(c):
 
 
 @catch_errors
-def create_output_9(c):
-    print("Creating interval output 9 not implemented yet.")
-
-
-@catch_errors
 def create_output_10(c):
     """
     ### Output 10: Generation out-of-service
@@ -761,133 +745,9 @@ def create_output_11(c):
     ### This being max avg net load, min avg net load, max net/total load,, min net/total load, max ramp, min inertia
     """
     print("Creating interval output 11...")
-    # Temp get variables
+   
+    # Calculate days of interest
 
-    # 'Value' series needs to be a DataFrame for the multi-index ('value', GEO_COL[0], GEO_COL[1]) to be consistent
-
-
-    # Columns in alphabetical order. 
-    vre_av_reg_abs_ts = c.v.vre_av_reg_abs_ts[c.v.model_regs_multi]
-    ### 
-    vre_gen_reg_abs_ts = c.v.vre_gen_reg_abs_ts[c.v.model_regs_multi]
-
-    vre_regs = c.v.vre_av_reg_abs_ts.columns
-
-    # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
-    # Value is included as the 0-level index which is problematic for 
-    for reg in list(c.v.model_regs_multi):
-        if reg not in vre_regs:
-            print(reg)
-            vre_av_reg_abs_ts.loc[:, reg] = 0
-            vre_gen_reg_abs_ts.loc[:, reg] = 0
-
-
-    vre_curtailed_reg_ts = vre_av_reg_abs_ts - vre_gen_reg_abs_ts
-
-    vre_av_abs_ts = (c.o.gen_df[(c.o.gen_df.property == 'Available Capacity') &
-                                (c.o.gen_df.Category.isin(VRE_TECHS))]
-                     .groupby(['model', 'Category', 'timestamp'])
-                     .sum()
-                     .value
-                     .compute()
-                     .unstack(level='Category')
-                     .fillna(0))
-
-    net_load_ts = pd.DataFrame(
-        c.v.customer_load_ts.value - vre_av_abs_ts.fillna(0).sum(axis=1).groupby(['model', 'timestamp']).sum(),
-        columns=['value'])
-    ramp_ts = (net_load_ts.unstack(level='model') - net_load_ts.unstack(level='model').shift(1)).fillna(
-        0).stack().sort_index(level=1).reset_index().set_index(['model', 'timestamp']).rename(columns={0: 'value'})
-    total_inertia_ts = c.v.gen_inertia.groupby(['model', 'timestamp']).sum()[['InertiaHi', 'InertiaLo']]
-    use_ts = c.o.reg_df[c.o.reg_df.property == 'Unserved Energy'].groupby(['model', 'timestamp']).sum()[['value']]
-    use_dly_ts = (use_ts
-                  .compute()
-                  .groupby([pd.Grouper(level='model'), pd.Grouper(freq='D', level='timestamp')])
-                  .sum()
-                  / 1000)
-
-    # todo c.v.model_names[0] this is just temporary, check if always the same ouput
-
-    net_load_avg = c.v.net_load_ts.unstack(level='model').resample('D').mean().stack().reorder_levels(
-        ['model', 'timestamp'])
-    # Time dataframes done nationally////
-
-    wet_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
-        [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
-    dry_season = c.v.gen_by_tech_ts.loc[pd.IndexSlice[c.v.model_names[0], :]]['Hydro'].groupby(
-        [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
-
-    ##########
-    net_load_avg_max = net_load_avg.groupby(level='model').max().rename(columns={'value': 'net_load_avg_max'})
-    net_load_avg_min = net_load_avg.groupby(level='model').min().rename(columns={'value': 'net_load_avg_min'})
-    net_load_max = c.v.net_load_ts.groupby(level='model').max().rename(columns={'value': 'net_load_max'})
-    net_load_min = c.v.net_load_ts.groupby(level='model').min().rename(columns={'value': 'net_load_min'})
-    net_load_sto_min = c.v.net_load_sto_ts.groupby(level='model').min().rename(columns={'value': 'net_load_sto_min'})
-    curtail_max = vre_curtailed_reg_ts.sum(axis=1).groupby(level='model').max().rename('curtail_max').to_frame()
-
-    net_load_max_wet = c.v.net_load_ts[
-        c.v.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
-        level='model').max().rename(columns={'value': 'net_load_max_wet'})
-    net_load_min_wet = c.v.net_load_ts[
-        c.v.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
-        level='model').min().rename(columns={'value': 'net_load_min_wet'})
-    net_load_max_dry = c.v.net_load_ts[
-        c.v.net_load_ts.index.get_level_values('timestamp').month == dry_season.month].groupby(
-        level='model').max().rename(columns={'value': 'net_load_max_dry'})
-    net_load_min_dry = c.v.net_load_ts[
-        c.v.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
-        level='model').min().rename(columns={'value': 'net_load_min_dry'})
-    total_load_max = c.v.total_load_ts.groupby(level='model').max().rename(
-        columns={'value': 'total_load_max'})
-    total_load_min = c.v.total_load_ts.groupby(level='model').min().rename(
-        columns={'value': 'total_load_min'})
-    ramp_max = ramp_ts.groupby(level='model').max().rename(columns={'value': 'ramp_max'})
-    inertia_min = total_inertia_ts.groupby(level='model').min().drop(columns='InertiaHi').rename(
-        columns={'InertiaLo': 'inertia_min'})
-    use_max = use_ts.compute().groupby(level='model').max().rename(columns={'value': 'use_max'})
-    use_dly_max = use_dly_ts.groupby(level='model').max().rename(columns={'value': 'use_dly_max'})
-
-    # ###########
-    net_load_max['time_nlmax'] = c.v.net_load_ts.unstack(level='model').idxmax().values
-    net_load_min['time_nlmin'] = c.v.net_load_ts.unstack(level='model').idxmin().values
-    net_load_sto_min['time_nlstomin'] = c.v.net_load_sto_ts.unstack(level='model').idxmin().values
-    curtail_max['time_curtailmax'] = vre_curtailed_reg_ts.sum(axis=1).unstack(level='model').idxmax().values
-
-    net_load_max_wet['time_nlmax_wet'] = (
-        c.v.net_load_ts[net_load_ts.index.get_level_values('timestamp').month == wet_season.month]
-        .unstack(level='model')
-        .idxmax()
-        .values)
-    net_load_min_wet['time_nlmin_wet'] = (
-        c.v.net_load_ts[net_load_ts.index.get_level_values('timestamp').month == wet_season.month]
-        .unstack(level='model')
-        .idxmin()
-        .values)
-    net_load_max_dry['time_nlmax_dry'] = (
-        c.v.net_load_ts[net_load_ts.index.get_level_values('timestamp').month == dry_season.month]
-        .unstack(level='model')
-        .idxmax()
-        .values)
-    net_load_min_dry['time_nlmin_dry'] = (
-        c.v.net_load_ts[net_load_ts.index.get_level_values('timestamp').month == dry_season.month]
-        .unstack(level='model')
-        .idxmin()
-        .values)
-    net_load_avg_max['time_nlamax'] = net_load_avg.unstack(level='model').idxmax().values
-    net_load_avg_min['time_nlamin'] = net_load_avg.unstack(level='model').idxmin().values
-    total_load_max['time_tlmax'] = c.v.total_load_ts.unstack(level='model').idxmax().values
-    total_load_min['time_tlmin'] = c.v.total_load_ts.unstack(level='model').idxmin().values
-    ramp_max['time_ramp'] = ramp_ts.unstack(level='model').idxmax().values
-    inertia_min['time_H'] = total_inertia_ts.InertiaLo.unstack(level='model').idxmin().values
-    use_max['time_usemax'] = use_ts.compute().unstack(level='model').idxmax().values
-    use_dly_max['time_usedmax'] = use_dly_ts.unstack(level='model').idxmax().values
-
-    doi_summary = pd.concat(
-        [net_load_max, net_load_min, net_load_sto_min, curtail_max, net_load_avg_max, net_load_avg_min,
-         net_load_max_wet, net_load_min_wet, net_load_max_dry, net_load_min_dry,
-         total_load_max, total_load_min, ramp_max, inertia_min, use_max, use_dly_max],
-        axis=1).stack().unstack(level='model').rename_axis('property', axis=0)
-        
-
-    doi_summary.to_csv(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'), index=True)
+    c.v.doi_summary.to_csv(os.path.join(c.DIR_05_2_TS_OUT, '11a_days_of_interest_summary.csv'), index=True)
     print('Created file 11a_days_of_interest_summary.csv.')
+    

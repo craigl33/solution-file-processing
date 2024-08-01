@@ -8,9 +8,13 @@ import os
 
 from solution_file_processing.constants import VRE_TECHS, CONSTR_TECHS
 from solution_file_processing.timeseries import create_output_11
+from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16
+from .constants import VRE_TECHS, PRETTY_MODEL_NAMES
 
 from solution_file_processing.utils.utils import drive_cache, memory_cache
 from solution_file_processing import log
+
+
 
 print = log.info
 
@@ -55,6 +59,28 @@ class Variables:
 
     def __init__(self, configuration_object):
         self.c = configuration_object
+
+    @property
+    @memory_cache
+    def combined_palette(self):
+        """
+        Returns a combined palette for the plots
+        """
+
+        # would be good to make palettes etc based on the regions for consistency purposes
+        reg_ids = list(set(self.load_by_reg.reset_index()[self.c.GEO_COLS[0]].values))
+        reg_palette = {reg_ids[i]: IEA_PALETTE_16[i] for i in range(len(reg_ids))}
+
+        # Model palette
+        model_ids = [m for m in PRETTY_MODEL_NAMES.values() if m in self.model_names] + [m for m in self.model_names if m not in PRETTY_MODEL_NAMES.values()]
+        # Use extended palette so it can have more than 16 variables
+        model_palette = {model_ids[i]: IEA_PALETTE_16[i] for i in range(len(model_ids))}
+
+        # Regions and technologies will always be consistent this way. May need to be copied to other parts of the code
+        combined_palette = dict(STACK_PALETTE, **reg_palette, **model_palette)
+        
+        return combined_palette
+
 
     @property
     @memory_cache
@@ -135,70 +161,6 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
-                                            (self.c.o.reg_df.property == 'Unserved Energy')]
-                            .groupby(['model', 'timestamp'])
-                            .agg({'value': 'sum'})
-                            .compute())
-        storage_load_ts = self.c.o.reg_df[
-            (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
-            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
-        vre_av_abs_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') & (
-                self.c.o.gen_df.Category.isin(VRE_TECHS))] \
-                            .groupby(['model', 'Category', 'timestamp']) \
-                            .agg({'value': 'sum'}) \
-                            .compute() \
-                            .value \
-                            .unstack(level='Category') \
-                            .fillna(0)
-               
-        ### There is a slight issue with gen_by_tech in the case of key missing technologies (e.g. Storage and Hydro, perhaps others like wind and solar)
-        ### It may be worth using the SolutionIndex itself to try to "fill" these
-        try:
-            storage_gen_ts = self.c.v.gen_by_tech_ts.Storage.rename('value').to_frame()
-        except AttributeError:
-            storage_gen_ts = pd.DataFrame(data={'value':[0]*self.c.v.gen_by_tech_ts.shape[0]}, index=self.c.v.gen_by_tech_ts.index, )
-
-        _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
-            vre_av_abs_ts
-            .fillna(0)
-            .sum(axis=1)
-            .groupby(['model', 'timestamp'])
-            .sum()
-            .rename('value'))
-
-        df = pd.DataFrame(_data,
-                          columns=['value'])
-
-        return df
-    
-    @property
-    @memory_cache
-    def net_load_sto_curtail_ts(self):
-        """
-        TODO DOCSTRING
-        """
-        customer_load_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
-                                            (self.c.o.reg_df.property == 'Unserved Energy')]
-                            .groupby(['model', 'timestamp'])
-                            .agg({'value': 'sum'})
-                            .compute())
-        storage_load_ts = self.c.o.reg_df[
-            (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
-            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
-        vre_gen_abs_ts = self.c.o.gen_df[
-            (self.c.o.gen_df.property == 'Generation') & (
-                self.c.o.gen_df.Category.isin(VRE_TECHS))].groupby(
-            ['model', 'Category', 'timestamp']).agg({'value': 'sum'}).compute().value.unstack(
-            level='Category').fillna(0)
-        D = (self.c.o.gen_df[self.c.o.gen_df.property == 'Generation']
-                          .groupby(['model', 'Category', 'timestamp'])
-                          .agg({'value': 'sum'})
-                          .compute()
-                          .value
-                          .unstack(level='Category')
-                          .fillna(0)
-                          .droplevel(0, axis=1))
         
         ### There is a slight issue with gen_by_tech in the case of key missing technologies (e.g. Storage and Hydro, perhaps others like wind and solar)
         ### It may be worth using the SolutionIndex itself to try to "fill" these
@@ -207,16 +169,41 @@ class Variables:
         except AttributeError:
             storage_gen_ts = pd.DataFrame(data={'value':[0]*self.c.v.gen_by_tech_ts.shape[0]}, index=self.c.v.gen_by_tech_ts.index, )
 
-        _data = customer_load_ts.value.ravel() - storage_gen_ts.value.ravel() + storage_load_ts.value.ravel() - (
-            vre_gen_abs_ts
-            .fillna(0)
-            .sum(axis=1)
-            .groupby(['model', 'timestamp'])
-            .sum()
-            .rename('value'))
+        df = self.customer_load_ts - storage_gen_ts + self.storage_load_ts - self.vre_av_abs_ts.sum(axis=1).rename('value').to_frame()
 
-        df = pd.DataFrame(_data,
-                          columns=['value'])
+        return df
+    
+    @property
+    @memory_cache
+    def storage_load_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        
+        storage_load_ts = self.c.o.reg_df[
+            (self.c.o.reg_df.property == 'Battery Load') | (self.c.o.reg_df.property == 'Pump Load')].groupby(
+            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+        
+        return storage_load_ts
+
+
+    @property
+    @memory_cache
+    def net_load_sto_curtail_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        
+        ### There is a slight issue with gen_by_tech in the case of key missing technologies (e.g. Storage and Hydro, perhaps others like wind and solar)
+        ### It may be worth using the SolutionIndex itself to try to "fill" these
+        try:
+            storage_gen_ts = self.c.v.gen_by_tech_ts.Storage.rename('value').to_frame()
+        except AttributeError:
+            storage_gen_ts = pd.DataFrame(data={'value':[0]*self.c.v.gen_by_tech_ts.shape[0]}, index=self.c.v.gen_by_tech_ts.index, )
+
+        df = self.customer_load_ts - storage_gen_ts + self.storage_load_ts - self.vre_gen_abs_ts.sum(axis=1).rename('value').to_frame()
+
+        
 
         return df
 
@@ -231,8 +218,8 @@ class Variables:
             ## Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and vre_av_ts
         
 
-        customer_load_reg_ts = self.c.o.node_df[(self.c.o.node_df.property == 'Customer Load') |
-                                                (self.c.o.node_df.property == 'Unserved Energy')] \
+        customer_load_reg_ts = self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
+                                                (self.c.o.reg_df.property == 'Unserved Energy')] \
             .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
             .agg({'value': 'sum'}) \
             .compute() \
@@ -455,6 +442,21 @@ class Variables:
             .unstack(level=self.c.GEO_COLS) \
             .fillna(0)
         return gen_cap_plexos_tech_reg
+    
+    @property
+    @memory_cache
+    def gen_cap_plant(self):
+        """
+        TODO DOCSTRING
+        """
+        # For error checking
+        gen_cap_plant = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+            .groupby(['model', 'name']) \
+            .agg({'value': 'sum'}) \
+            .value \
+            .unstack(level='model') \
+            .fillna(0)
+        return gen_cap_plant
 
     @property
     @memory_cache
@@ -860,13 +862,19 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def use_reg_daily_ts(self):
         """"
         TODO DOCSTRING
         """
-        use_reg_daily_ts = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Unserved Energy'] \
-            .groupby(['model'] + self.c.GEO_COLS + [pd.Grouper(key='timestamp', freq='D')]) \
-            .agg({'value': 'sum'})
+        use_reg_daily_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Unserved Energy'] \
+            .groupby(['model'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute()
+        
+        ## This step is done because of  issues with pd.GroupBy objects and Dask
+        use_reg_daily_ts = use_reg_daily_ts.groupby(['model'] + self.c.GEO_COLS +[pd.Grouper(level='timestamp', freq='D')]).agg({'value': 'sum'})
+
         return use_reg_daily_ts
 
     def _get_cofiring_generation(
@@ -1206,6 +1214,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def vre_gen_abs(self):
         """
         TODO DOCSTRING
@@ -1295,6 +1304,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def total_load_ts(self):
         """
         TODO DOCSTRING
@@ -1306,6 +1316,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def use_ts(self):
         """
         TODO DOCSTRING
@@ -1317,6 +1328,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def use_dly_ts(self):
         """
         TODO DOCSTRING
@@ -1342,11 +1354,12 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def load_by_reg_ts(self):
         """
         TODO DOCSTRING
         """
-        load_by_reg_ts = (self.c.o.node_df[self.c.o.node_df.property == 'Load']
+        load_by_reg_ts = (self.c.o.reg_df[self.c.o.reg_df.property == 'Load']
                           .groupby(['model'] + self.c.GEO_COLS + ['timestamp'])
                           .agg({'value': 'sum'})
                           .compute()
@@ -1357,11 +1370,12 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def use_reg_ts(self):
         """
         TODO DOCSTRING
         """
-        use_reg_ts = self.c.o.node_df[self.c.o.node_df.property == 'Unserved Energy'] \
+        use_reg_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Unserved Energy'] \
                                 .groupby( ['model'] + self.c.GEO_COLS + ['timestamp']) \
                                 .agg({'value': 'sum'}) \
                                 .compute() \
@@ -1371,6 +1385,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def gen_by_tech_ts(self):
         """
         TODO DOCSTRING
@@ -1386,6 +1401,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def gen_by_subtech_ts(self):
         """
         TODO DOCSTRING
@@ -1401,11 +1417,16 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def av_cap_by_tech_ts(self):
         """
         TODO DOCSTRING
         """
-        av_cap_by_tech_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Available Capacity'] \
+        # Temporary fix for Battery whereby we use the entire generation capacity as the available capacity
+        # Future iterations should probably only count this if if there is charge in the battery
+        av_cap_by_tech_ts = self.c.o.gen_df[(self.c.o.gen_df.property == 'Available Capacity') | 
+                                            ((self.c.o.gen_df.WEO_tech == 'Battery')&
+                                             (self.c.o.gen_df.property == 'Generation Capacity'))] \
             .groupby(['model', 'Category', 'timestamp']) \
             .agg({'value': 'sum'}) \
             .compute() \
@@ -1416,6 +1437,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def vre_gen_abs_ts(self):
         """
         TODO DOCSTRING
@@ -1432,6 +1454,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def vre_curtailed_ts(self):
         """
         TODO DOCSTRING
@@ -1441,6 +1464,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def re_curtailed_ts(self):
         """
         TODO DOCSTRING
@@ -1458,6 +1482,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def ev_profiles_ts(self):
         """
         EV load profiles
@@ -1478,17 +1503,18 @@ class Variables:
                 ['model', 'timestamp']).sum()
             if not ev_profiles_ts.shape[0] == 0: 
                 ev_profiles_ts = (ev_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                ['model', 'timestamp'])
+                ['model', 'timestamp']).rename('value').to_frame()
             else:
                 ev_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         else:
             ev_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         return ev_profiles_ts
             
     @property
     @memory_cache
+    @drive_cache('variables')
     def ev_profiles_orig_ts(self):
         """
         EV original load profiles before shifting. This uses the [x] property on the Purchaser object to get the original profiles
@@ -1512,16 +1538,17 @@ class Variables:
                     'model').reorder_levels(['model', 'timestamp'])
             else:
                 ev_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                        index=self.c.v.customer_load_ts.index).rename('value')
+                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         else:
             ev_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                        index=self.c.v.customer_load_ts.index).rename('value')
+                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
             
         return ev_profiles_orig_ts
     
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def dsm_profiles_ts(self):
         """
         DSM profiles
@@ -1545,14 +1572,15 @@ class Variables:
                     ['model', 'timestamp'])
             else:
                 dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')   
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()  
         else:
             dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         return dsm_profiles_ts
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def dsm_profiles_orig_ts(self):
         """
         DSM profiles
@@ -1575,15 +1603,16 @@ class Variables:
                 dsm_profiles_orig_ts = (dsm_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
                     ['model', 'timestamp'])
             else:
-                dsm_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                dsm_profiles_orig_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index, columns=['value'])
         else:
-            dsm_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+            dsm_profiles_orig_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index, columns=['value'])
         return dsm_profiles_orig_ts
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def electrolyser_profiles_ts(self):
         """
         Electrolyser profiles
@@ -1607,14 +1636,15 @@ class Variables:
                     ['model', 'timestamp'])
             else:
                 electrolyser_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')   
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         else:
             electrolyser_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         return electrolyser_profiles_ts
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def electrolyser_profiles_orig_ts(self):
         """
         DSM profiles
@@ -1638,16 +1668,32 @@ class Variables:
                     ['model', 'timestamp'])
             else:
                 electrolyser_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         else:
             electrolyser_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
-                                       index=self.c.v.customer_load_ts.index).rename('value')
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         return electrolyser_profiles_orig_ts
-
 
 
     @property
     @memory_cache
+    @drive_cache('variables')
+    def native_load_ts(self):
+        """
+        Calculate native load, which is used for the caluclation of original load profiles with   the 
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+
+
+        native_load_ts = self.c.o.reg_df[(self.c.o.reg_df.property == 'Native Load')|(self.c.o.reg_df.property == 'Unserved Energy')].groupby(
+            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+        
+        return native_load_ts
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
     def customer_load_orig_ts(self):
         """
         TODO DOCSTRING
@@ -1656,11 +1702,9 @@ class Variables:
         # Series with indices matching the columns of the DF for filling in missing columns
 
 
-        native_load_ts = self.c.o.node_df[self.c.o.node_df.property == 'Native Load'].groupby(
-            ['model', 'timestamp']).sum().value.compute()
-
-        customer_load_orig_ts = (
-                native_load_ts + self.ev_profiles_orig_ts + self.dsm_profiles_orig_ts + self.electrolyser_profiles_orig_ts)
+        native_load_ts = self.c.o.reg_df[(self.c.o.reg_df.property == 'Native Load')|(self.c.o.reg_df.property == 'Unserved Energy')].groupby(
+            ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+        customer_load_orig_ts = ( native_load_ts + self.ev_profiles_orig_ts + self.dsm_profiles_orig_ts + self.electrolyser_profiles_orig_ts)
             # .fillna(customer_load_ts) ### For those profiles where EVs are missing, for e.g. ... other DSM to be added
 
         return customer_load_orig_ts
@@ -1668,6 +1712,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def net_load_curtail_ts(self):
         """
         TODO DOCSTRING
@@ -1675,51 +1720,55 @@ class Variables:
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
         net_load_curtail_ts = pd.DataFrame(
-            self.c.v.customer_load_ts - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
+            self.c.v.customer_load_ts.value - self.c.v.vre_gen_abs_ts.fillna(0).sum(axis=1), columns=['value'])
         return net_load_curtail_ts
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def net_load_orig_ts(self):
         """
         TODO DOCSTRING
         """
         #  net_load_ts is calculated as a series (as we obtain load 'value' and some across the x-axis (technologies)
         #  of vre_abs)
-        net_load_orig_ts = pd.DataFrame(
-            self.customer_load_orig_ts - self.c.v.vre_av_abs_ts.fillna(0).sum(axis=1), columns=['value'])
+        net_load_orig_ts = self.customer_load_orig_ts - self.vre_av_abs_ts.sum(axis=1).fillna(0).rename('value').to_frame()
         return net_load_orig_ts
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def inertia_by_tech(self):
         """
         TODO DOCSTRING
         """
-        inertia_by_tech = self.c.v.gen_inertia.groupby(['model', 'Category', 'timestamp']).sum()
+        inertia_by_tech = self.c.v.gen_inertia.groupby(['model', 'Category', 'timestamp']).agg({'InertiaLo':'sum'}).rename({'InertiaLo':'value'}, axis=1)
         return inertia_by_tech
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def inertia_by_reg(self):
         """
         TODO DOCSTRING
         """
         inertia_by_reg = self.c.v.gen_inertia.groupby(
-            ['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']).sum()
+            ['model'] + self.c.cfg['settings']['geo_cols'] + ['timestamp']).agg({'InertiaLo':'sum'}).rename({'InertiaLo':'value'}, axis=1)
         return inertia_by_reg
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def total_inertia_ts(self):
         """
         TODO DOCSTRING
         """
-        total_inertia_ts = self.c.v.gen_inertia.groupby(['model', 'timestamp']).sum()
+        total_inertia_ts = self.c.v.gen_inertia.groupby(['model', 'timestamp']).agg({'InertiaLo':'sum'}).rename({'InertiaLo':'value'}, axis=1)
         return total_inertia_ts
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def ramp_ts(self):
         """
         TODO DOCSTRING
@@ -1736,6 +1785,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def th_ramp_ts(self):
         """
         TODO DOCSTRING
@@ -1748,9 +1798,44 @@ class Variables:
             .set_index(['model', 'timestamp']) \
             .rename(columns={0: 'value'})
         return th_ramp_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def ramp_orig_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        ramp_orig_ts = (self.net_load_orig_ts.unstack(level='model') - self.net_load_orig_ts.unstack(level='model').shift(1)) \
+            .fillna(0) \
+            .stack() \
+            .sort_index(level=1) \
+            .reset_index() \
+            .set_index(['model', 'timestamp']) \
+            .rename(columns={0: 'value'})
+        return ramp_orig_ts
+    
 
     @property
     @memory_cache
+    @drive_cache('variables')
+    def th_ramp_orig_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        th_ramp_orig_ts = (self.net_load_orig_ts.unstack(level='model') - self.net_load_orig_ts.unstack(level='model').shift(3)) \
+            .fillna(0) \
+            .stack() \
+            .sort_index(level=1) \
+            .reset_index() \
+            .set_index(['model', 'timestamp']) \
+            .rename(columns={0: 'value'})
+        return th_ramp_orig_ts
+
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
     def daily_pk_ts(self):
         """
         TODO DOCSTRING
@@ -1782,6 +1867,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def ramp_reg_ts(self):
         """
         TODO DOCSTRING
@@ -1799,6 +1885,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def th_ramp_reg_ts(self):
         """
         TODO DOCSTRING
@@ -1816,6 +1903,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def daily_pk_reg_ts (self):
         """
         TODO DOCSTRING
@@ -1829,6 +1917,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def ramp_reg_pc_ts(self):
         """
         TODO DOCSTRING
@@ -1841,6 +1930,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def th_ramp_reg_pc_ts(self):
         """
         TODO DOCSTRING
@@ -1852,6 +1942,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def ramp_by_gen_tech_ts(self):
         """
         TODO DOCSTRING
@@ -1861,6 +1952,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def ramp_by_gen_subtech_ts(self):
         """
         TODO DOCSTRING
@@ -1870,6 +1962,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def th_ramp_by_gen_tech_ts(self):
         """
         TODO DOCSTRING
@@ -1879,6 +1972,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def th_ramp_by_gen_subtech_ts(self):
         """
         TODO DOCSTRING
@@ -1888,6 +1982,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def gen_out_tech_ts(self):
         """
         TODO DOCSTRING
@@ -1903,6 +1998,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def gen_out_by_type_ts(self):
         """
         TODO DOCSTRING
@@ -1922,7 +2018,7 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        ldc = self.c.v.customer_load_ts.unstack('model')
+        ldc = self.c.v.customer_load_ts.value.unstack('model')
         ldc = pd.DataFrame(np.flipud(np.sort(ldc.values, axis=0)), index=ldc.index, columns=ldc.columns)
         # Index = 0-8760
         ldc = ldc.reset_index(drop=True)
@@ -1949,7 +2045,7 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        nldc = self.c.v.net_load_ts.unstack('model')
+        nldc = self.c.v.net_load_ts.value.unstack('model')
         nldc = pd.DataFrame(np.flipud(np.sort(nldc.values, axis=0)),
                             index=nldc.index, columns=nldc.columns)
         # Index = 0-8760
@@ -1964,7 +2060,7 @@ class Variables:
         TODO DOCSTRING
         still to do
         """
-        nldc_orig = self.c.v.net_load_orig_ts.unstack('model')
+        nldc_orig = self.c.v.net_load_orig_ts.value.unstack('model')
         nldc_orig = pd.DataFrame(np.flipud(np.sort(nldc_orig.values, axis=0)),
                             index=nldc_orig.index, columns=nldc_orig.columns)
         # Index = 0-8760
@@ -1979,7 +2075,7 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        nldc_sto = self.c.v.net_load_sto_ts.unstack('model')
+        nldc_sto = self.c.v.net_load_sto_ts.value.unstack('model')
         nldc_sto = pd.DataFrame(np.flipud(np.sort(nldc_sto.values, axis=0)),
                             index=nldc_sto.index, columns=nldc_sto.columns)
         # Index = 0-8760
@@ -1993,7 +2089,7 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        nldc_curtail = self.c.v.net_load_curtail_ts.unstack('model')
+        nldc_curtail = self.c.v.net_load_curtail_ts.value.unstack('model')
         nldc_curtail = pd.DataFrame(np.flipud(np.sort(nldc_curtail.values, axis=0)),
                             index=nldc_curtail.index, columns=nldc_curtail.columns)
         # Index = 0-8760
@@ -2007,7 +2103,7 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        nldc_sto_curtail = self.c.v.net_load_sto_curtail_ts.unstack('model')
+        nldc_sto_curtail = self.c.v.net_load_sto_curtail_ts.value.unstack('model')
         nldc_sto_curtail = pd.DataFrame(np.flipud(np.sort(nldc_sto_curtail.values, axis=0)),
                             index=nldc_sto_curtail.index, columns=nldc_sto_curtail.columns)
         # Index = 0-8760
@@ -2015,9 +2111,24 @@ class Variables:
         
         return nldc_sto_curtail
     
+    @property
+    @memory_cache
+    def curtailment_dc(self):
+        """
+        Obtains the curtailment duration curve (DC) for the VRE technologies
+        """
+        curtailment_dc = self.vre_curtailed_ts.sum(axis=1).unstack('model')
+        curtailment_dc = pd.DataFrame(np.flipud(np.sort(curtailment_dc.values, axis=0)), 
+                                    index=curtailment_dc.index, columns=curtailment_dc.columns)
+        
+        curtailment_dc = curtailment_dc.reset_index(drop=True)
+        
+        return curtailment_dc
+
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def exports_by_reg_ts(self):
         """
         Time-series dataframe of the exports (+ve) and imports (-ve) between two nodes
@@ -2033,6 +2144,7 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
     def exports_ts(self):
         """
         Time-series dataframe of the exports (+ve) and imports (-ve)  between two nodes, summed over all national nodes.
@@ -2096,9 +2208,10 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def pumpload_reg_ts(self):
-        pumpload_reg_ts = (self.c.o.node_df[(self.c.o.node_df.property == 'Pump Load') |
-                                (self.c.o.node_df.property == 'Battery Load')]
+        pumpload_reg_ts = (self.c.o.reg_df[(self.c.o.reg_df.property == 'Pump Load') |
+                                (self.c.o.reg_df.property == 'Battery Load')]
                     .groupby(['model'] + self.c.GEO_COLS + ['timestamp'])
                     .agg({'value':'sum'})
                     .compute())
@@ -2121,6 +2234,7 @@ class Variables:
 
     @property
     @memory_cache
+    @drive_cache('variables')
     def gen_stack_by_reg(self):
         # -----
         # Get: reg_ids
@@ -2177,7 +2291,7 @@ class Variables:
         # -----
         # Get: use_reg_ts
 
-        use_reg_ts = self.c.o.node_df[self.c.o.node_df.property == 'Unserved Energy'].groupby(
+        use_reg_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Unserved Energy'].groupby(
             ['model'] + self.c.GEO_COLS + ['timestamp']).agg({'value': 'sum'}).compute().unstack(
             level=self.c.GEO_COLS)
 
@@ -2229,4 +2343,255 @@ class Variables:
         
         return gen_stack_by_reg
 
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def undisp_cap_by_tech_reg_ts(self):
+        """
+        Create a variable to debug whether all available capacity is dispatched when there is Unserved Energy at region level
+        """
+
+        av_cap_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Available Capacity'].groupby(
+                        ['model', 'Category', self.c.GEO_COLS[0], 'timestamp']).agg({'value':'sum'}).compute().value.unstack(level='Category').fillna(0)
+
+        gen_by_tech_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Generation'].groupby(
+                            ['model', 'Category', self.c.GEO_COLS[0],'timestamp']).agg({'value':'sum'}).compute().value.unstack(level='Category').fillna(0)
+
+
+        ### Spare capacity by region and technology
+        undisp_cap_by_tech_reg_ts = av_cap_by_tech_reg_ts - gen_by_tech_reg_ts
+        undisp_cap_by_tech_reg_ts = undisp_cap_by_tech_reg_ts.mask(undisp_cap_by_tech_reg_ts < 0, 0)
+
+        return undisp_cap_by_tech_reg_ts
+
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def reserve_reg_ts(self):
+        """
+        Obtain the reserve margin by region in absolute terms (GW)
+        """
+        av_cap_by_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Available Capacity'].groupby(
+                        ['model', self.c.GEO_COLS[0] ,'timestamp']).agg({'value':'sum'}).compute().value.unstack(level=self.c.GEO_COLS[0]).fillna(0)
         
+        ### Name makes no sense
+        reserve_reg_ts = av_cap_by_reg_ts - self.load_by_reg_ts.unstack(level=self.c.GEO_COLS[0]).fillna(0)
+
+        ### Cappacity reserves by region
+        # av_cap_by_reg.columns = [c.replace(' ', '_') for c in av_cap_by_reg.columns]
+        reserve_reg_ts = av_cap_by_reg_ts - self.load_by_reg_ts.unstack(level=self.c.GEO_COLS[0]).fillna(0)
+        
+        return reserve_reg_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def reserve_margin_reg_ts(self):
+        '''
+        Obtain the reserve margin by region in percentage terms
+        '''
+        av_cap_by_reg_ts = self.c.o.gen_df[self.c.o.gen_df.property == 'Available Capacity'].groupby(
+                        ['model', self.c.GEO_COLS[0], 'timestamp']).agg({'value':'sum'}).compute().value.unstack(level=self.c.GEO_COLS[0]).fillna(0)
+        
+        ### Name makes no sense
+        res_by_reg_ts = av_cap_by_reg_ts - self.load_by_reg_ts.unstack(level=self.c.GEO_COLS[0]).fillna(0)
+
+        ### Cappacity reserves by region
+        # av_cap_by_reg.columns = [c.replace(' ', '_') for c in av_cap_by_reg.columns]
+        res_margin_by_reg_ts = res_by_reg_ts/self.load_by_reg_ts.unstack(level=self.c.GEO_COLS[0]).fillna(0)
+
+        return res_margin_by_reg_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def reserve_margin_ts(self):
+        '''
+        Obtain the reserve margin by region in percentage terms
+        '''
+        av_cap_ts = self.av_cap_by_tech_ts.sum(axis=1).rename('value').to_frame()
+        load_ts = self.load_by_reg_ts.groupby(['model', 'timestamp']).agg({'value':'sum'})
+        daily_pk_load_ts = load_ts.groupby([pd.Grouper(level='model'), pd.Grouper(level='timestamp', freq='D')]).max()
+        daily_pk_load_ts = daily_pk_load_ts.reindex(load_ts.index).ffill()
+
+        res_margin_ts = ((av_cap_ts -  load_ts) / daily_pk_load_ts )
+
+
+        return res_margin_ts
+    
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def spinres_av_ts(self):
+        """
+        Obtain the spinning reserve available by region
+        """
+
+        spinres_av_ts = self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Available Response')& (self.c.o.res_gen_df.ResType == 'Spinning')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
+        
+
+        return spinres_av_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def spinres_prov_ts(self):
+        """
+        Obtain the spinning reserve provided by region
+        """
+
+        spinres_prov_ts = self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Provision')& (self.c.o.res_gen_df.ResType == 'Spinning')].groupby(
+                ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
+        
+        return spinres_prov_ts
+
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def regres_av_ts(self):
+        '''
+        Obtain the regulating reserve available by region
+        '''
+
+        regres_av_ts = self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Available Response')& (self.c.o.res_gen_df.ResType == 'Regulating')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
+        
+        return regres_av_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def regres_prov_ts(self):
+        '''
+        Obtain the regulating reserve provided by region
+        '''
+
+        regres_prov_ts = self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Provision') & (self.c.o.res_gen_df.ResType == 'Regulating')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
+        
+        return regres_prov_ts
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def res_shorage_by_type_ts(self):
+        '''
+        Obtain the reserve shortage by region and type
+        '''
+
+        res_shorage_by_type_ts = self.c.o.res_df[self.c.o.res_df.property == 'Shortage']\
+            .groupby(['model','Type','timestamp']) \
+            .agg({'value':'sum'}) \
+            .value \
+            .compute() \
+            .unstack(level='ResType')
+
+        return res_shorage_by_type_ts
+    
+
+    @property
+    @memory_cache
+    def doi_summary(self):
+        """
+        Obtain a summary table of the days of interest
+        """
+
+        net_load_avg = self.net_load_ts.unstack(level='model').resample('D').mean().stack().reorder_levels(
+            ['model', 'timestamp'])
+        # Time dataframes done nationally////
+
+        wet_season = self.gen_by_tech_ts.loc[pd.IndexSlice[self.model_names[0], :]]['Hydro'].groupby(
+            [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
+        dry_season = self.gen_by_tech_ts.loc[pd.IndexSlice[self.model_names[0], :]]['Hydro'].groupby(
+            [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
+
+        ##########
+        net_load_avg_max = net_load_avg.groupby(level='model').max().rename(columns={'value': 'net_load_avg_max'})
+        net_load_avg_min = net_load_avg.groupby(level='model').min().rename(columns={'value': 'net_load_avg_min'})
+        net_load_max = self.net_load_ts.groupby(level='model').max().rename(columns={'value': 'net_load_max'})
+        net_load_min = self.net_load_ts.groupby(level='model').min().rename(columns={'value': 'net_load_min'})
+        net_load_sto_min = self.net_load_sto_ts.groupby(level='model').min().rename(columns={'value': 'net_load_sto_min'})
+        curtail_max = self.vre_curtailed_reg_ts.sum(axis=1).groupby(level='model').max().rename('curtail_max').to_frame()
+
+        net_load_max_wet = self.net_load_ts[
+            self.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
+            level='model').max().rename(columns={'value': 'net_load_max_wet'})
+        net_load_min_wet = self.net_load_ts[
+            self.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
+            level='model').min().rename(columns={'value': 'net_load_min_wet'})
+        net_load_max_dry = self.net_load_ts[
+            self.net_load_ts.index.get_level_values('timestamp').month == dry_season.month].groupby(
+            level='model').max().rename(columns={'value': 'net_load_max_dry'})
+        net_load_min_dry = self.net_load_ts[
+            self.net_load_ts.index.get_level_values('timestamp').month == wet_season.month].groupby(
+            level='model').min().rename(columns={'value': 'net_load_min_dry'})
+        total_load_max = self.total_load_ts.groupby(level='model').max().rename(
+            columns={'value': 'total_load_max'})
+        total_load_min = self.total_load_ts.groupby(level='model').min().rename(
+            columns={'value': 'total_load_min'})
+        ramp_max = self.ramp_ts.groupby(level='model').max().rename(columns={'value': 'ramp_max'})
+        inertia_min = self.total_inertia_ts.groupby(level='model').min().rename(
+            columns={'value': 'inertia_min'})
+        use_max = self.use_ts.groupby(level='model').max().rename(columns={'value': 'use_max'})
+        use_dly_max = self.use_dly_ts.groupby(level='model').max().rename(columns={'value': 'use_dly_max'})
+
+        # ###########
+        net_load_max['time_nlmax'] = self.net_load_ts.value.unstack(level='model').idxmax().values
+        net_load_min['time_nlmin'] = self.net_load_ts.value.unstack(level='model').idxmin().values
+        net_load_sto_min['time_nlstomin'] = self.net_load_sto_ts.value.unstack(level='model').idxmin().values
+        curtail_max['time_curtailmax'] = self.vre_curtailed_reg_ts.sum(axis=1).unstack(level='model').idxmax().values
+
+        net_load_max_wet['time_nlmax_wet'] = (
+            self.net_load_ts[self.net_load_ts.index.get_level_values('timestamp').month == wet_season.month]
+            .unstack(level='model')
+            .idxmax()
+            .values)
+        net_load_min_wet['time_nlmin_wet'] = (
+            self.net_load_ts[self.net_load_ts.index.get_level_values('timestamp').month == wet_season.month]
+            .unstack(level='model')
+            .idxmin()
+            .values)
+        net_load_max_dry['time_nlmax_dry'] = (
+            self.net_load_ts[self.net_load_ts.index.get_level_values('timestamp').month == dry_season.month]
+            .unstack(level='model')
+            .idxmax()
+            .values)
+        net_load_min_dry['time_nlmin_dry'] = (
+            self.net_load_ts[self.net_load_ts.index.get_level_values('timestamp').month == dry_season.month]
+            .unstack(level='model')
+            .idxmin()
+            .values)
+        net_load_avg_max['time_nlamax'] = net_load_avg.unstack(level='model').idxmax().values
+        net_load_avg_min['time_nlamin'] = net_load_avg.unstack(level='model').idxmin().values
+        total_load_max['time_tlmax'] = self.total_load_ts.value.unstack(level='model').idxmax().values
+        total_load_min['time_tlmin'] = self.total_load_ts.value.unstack(level='model').idxmin().values
+        ramp_max['time_ramp'] = self.ramp_ts.value.unstack(level='model').idxmax().values
+        inertia_min['time_H'] = self.total_inertia_ts.value.unstack(level='model').idxmin().values
+        use_max['time_usemax'] = self.use_ts.value.unstack(level='model').idxmax().values
+        use_dly_max['time_usedmax'] = self.use_dly_ts.value.unstack(level='model').idxmax().values
+
+        doi_summary = pd.concat(
+            [net_load_max, net_load_min, net_load_sto_min, curtail_max, net_load_avg_max, net_load_avg_min,
+            net_load_max_wet, net_load_min_wet, net_load_max_dry, net_load_min_dry,
+            total_load_max, total_load_min, ramp_max, inertia_min, use_max, use_dly_max],
+            axis=1).stack().unstack(level='model').rename_axis('property', axis=0)
+
+        return doi_summary
+    
+
+    @property
+    @memory_cache
+    def vre_gen_monthly_ts(self):
+        """
+        Obtain the monthly generation of VRE technologies
+        """
+
+        
+        df = self.c.v.gen_by_tech_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        
+        return df
