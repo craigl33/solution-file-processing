@@ -1,0 +1,31 @@
+# This is a template configuration file with example values. Create a new copy with any name. Do not edit it directly.
+# More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
+
+[path]
+model_inputs_dir = 'S:/China/2024_China_EFC/01_InputData/01_GeneratorParameters/APS_2030' # raw model inputs for VOM, FOM, ramp costs and CAPEX
+model_dir = 'S:/China/2024_China_EFC/'
+soln_idx_path = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants/2024_05_06_generator_parameters_China_0.3_new_splitting_factors.xlsx'
+
+[model]
+soln_choice = 'main_v2'
+
+[settings]
+geo_cols = ['Region'] # Only using one region/subregion grouping. This can be modified later to, for eg, include Zones or what not
+reg_ts = true
+
+[plots]
+load_plots = ['load_by_reg', 'pk_load_by_reg', 'use_by_reg', 'pk_netload_by_reg']
+gen_plots = ['gen_by_tech', 'gen_by_reg', 'net_gen_by_reg', 'vre_by_reg_av', 'curtailment_rate', 'gen_cap_by_reg', 'gen_cap_by_tech', 'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
+other_plots = ['co2_by_tech','co2_by_reg', 'co2_intensity_reg', 'op_costs_by_prop']
+
+
+[run]
+working_dir = 'C:/Users/hart_c/showcase/solution-file-processing'
+log_file_path = 'C:/Users/hart_c/showcase/solution-file-processing/logs/CHN.log'
+log_timestamp = true
+variables_cache = true
+catch_errors = true
+
+[testing]
+#baseline_output_dir = 'S:/China/China proj 2023/05_DataProcessing/2024_03_06_test_processing/'
+#similar_output_dirs = false

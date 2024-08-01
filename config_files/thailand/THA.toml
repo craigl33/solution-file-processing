@@ -1,0 +1,30 @@
+# This is a template configuration file with example values. Create a new copy with any name. Do not edit it directly.
+# More explanation on the settings can be found in the [documentation](docs/Documentation.md### Configuration files)
+
+[path]
+model_dir = 'Y:/Modelling/Thailand/2022-3_next_step_modelling/'
+soln_idx_path = 'Y:/Modelling/Thailand/2022-3_next_step_modelling/01_Data/01_Generation/2023_03_14_generator_parameters_THA.xlsx'
+
+[model]
+soln_choice = '20240506_THA_YearComp_SEA_Batteries'
+
+[settings]
+geo_cols = ['Region', 'Subregion']
+reg_ts = true
+
+[plots]
+load_plots = ['load_by_reg', 'pk_load_by_reg', 'use_by_reg', 'pk_netload_by_reg']
+gen_plots = ['gen_by_tech', 'gen_by_reg', 'net_gen_by_reg', 'vre_by_reg_av', 'curtailment_rate', 'gen_cap_by_reg', 'gen_cap_by_tech', 'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
+other_plots = ['co2_by_tech','co2_by_reg', 'co2_intensity_reg', 'op_costs_by_prop']
+
+
+[run]
+working_dir = 'C:/Users/hart_c/showcase/solution-file-processing'
+log_file_path = 'C:/Users/hart_c/showcase/solution-file-processing/logs/THA.log'
+log_timestamp = true
+variables_cache = true
+catch_errors = true
+
+[testing]
+#baseline_output_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/05_DataProcessing/nzw_plus_v2/'
+#similar_output_dirs = false

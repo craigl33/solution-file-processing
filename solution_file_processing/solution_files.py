@@ -12,10 +12,12 @@ import julia
 from h5plexos.query import PLEXOSSolution
 import math
 
-from .utils.utils import get_files, enrich_df, silence_prints
-from .constants import FILTER_PROPS, PRETTY_MODEL_NAMES
 from solution_file_processing.objects import Objects
 from solution_file_processing.variables import Variables
+from solution_file_processing.plot_dataframes import PlotDataFrames
+from .utils.utils import get_files, enrich_df, silence_prints
+from .constants import FILTER_PROPS, PRETTY_MODEL_NAMES
+
 from . import log
 
 print = log.info
@@ -144,7 +146,12 @@ class SolutionFilesConfig:
 
         self.o = Objects(self)
         self.v = Variables(self)
-
+        self.p = PlotDataFrames(self)
+        
+        # Initialize access to plot configurations
+        self.GEN_PLOTS = self.cfg['plots']['gen_plots']
+        self.LOAD_PLOTS = self.cfg['plots']['load_plots']
+        self.OTHER_PLOTS = self.cfg['plots']['other_plots']
 
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
 
@@ -172,6 +179,9 @@ class SolutionFilesConfig:
 
         jl = Julia(compiled_modules=False)
         jl.using("H5PLEXOS")
+
+        if os.listdir(self.DIR_04_SOLUTION_FILES):
+            print(f'Found {len(os.listdir(self.DIR_04_SOLUTION_FILES))} files in the solution files directory.')
 
         soln_zip_files = [f for f in os.listdir(self.DIR_04_SOLUTION_FILES)
                           if f.endswith('.zip')]
@@ -289,10 +299,10 @@ class SolutionFilesConfig:
 
         # - common_yr
         # todo craig: Can I get the model_yrs info also from other files?
-        model_yrs = self._get_object(timescale='interval', object='regions', return_type='dask') \
+        model_yrs = self._get_object(timescale='year', object='nodes', return_type='pandas') \
             .groupby(['model']) \
             .first() \
-            .timestamp.dt.year.values.compute()
+            .timestamp.dt.year.values
         if len(model_yrs) > 1:
             common_yr = model_yrs[-1]
         else:
@@ -317,6 +327,7 @@ class SolutionFilesConfig:
 
         # Actual processing
         df = self._get_object(timescale=timescale, object=object, return_type=return_type)
+
         if return_type == 'dask':
             df = df.repartition(partition_size="100MB")  # Repartition to most efficient size
 
@@ -342,6 +353,8 @@ class SolutionFilesConfig:
                                    pretty_model_names=PRETTY_MODEL_NAMES)
 
                 # Check if df is empty (faster way for dask, instead of df.empty)
+                # This fails if objects are excluded from the SolutionIndex as they are from an external system.
+                # TODO: Add a new column in SolutionIndex to exclude objects from the output
                 assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
 
                 # Filter out regions with no generation nor load

@@ -166,6 +166,8 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         if isinstance(df, dd.DataFrame):
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
         else:
+            ## Remove leap days if year is a leap year
+            df = df[~((df.timestamp.dt.month==2)&(df.timestamp.dt.day==29))]
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr))
 
     # df.loc[:, 'model'] = df.model.apply(
@@ -186,3 +188,17 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         df = df.map_partitions(_prettify_model_names)
 
     return df
+
+
+def folders_in(path_to_parent):
+    """
+    Function to check whether a folder exists in a given path and return a list of all folders in that path.
+    This could be transferred to a more general library such as riselib or or a general utils library.
+    """
+    subfolders = []
+
+    for fname in os.listdir(path_to_parent):
+        if os.path.isdir(os.path.join(path_to_parent,fname)):
+            subfolders += os.path.join(path_to_parent,fname)
+
+    return subfolders
