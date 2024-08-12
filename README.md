@@ -25,19 +25,19 @@ The SFP package requires julia to be installed and have a few (julia) packages s
 
 **Installing julia**
 - Install julia from the software centre. If errors, submit an IT ticket requesting them to install it. Ensure julia is added to PATH during installation. If not, submit an IT ticket asking for the path to julia.exe to be added to PATH. 
-- Find the julia.exe bin folder by running `where julia.exe` in Windows command prompt, the format is usually `C:\Users\LASTNAME_F\AppData\Local\Programs\Julia\Julia-1.4.2\bin`
+- Find the `julia.exe` bin folder by running `where julia.exe` in Windows command prompt, the format is usually `C:\Users\LASTNAME_F\AppData\Local\Programs\Julia\Julia-1.4.2\bin`
 
 **julia proxies**
 
 Just like python, julia will need to use the corporate proxies. To make sure these work when called from python, add these to a startup file so they are applied each time julia is started. 
-- Find the .julia folder in your user directory, normally `C:\Users\LASTNAME_F\.julia` 
+- Find the `.julia` folder in your user directory, normally `C:\Users\LASTNAME_F\.julia` 
 - If there is a `config` folder with a `startup.jl` file in, add the below proxy commands to the file. 
-- If there is no `config` folder, create it. Add the proxies by adding the commands below to a new file e.g. in Notepad, saving as `startup.jl` in the config folder (ie a .jl file not .txt). 
+- If there is no `config` folder, create it. Add the proxies by adding the commands below to a new file e.g. in Notepad, saving as `startup.jl` in the `config` folder (ie a .jl file not .txt). 
 
     `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"
     ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
 
-- Verify this has worked by opening a new julia terminal and running ENV['HTTP_PROXY'] which should display the IEA proxy address. 
+- Verify this has worked by opening a new julia terminal and running `ENV['HTTP_PROXY']` which should display the IEA proxy address. 
 
 **Registries and packages**
 
