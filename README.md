@@ -38,8 +38,9 @@ Just like python, julia will need to use the corporate proxies. To make sure the
 - If there is a `config` folder with a `startup.jl` file in, add the below proxy commands to the file. 
 - If there is no `config` folder, create it. Add the proxies by adding the commands below to a new file e.g. in Notepad, saving as `startup.jl` in the `config` folder (ie a .jl file not .txt). 
 
-    `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"
-    ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
+    `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"`
+
+    `ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
 
 - Verify this has worked by opening a new julia terminal and running `ENV['HTTP_PROXY']` which should display the IEA proxy address. 
 
