@@ -24,8 +24,12 @@ This package is used to process the PLEXOS solution files. It can be used to una
 The SFP package requires julia to be installed and have a few (julia) packages set up, as well as the python package called julia.
 
 **Installing julia**
-- Install julia from the software centre. If errors, submit an IT ticket requesting them to install it. Ensure julia is added to PATH during installation. If not, submit an IT ticket asking for the path to julia.exe to be added to PATH. 
-- Find the `julia.exe` bin folder by running `where julia.exe` in Windows command prompt, the format is usually `C:\Users\LASTNAME_F\AppData\Local\Programs\Julia\Julia-1.4.2\bin`
+- Install julia from the software centre. If errors, submit an IT ticket requesting them to install it. Add julia to PATH if given the option. 
+- Check whether the path to julia.exe was added to PATH, the format is usually `C:\Users\LASTNAME_F\AppData\Local\Programs\Julia\Julia-1.4.2\bin`. Check by either:
+
+    - Running `where julia` in Windows command prompt. Returns the path to julia.exe if it has been added to PATH
+    - Running `echo %PATH%` in Windows command prompt and checking whether the \bin folder is listed in the result
+- If the path to julia.exe is not in PATH, submit an IT ticket asking for it to be added as doing so requires admin rights.
 
 **julia proxies**
 
