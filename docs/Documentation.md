@@ -165,7 +165,7 @@ The process described in the README should work usually. But in case it does not
    - Pip, Conda and also Julia need the IEA proxy to install packages.
    - For pip: You always have to pass the proxy as an argument: `python -m pip install --proxy http://proxy.iea.org:8080 <package>`
    - For conda: You can set them up globally: `conda config --set proxy_servers.http http://proxy.iea.org:8080` and `conda config --set proxy_servers.https http://proxy.iea.org:8080`
-   - For julia: Open the julia console and run `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"` and `ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
+   - For julia: You can set them globally in the `C:\Users\LASTNAME_F\.julia\config\startup.jl` file as described [here](https://discourse.julialang.org/t/install-packages-behind-the-proxy/23298/3), with the commands `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"` and `ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`. Ensure hidden items are visible in Windows Explorer (`View>Show>Hidden items`), you may have to create the `config` folder and startup file if they don't exist yet. Run `ENV['HTTP_PROXY']` in a new julia terminal to verify proxies are recognised. 
 2. Julia PATH variable
    - Julia needs to be installed on the system, so it can be called from python.
    - If it is installed but python can not find it, it is most likely not in the PATH variable. Add the bin/julia.exe folder to the PATH variable (e.g. `C:\Users\TRIPPE_L\AppData\Local\Programs\Julia\Julia-1.4.2\bin`). See [here](https://www.java.com/en/download/help/path.html) for how se tup a PATH variable in windows.
