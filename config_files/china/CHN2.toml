@@ -7,7 +7,7 @@ model_dir = 'S:/China/2024_China_EFC/'
 soln_idx_path = 'S:/China/2024_China_EFC/01_Data/02_PowerPlants/2024_05_06_generator_parameters_China_0.3_new_splitting_factors.xlsx'
 
 [model]
-soln_choice = 'main_v2'
+soln_choice = 'vpp_scens_v1'
 
 [settings]
 geo_cols = ['Region'] # Only using one region/subregion grouping. This can be modified later to, for eg, include Zones or what not

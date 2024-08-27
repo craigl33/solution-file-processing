@@ -119,6 +119,7 @@ class Variables:
         """"
         TODO DOCSTRING
         """
+
         df = self.c.o.reg_df[(self.c.o.reg_df.property == 'Customer Load') |
                              (self.c.o.reg_df.property == 'Unserved Energy')] \
             .groupby(['model', 'timestamp']) \
@@ -2595,3 +2596,44 @@ class Variables:
                     pd.Grouper(level='timestamp', freq='M')]).sum()/1000
         
         return df
+    
+
+    @property
+    @memory_cache
+    def srmc_reg_ts(self):
+        """
+        Obtain the SRMC by region
+        """
+
+        df = self.c.o.reg_df[self.c.o.reg_df.property == 'SRMC'].groupby(['model', self.c.GEO_COLS[0] , 'timestamp']).agg({'value':'max'}).compute()
+        
+        return df
+    
+    @property
+    @memory_cache
+    def srmc_ts(self):
+        """
+        Obtain the demand-weighted SRMC by region
+        """
+
+        # Define a lambda function to compute the demand-weighted mean across the different regions
+        # Note that this works for anything grouped by model, region, and timeslice
+        wm = lambda x: np.average(x, weights=self.c.v.srmc_reg_ts.loc[x.index, 'value'])
+        df = self.c.v.srmc_reg_ts.groupby(['model', 'timestamp']).agg({'value':wm})
+
+        return df
+    
+    @property
+    @memory_cache
+    def srmc_dc(self):
+        """
+        The SRMC duration curve based on the national maximum. 
+        This could be also load-weighted or otherwise in different projects.
+
+        """
+        srmc_dc = self.c.v.srmc_ts.value.unstack('model')
+        srmc_dc = pd.DataFrame(np.flipud(np.sort(srmc_dc.values, axis=0)), index=srmc_dc.index, columns=srmc_dc.columns)
+        # Index = 0-8760
+        srmc_dc = srmc_dc.reset_index(drop=True)
+
+        return srmc_dc

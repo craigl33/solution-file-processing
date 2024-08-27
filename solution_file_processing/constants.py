@@ -133,11 +133,31 @@ PRETTY_MODEL_NAMES = {
     'UKR_2023_w_Load2021_DamagedTx' : '2023-2021_Load',
     'UKR_2024_Base_DamagedTx' : '2024',
     'UKR_2024_w_Load2021_DamagedTx' : '2024-2021_Load',
+
     'UKR_2025-BAU_DamagedTx' : '2025-BAU',
     'UKR_2025-BR_DamagedTx' : '2025-BR',
-    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx': '2025-BR-Exp',
-    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx_CO2': '2025-BR-Exp',
-    
+    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx': '2025-BAU-eSG-nCO2',
+    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx_CO2': '2025-BAU-eSG',
+    'UKR_2025-BAU_ST_LT_GasOnly_DamagedTx_CO2': '2025-BAU-eG',
+    "UKR_2025-BAU_ST_LT_SolGas_DamagedTx_CO2_BO": "2025-BAU-eSG-BO",
+    "UKR_2025-BAU_ST_LT_SolGas2030cPN_DamagedTx_CO2": "2025-BAU-eSG-2030cPN",
+    "UKR_2025-BAU_ST_LT_SolGas2030cPN_DamagedTx_CO2_BO": "2025-BAU-eSG-2030cPN-BO",
+
+    "UKR_2025-BAU_Td": "2025",
+    "UKR_2025-BAU_ST_LT_eG_Td_CO2": "2025_eG",
+    "UKR_2025-BAU_ST_LT_eSG_Td_CO2": "2025_eSG",
+    "UKR_2025-BAU_ST_LT_eSG_Td_CO2_BTo": "2025_eSG_BTo",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cPN_Td_CO2": "2025_eSGf-2030-BR-cPN",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cPN_Td_CO2_BTo": "2025_eSGf-2030-BR-cPN_BTo",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cP_Td_CO2": "2025_eSGf-2030-BR-cP",
+    "UKR_2025-BAU_ST_LT_eSGf-2025-2030-cPN_Td_CO2": "2025_eSGf-2025-2030-cPN",
+    "UKR_2025-BAU_ST_LT_eSGf-2025-2030-cPN_Td_CO2_BTo": "2025_eSGf-2025-2030-cPN_BTo",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cP_Td_CO2_BTo": "2025_eSGf-2030-BR-cP_BTo",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-IR-cPN_Td_CO2": "2025_eSGf-2030-IR-cPN",
+    "UKR_2025-BAU_ST_LT_eSGf-2030-IR-cPN_Td_CO2_BTo": "2025_eSGf-2030-IR-cPN_BTo",
+
+
+
 
     "UKR_2030-BAU_Opt_NukeExt_ST_LT_GasOnly_CO2":"2030-BAU_cON_eG",
     "UKR_2030-BAU_Opt_NukeExt_ST_LT_SolOnly_CO2":"2030-BAU_cON_eS",
@@ -192,15 +212,38 @@ PRETTY_MODEL_NAMES = {
     "UKR_2030-IR_Pess_NukeExt_ST_LT_SolGas_CO2_NoIC":"2030-IR_cPN_eSG_iZ",
 
 
+    "01_China_2022_nMUT_FD_IRc":"2022",  
+   
     "02_China_APS_2030_ED_nMUT":"2030_APS-ED",
     "02_China_APS_2030_FDp_nMUT":"2030_APS-FDp",
+    "02_China_APS_2030_FDp_nMUT_IRc":"2030_APS-FDp-IRc",
     "02_China_APS_2030_FDp_nMUT_nDSM":"2030_APS-FDp_nDSM",
+
+    "02_China_APS_2030_ED_rem_links_nMUT":"2030_APS-ED-nIC",
+    "02_China_APS_2030_FD_rem_links_nMUT":"2030_APS-FD-nIC",
+    "02_China_APS_2030_FDp_ASb_rem_links_nMUT":"2030_APS-FDp-ASb-nIC",
+    "02_China_APS_2030_FDp_nBO_rem_links_nMUT":"2030_APS-FDp-nBO-nIC",
+    "02_China_APS_2030_FDp_rem_links_nMUT_nBAS":"2030_APS-FDp-nIC-nBAS",
+    "02_China_APS_2030_FDp_rem_links_nMUT_nDSM":"2030_APS-FDp-nIC-nDSM",
+
+    "02_China_APS_2030_ED_UCset_nMUT":"2030_APS-ED-SM",
+    "02_China_APS_2030_FD_UCset_nMUT":"2030_APS-FD-SM",
+    "02_China_APS_2030_FDp_ASb_UCset_nMUT":"2030_APS-FDp-ASb-SM",
+    "02_China_APS_2030_FDp_ASbd_UCset_nMUT":"2030_APS-FDp-ASf-SM",
+    "02_China_APS_2030_FDp_ASd_UCset_nMUT":"2030_APS-FDp-ASd-SM",
+    "02_China_APS_2030_FDp_nBO_UCset_nMUT":"2030_APS-FDp-nBO-SM",
+    "02_China_APS_2030_FDp_UCset_nMUT_nBAS":"2030_APS-FDp-SM_nBAS",
+    "02_China_APS_2030_FDp_UCset_nMUT_nDSM":"2030_APS-FDp-SM_nDSM",
+
+
+    ### older
     "02_China_APS_2030_VPP_FDp_BTMopt_nMUT":"2030_APS_VPP-FDp-BTMo",
     "02_China_APS_2030_VPP_FDp_BTMoptAS_DERsAS_nMUT":"2030_APS_VPP-FDp-ASf",
     "02_China_APS_2030_VPP_FDp_BTMoptAS_nMUT":"2030_APS_VPP-FDp-ASb",
     "02_China_APS_2030_VPP_FDp_DERsAS_nMUT":"2030_APS_VPP-FDp-ASd",
     "02_China_APS_2030_VPP_FDp_nMUT":"2030_APS_VPP-FDp",
     "02_China_APS_2030_VPPext_FDp_nMUT":"2030_APS_VPPx-FDp",
+
 
     "02_China_APS_2030_FDp_rem_links_nMUT":"2030_APS-FDp-nIC",
     "02_China_APS_2030_FDp_UCset_nMUT":"2030_APS-FDp-SM",

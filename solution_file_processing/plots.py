@@ -675,7 +675,8 @@ def create_plot_6_ldc(c):
                 'nldc_curtail':c.v.nldc_curtail/1000,
                 'nldc_sto':c.v.nldc_sto/1000,
                 'nldc_sto_curtail':c.v.nldc_sto_curtail/1000,
-                'curtailment_dc':c.v.curtailment_dc/1000
+                'curtailment_dc':c.v.curtailment_dc/1000,
+                'srmc_dc':c.v.srmc_dc,
                 }      
 
     ln_plot_type = {'ldc':'ldc',
@@ -684,7 +685,7 @@ def create_plot_6_ldc(c):
                 'nldc_sto':'ldc',
                 'nldc_sto_curtail':'ldc',
                 'curtailment_dc':'ldc',
-
+                'srmc_dc':'ldc'
                 }      
     
 
@@ -694,6 +695,7 @@ def create_plot_6_ldc(c):
                 'nldc_sto':'GW',
                 'nldc_sto_curtail':'GW',
                 'curtailment_dc':'GW',
+                'srmc_dc':'$/MWh'
                 
                 }      
 
@@ -948,7 +950,7 @@ def create_plot_8_services(c, ref_model=None):
             pk_contr = pk_contr.mean()
             pk_contr.loc[vre_techs] = 0
             vre_pk_contr = pd.Series(data=np.mean(load_100.values-netload_100.values), index = ['VRE'])
-            dsm_pk_contr = pd.Series(data=np.mean(c.v.net_load_orig_ts.loc[ix[m,:]].value.nlargest(100) - c.v.net_load_ts.loc[ix[m,:]].value.nlargest(100)), index=['DSMshift'])
+            dsm_pk_contr = pd.Series(data=np.mean(c.v.net_load_ts.loc[ix[m,:]].value.nlargest(100) - c.v.net_load_orig_ts.loc[ix[m,:]].value.nlargest(100)), index=['DSMshift'])
             pk_contr = pd.concat([pk_contr, vre_pk_contr, dsm_pk_contr])
         
         #     ### DSM would go here too!
@@ -987,8 +989,9 @@ def create_plot_8_services(c, ref_model=None):
                 
             
         ### E. Upward ramp contribution
+        ### TODO: Ramp contirbution from VRE should be zeroed/ignored
             ramp_100 = c.v.ramp_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr))
-            ramp_contr = c.v.ramp_by_gen_subtech_ts.loc[ix[m,ramp_100.index],:].droplevel(0)
+            ramp_contr = c.v.ramp_by_gen_subtech_ts.loc[ix[m,ramp_100.index],].droplevel(0)
             ramp_contr = ramp_contr.mask(ramp_contr < 0).fillna(0).mean()
             dsm_ramp_contr = pd.Series(data=np.mean(c.v.ramp_orig_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr)) - ramp_100), index=['DSMshift'])
             ramp_contr = pd.concat([ramp_contr, dsm_ramp_contr])
@@ -1007,6 +1010,7 @@ def create_plot_8_services(c, ref_model=None):
             if len(m) >= 31:
                 m = m[:15] + m[-15:]
 
+            # TODO: Need to fix the dimensions of the chart area, legend, etc.
             write_xlsx_column(
                 df=services_out,
                 writer=writer,
