@@ -140,7 +140,7 @@ def create_output_3(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03a_vre_available_ts.csv'), index=False)
-    c.v.vre_av_abs_ts \
+    c.v.vre_gen_abs_ts \
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03b_vre_gen_ts.csv'), index=False)
@@ -152,11 +152,17 @@ def create_output_3(c):
         .assign(units='MW') \
         .reset_index() \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '03c_RE_curtailed_ts.csv'), index=False)
+    c.v.vre_av_abs_tech_ts \
+        .assign(units='MW') \
+        .reset_index() \
+        .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '3g_vre_available_reg_ts.csv'), index=False)
+
 
     print('Created file 03a_vre_available_ts.csv.')
     print('Created file 03b_vre_gen_ts.csv.')
     print('Created file 03c_vre_curtailed_ts.csv.')
     print('Created file 03c_RE_curtailed_ts.csv.')
+    print('Created file 3g_vre_available_reg_ts.csv.')
 
     # Due to the size, we do the gen DFs per model
     if c.cfg['settings']['reg_ts']:
@@ -480,6 +486,7 @@ def create_output_6(c):
     - 06e_net_load_orig_ts.csv
     - 06f_ldc_orig.csv
     - 06g_net_ldc_orig.csv
+    - 06h_net_load_by_reg_ts.csv
     """
     print("Creating interval output 6...")
 
@@ -515,6 +522,8 @@ def create_output_6(c):
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06f_ldc_orig.csv'), index=True)
     nldc_orig.reset_index(drop=True).assign(units='MW') \
         .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06g_net_ldc_orig.csv'), index=True)
+    # c.v.net_load_reg_ts.assign(units='MW') \
+    #     .to_csv(os.path.join(c.DIR_05_2_TS_OUT, '06h_net_load_by_reg_ts.csv'), index=True)
 
     print('Created file 06a_net_load_ts.csv.')
     print('Created file 06b_ldc.csv.')
@@ -523,6 +532,7 @@ def create_output_6(c):
     print('Created file 06e_net_load_orig_ts.csv.')
     print('Created file 06f_ldc_orig.csv.')
     print('Created file 06g_net_ldc_orig.csv.')
+    #print('Created file 06h_net_load_by_reg_ts.csv.')
 
 
 @catch_errors
