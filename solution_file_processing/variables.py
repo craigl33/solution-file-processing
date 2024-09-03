@@ -1494,17 +1494,20 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
         
         try:
-            purch_df = self.c.o.purch_df.compute()
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
 
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             ev_profiles_ts = purch_df[
                 purch_df.name.str.contains('_EV') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum()
-            if not ev_profiles_ts.shape[0] == 0: 
-                ev_profiles_ts = (ev_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                ['model', 'timestamp']).rename('value').to_frame()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
+            if not ev_profiles_ts.shape[0] == 0:
+                ev_profiles_ts = ((ev_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                ['model', 'timestamp']).rename('value')).to_frame()
             else:
                 ev_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
@@ -1526,17 +1529,20 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
         
         try:
-            purch_df = self.c.o.purch_df.compute()
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
 
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             ev_profiles_orig_ts = purch_df[
                 purch_df.name.str.contains('_EV') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
             if not ev_profiles_orig_ts.shape[0] == 0:
-                ev_profiles_orig_ts = (ev_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack(
-                    'model').reorder_levels(['model', 'timestamp'])
+                ev_profiles_orig_ts = ((ev_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack(
+                    'model').reorder_levels(['model', 'timestamp']).rename('value')).to_frame()
             else:
                 ev_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
                                         index=self.c.v.customer_load_ts.index).rename('value').to_frame()
@@ -1560,20 +1566,25 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
         
         try:
-            purch_df = self.c.o.purch_df.compute()
+            # Check if the dataframe is empty.
+            # Use len() instead of .shape[0] because the latter is very slow for Dask dataframes
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
 
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             dsm_profiles_ts = purch_df[
                 purch_df.name.str.contains('_Shift') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
             if not dsm_profiles_ts.shape[0] == 0:
-                dsm_profiles_ts = (dsm_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                    ['model', 'timestamp'])
+                dsm_profiles_ts = ((dsm_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp']).rename('value')).to_frame()
             else:
                 dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
-                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()  
+                                       index=self.c.v.customer_load_ts.index).rename('value').to_frame()
         else:
             dsm_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),    
                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
@@ -1592,23 +1603,27 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
 
         try:
-            purch_df = self.c.o.purch_df.compute()
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
 
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             dsm_profiles_orig_ts = purch_df[
                 purch_df.name.str.contains('_Shift') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
             if not dsm_profiles_orig_ts.shape[0] == 0:
-                dsm_profiles_orig_ts = (dsm_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                    ['model', 'timestamp'])
+                dsm_profiles_orig_ts = ((dsm_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp']).rename('value')).to_frame()
             else:
                 dsm_profiles_orig_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),
                                        index=self.c.v.customer_load_ts.index, columns=['value'])
         else:
             dsm_profiles_orig_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),    
                                        index=self.c.v.customer_load_ts.index, columns=['value'])
+            
         return dsm_profiles_orig_ts
     
     @property
@@ -1624,17 +1639,22 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
 
         try:
-            purch_df = self.c.o.purch_df.compute()
+            # Check if the dataframe is empty.
+            # Use len() instead of .shape[0] because the latter is very slow for Dask dataframes
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
         
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             electrolyser_profiles_ts = purch_df[
                 purch_df.name.str.contains('_Elec') & (purch_df.property == 'Load')].groupby(
-                ['model', 'timestamp']).sum()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
             if not electrolyser_profiles_ts.shape[0] == 0:
-                electrolyser_profiles_ts = (electrolyser_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                    ['model', 'timestamp'])
+                electrolyser_profiles_ts = ((electrolyser_profiles_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp']).rename('value')).to_frame()
             else:
                 electrolyser_profiles_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
@@ -1656,17 +1676,20 @@ class Variables:
         model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
 
         try:
-            purch_df = self.c.o.purch_df.compute()
+            df_len = len(self.c.o.purch_df)
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
         except ValueError:
-            purch_df = pd.DataFrame(None)
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
         
-        if purch_df.shape[0] > 0:
+        if df_len > 0:
             electrolyser_profiles_orig_ts = purch_df[
                 purch_df.name.str.contains('_Elec') & (purch_df.property == 'x')].groupby(
-                ['model', 'timestamp']).sum()
+                ['model', 'timestamp']).agg({'value': 'sum'}).compute()
             if not electrolyser_profiles_orig_ts.shape[0] == 0:
-                electrolyser_profiles_orig_ts = (electrolyser_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
-                    ['model', 'timestamp'])
+                electrolyser_profiles_orig_ts = ((electrolyser_profiles_orig_ts.value.unstack('model') * model_filler).fillna(0).stack('model').reorder_levels(
+                    ['model', 'timestamp']).rename('value')).to_frame()
             else:
                 electrolyser_profiles_orig_ts = pd.Series(data=[0] * len(self.c.v.customer_load_ts.index),
                                        index=self.c.v.customer_load_ts.index).rename('value').to_frame()
