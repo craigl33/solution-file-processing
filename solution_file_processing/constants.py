@@ -126,91 +126,37 @@ PRETTY_MODEL_NAMES = {
     "THA22_2037plus_EVFlex50_Batt_NoTOP_PPflex": '2037 VRE Plus + Sto + EV50 + ContrFlex',
     "THA22_2037plus_EVFlex50_Batt_PPflex": '2037 VRE Plus + Sto + EV50',
 
-    ##########
-
+    #######################
+    # UKRAINE MODEL NAMES #
+    #######################
+    
     'UKR_2021_Validation' : '2021',
-    'UKR_2023_Base_DamagedTx' : '2023',
-    'UKR_2023_w_Load2021_DamagedTx' : '2023-2021_Load',
-    'UKR_2024_Base_DamagedTx' : '2024',
-    'UKR_2024_w_Load2021_DamagedTx' : '2024-2021_Load',
-
-    'UKR_2025-BAU_DamagedTx' : '2025-BAU',
-    'UKR_2025-BR_DamagedTx' : '2025-BR',
-    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx': '2025-BAU-eSG-nCO2',
-    'UKR_2025-BAU_ST_LT_SolGas_DamagedTx_CO2': '2025-BAU-eSG',
-    'UKR_2025-BAU_ST_LT_GasOnly_DamagedTx_CO2': '2025-BAU-eG',
-    "UKR_2025-BAU_ST_LT_SolGas_DamagedTx_CO2_BO": "2025-BAU-eSG-BO",
-    "UKR_2025-BAU_ST_LT_SolGas2030cPN_DamagedTx_CO2": "2025-BAU-eSG-2030cPN",
-    "UKR_2025-BAU_ST_LT_SolGas2030cPN_DamagedTx_CO2_BO": "2025-BAU-eSG-2030cPN-BO",
-
+    "UKR_2023_Td": "2023",
+    
     "UKR_2025-BAU_Td": "2025",
-    "UKR_2025-BAU_ST_LT_eG_Td_CO2": "2025_eG",
     "UKR_2025-BAU_ST_LT_eSG_Td_CO2": "2025_eSG",
-    "UKR_2025-BAU_ST_LT_eSG_Td_CO2_BTo": "2025_eSG_BTo",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cPN_Td_CO2": "2025_eSGf-2030-BR-cPN",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cPN_Td_CO2_BTo": "2025_eSGf-2030-BR-cPN_BTo",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cP_Td_CO2": "2025_eSGf-2030-BR-cP",
-    "UKR_2025-BAU_ST_LT_eSGf-2025-2030-cPN_Td_CO2": "2025_eSGf-2025-2030-cPN",
-    "UKR_2025-BAU_ST_LT_eSGf-2025-2030-cPN_Td_CO2_BTo": "2025_eSGf-2025-2030-cPN_BTo",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-BR-cP_Td_CO2_BTo": "2025_eSGf-2030-BR-cP_BTo",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-IR-cPN_Td_CO2": "2025_eSGf-2030-IR-cPN",
-    "UKR_2025-BAU_ST_LT_eSGf-2030-IR-cPN_Td_CO2_BTo": "2025_eSGf-2030-IR-cPN_BTo",
+    "UKR_2025-BAU_ST_LT_eG_Td_CO2": "2025_eG",
+    "UKR_2025-BAU_ST_LT_eSBG_Td_CO2": "2025_eSBG",
+    "UKR_2025-BAU_ST_LT_eSG_Td_CO2_BTo": "2025_eSG-BTo",
 
 
+    "UKR_2030-BR_cPN_CO2": "2030-BR_cPN",
+    "UKR_2030-BR_cPN_eSG_ST_LT_CO2": "2030-BR_cPN_eSG",
+    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_ASb": "2030-BR_cPN_eSG_ASb",
+    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_ICc": "2030-BR_cPN_eSG_ICc",
+    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_nBTo": "2030-BR_cPN_eSG_nBTo",
+    "UKR_2030-BR_cPN_eSBGW_ST_LT_CO2": "2030-BR_cPN_eSBGW",
 
+    "UKR_2030-BAU_cPN_eSG_ST_LT_CO2": "2030-BAU_cPN_eSG",
+    "UKR_2030-IR_cPN_eSG_ST_LT_CO2": "2030-IR_cPN_eSG",
+    "UKR_2030-BR_cO_eSG_ST_LT_CO2": "2030-BR_cO_eSG",
+    "UKR_2030-BR_cON_eSG_ST_LT_CO2": "2030-BR_cON_eSG",
+    "UKR_2030-BR_cP_eSG_ST_LT_CO2": "2030-BR_cP_eSG",
+        
 
-    "UKR_2030-BAU_Opt_NukeExt_ST_LT_GasOnly_CO2":"2030-BAU_cON_eG",
-    "UKR_2030-BAU_Opt_NukeExt_ST_LT_SolOnly_CO2":"2030-BAU_cON_eS",
-    "UKR_2030-BAU_Opt_NukeExt_ST_LT_SolGas_CO2":"2030-BAU_cON_eSG",
-    
-    "UKR_2030-BAU_Opt_ST_LT_GasOnly_CO2":"2030-BAU_cO_eG",
-    "UKR_2030-BAU_Opt_ST_LT_SolOnly_CO2":"2030-BAU_cO_eS",
-    "UKR_2030-BAU_Opt_ST_LT_SolGas_CO2":"2030-BAU_cO_eSG",
-    "UKR_2030-BAU_Pess_ST_LT_GasOnly_CO2":"2030-BAU_cP_eG",
-    "UKR_2030-BAU_Pess_ST_LT_SolOnly_CO2":"2030-BAU_cP_eS",
-    "UKR_2030-BAU_Pess_ST_LT_SolGas_CO2":"2030-BAU_cP_eSG",
-    "UKR_2030-BAU_2021_Cap_ST_LT_SolGas_CO2":"2030-BAU_c2021_eSG",
-    "UKR_2030-BAU_Pess_NukeExt_ST_LT_GasOnly_CO2":"2030-BAU_cPN_eG",
-    "UKR_2030-BAU_Pess_NukeExt_ST_LT_SolOnly_CO2":"2030-BAU_cPN_eS",
-    "UKR_2030-BAU_Pess_NukeExt_ST_LT_SolGas_CO2":"2030-BAU_cPN_eSG",
-    "UKR_2030-BAU_Pess_NukeExt_ST_LT_SolGas_CO2_LimitedIC":"2030-BAU_cPN_eSG_iL",
-    "UKR_2030-BAU_Pess_NukeExt_ST_LT_SolGas_CO2_NoIC":"2030-BAU_cPN_eSG_iZ",
-
-    
-    "UKR_2030-BR_Opt_ST_LT_GasOnly_CO2":"2030-BR_cO_eG",
-    "UKR_2030-BR_Opt_ST_LT_SolOnly_CO2":"2030-BR_cO_eS",
-    "UKR_2030-BR_Opt_ST_LT_SolGas_CO2":"2030-BR_cO_eSG",
-    "UKR_2030-BR_Pess_ST_LT_GasOnly_CO2":"2030-BR_cP_eG",
-    "UKR_2030-BR_Pess_ST_LT_SolOnly_CO2":"2030-BR_cP_eS",
-    "UKR_2030-BR_Pess_ST_LT_SolGas_CO2":"2030-BR_cP_eSG",
-    "UKR_2030-BR_2021_Cap_ST_LT_SolGas_CO2":"2030-BR_c2021_eSG",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_GasOnly_CO2":"2030-BR_cPN_eG",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolOnly_CO2":"2030-BR_cPN_eS",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolGas_CO2":"2030-BR_cPN_eSG",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolGas_CO2_LimitedIC":"2030-BR_cPN_eSG_iL",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolGas_CO2_NoIC":"2030-BR_cPN_eSG_iZ",
-
-    # New scenarios
-    "UKR_2030-BR_Pess_NukeExt_CO2":"2030-BR_cPN",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_AllExp_CO2":"2030-BR_cPN_eSGW",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_AllExp_CO2_ASb":"2030-BR_cPN_eSGW_ASb",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolGas_CO2_nBO":"2030-BR_cPN_eSG_nBO",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_AllExp_CO2_LimitedIC":"2030-BR_cPN_eSGW_iL",
-    "UKR_2030-BR_Pess_NukeExt_ST_LT_SolGas_CO2_ASb":"2030-BR_cPN_eSG_ASb",
-
-    "UKR_2030-IR_Opt_ST_LT_GasOnly_CO2":"2030-IR_cO_eG",
-    "UKR_2030-IR_Opt_ST_LT_SolOnly_CO2":"2030-IR_cO_eS",
-    "UKR_2030-IR_Opt_ST_LT_SolGas_CO2":"2030-IR_cO_eSG",
-    "UKR_2030-IR_Pess_ST_LT_GasOnly_CO2":"2030-IR_cP_eG",
-    "UKR_2030-IR_Pess_ST_LT_SolOnly_CO2":"2030-IR_cP_eS",
-    "UKR_2030-IR_Pess_ST_LT_SolGas_CO2":"2030-IR_cP_eSG",
-    "UKR_2030-IR_2021_Cap_ST_LT_SolGas_CO2":"2030-IR_c2021_eSG",
-    "UKR_2030-IR_Pess_NukeExt_ST_LT_GasOnly_CO2":"2030-IR_cPN_eG",
-    "UKR_2030-IR_Pess_NukeExt_ST_LT_SolOnly_CO2":"2030-IR_cPN_eS",
-    "UKR_2030-IR_Pess_NukeExt_ST_LT_SolGas_CO2":"2030-IR_cPN_eSG",
-    "UKR_2030-IR_Pess_NukeExt_ST_LT_SolGas_CO2_LimitedIC":"2030-IR_cPN_eSG_iL",
-    "UKR_2030-IR_Pess_NukeExt_ST_LT_SolGas_CO2_NoIC":"2030-IR_cPN_eSG_iZ",
-
+    ######################
+    # CHINA MODEL NAMES #
+    ######################
 
     "01_China_2022_nMUT_FD_IRc":"2022",  
    

@@ -15,7 +15,7 @@ config.convert_solution_files_to_h5()
 # # # # Create plots (stored in output/plots)
 
 sfp.plots.create_plot_2(config)
-# sfp.plots.create_plot_2b_ref_plots(config, ref_m='2023')
+sfp.plots.create_plot_2b_ref_plots(config, ref_m='2023')
 # sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN')
 
 sfp.plots.create_plot_1a(config)
