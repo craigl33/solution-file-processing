@@ -706,7 +706,7 @@ def create_plot_6_ldc_and_line_plots(c):
                 'ramp_pc_dc':'%/hr',
                 'th_ramp_pc_dc':'%/3-hr',
                 'ramp_abs_dc':'MW/hr',
-                'th_ramp_abs_dc':'MW/3-hr'
+                'th_ramp_abs_dc':'MW/3-hr',
                 'srmc_dc':'$/MWh'
 
                 
