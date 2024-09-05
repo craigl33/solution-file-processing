@@ -22,7 +22,7 @@ sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025')
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025_eSG')
 # sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN')
 # sfp.plots.create_plot_3(config)
-# sfp.plots.create_plot_6_ldc(config)
+# sfp.plots.create_plot_6_ldc_and_line_plots(config)
 
 sfp.plots.create_plot_8_services(config)
 # sfp.plots.create_plot_4_costs(config) #unimplemented

@@ -2660,3 +2660,60 @@ class Variables:
         srmc_dc = srmc_dc.reset_index(drop=True)
 
         return srmc_dc
+    
+    @property
+    @memory_cache
+    def ramp_dc(self):
+        """
+        The ramp duration curve based on the national aggregate.
+
+        """
+        ramp_dc = self.c.v.ramp_ts.value.unstack('model')
+        ramp_dc = pd.DataFrame(np.flipud(np.sort(ramp_dc.values, axis=0)), index=ramp_dc.index, columns=ramp_dc.columns)
+        # Index = 0-8760
+        ramp_dc = ramp_dc.reset_index(drop=True)
+
+        return ramp_dc
+    
+    @property
+    @memory_cache
+    def th_ramp_dc(self):
+        """
+        The 3-hour ramp duration curve based on the national aggregate.
+
+        """
+        th_ramp_dc = self.c.v.th_ramp_ts.value.unstack('model')
+        th_ramp_dc = pd.DataFrame(np.flipud(np.sort(th_ramp_dc.values, axis=0)), index=th_ramp_dc.index, columns=th_ramp_dc.columns)
+        # Index = 0-8760
+        th_ramp_dc = th_ramp_dc.reset_index(drop=True)
+
+        return th_ramp_dc
+    
+
+    @property
+    @memory_cache
+    def ramp_pc_dc(self):
+        """
+        The ramp_pc duration curve based on the national aggregate.
+
+        """
+        ramp_pc_dc = self.c.v.ramp_pc_ts.unstack('model')
+        ramp_pc_dc = pd.DataFrame(np.flipud(np.sort(ramp_pc_dc.values, axis=0)), index=ramp_pc_dc.index, columns=ramp_pc_dc.columns)
+        # Index = 0-8760
+        ramp_pc_dc = ramp_pc_dc.reset_index(drop=True)
+
+        return ramp_pc_dc
+    
+    @property
+    @memory_cache
+    def th_ramp_pc_dc(self):
+        """
+        The 3-hour ramp_pc duration curve based on the national aggregate.
+
+        """
+        th_ramp_pc_dc = self.c.v.th_ramp_pc_ts.unstack('model')
+        th_ramp_pc_dc = pd.DataFrame(np.flipud(np.sort(th_ramp_pc_dc.values, axis=0)), index=th_ramp_pc_dc.index, columns=th_ramp_pc_dc.columns)
+        # Index = 0-8760
+        th_ramp_pc_dc = th_ramp_pc_dc.reset_index(drop=True)
+
+        return th_ramp_pc_dc

@@ -20,7 +20,7 @@ sfp.plots.create_plot_1a(config)
 sfp.plots.create_plot_1b(config)
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030_APS-FDp-SM')
 sfp.plots.create_plot_3(config)
-sfp.plots.create_plot_6_ldc(config)
+sfp.plots.create_plot_6_ldc_and_line_plots(config)
 
 sfp.plots.create_plot_8_services(config)
 # sfp.plots.create_plot_4_costs(config) #unimplemented

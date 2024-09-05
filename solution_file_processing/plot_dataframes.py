@@ -218,7 +218,7 @@ class PlotDataFrames:
         net_exports_by_reg = self.c.o.node_yr_df[self.c.o.node_yr_df.property == 'Net DC Export'].groupby(
             ['model', self.c.GEO_COLS[0]]).agg({'value': 'sum'}).value.unstack(self.c.GEO_COLS[0])
         
-        total_exports_ic = net_exports_by_reg.sum(axis=1).round(8).rename("External")
+        total_exports_ic = -net_exports_by_reg.sum(axis=1).round(8).rename("External")
         net_exports_by_reg = pd.concat([net_exports_by_reg, total_exports_ic], axis=1)/1000
         
         units = 'TWh'

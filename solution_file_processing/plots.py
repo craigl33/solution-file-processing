@@ -658,7 +658,7 @@ def create_plot_5_undispatched_tech(c):
         print('Done.')
 
 
-def create_plot_6_ldc(c):
+def create_plot_6_ldc_and_line_plots(c):
     """
     Status:
     Plot 6: LDC and nLDC plots
@@ -676,7 +676,11 @@ def create_plot_6_ldc(c):
                 'nldc_sto':c.v.nldc_sto/1000,
                 'nldc_sto_curtail':c.v.nldc_sto_curtail/1000,
                 'curtailment_dc':c.v.curtailment_dc/1000,
-                'srmc_dc':c.v.srmc_dc,
+                'ramp_pc_dc':c.v.ramp_pc_dc,
+                'th_ramp_pc_dc':c.v.th_ramp_pc_dc,
+                'ramp_abs_dc':c.v.ramp_dc,
+                'th_ramp_abs_dc':c.v.th_ramp_dc,
+                'srmc_dc':c.v.srmc_dc
                 }      
 
     ln_plot_type = {'ldc':'ldc',
@@ -685,6 +689,10 @@ def create_plot_6_ldc(c):
                 'nldc_sto':'ldc',
                 'nldc_sto_curtail':'ldc',
                 'curtailment_dc':'ldc',
+                'ramp_pc_dc':'ldc',
+                'th_ramp_pc_dc':'ldc',
+                'ramp_abs_dc':'ldc',
+                'th_ramp_abs_dc':'ldc',
                 'srmc_dc':'ldc'
                 }      
     
@@ -695,12 +703,17 @@ def create_plot_6_ldc(c):
                 'nldc_sto':'GW',
                 'nldc_sto_curtail':'GW',
                 'curtailment_dc':'GW',
+                'ramp_pc_dc':'%/hr',
+                'th_ramp_pc_dc':'%/3-hr',
+                'ramp_abs_dc':'MW/hr',
+                'th_ramp_abs_dc':'MW/3-hr'
                 'srmc_dc':'$/MWh'
+
                 
                 }      
 
 
-    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot6_ldc_plots.xlsx')
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot6_ldc_and_line_plots.xlsx')
 
     with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
     
