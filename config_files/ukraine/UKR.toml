@@ -3,10 +3,12 @@
 
 [path]
 model_dir = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security'
+lt_output_path = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/03_Modelling/01_InputData/08_ExpUnits'
 soln_idx_path = 'Y:/Modelling/Ukraine/2023_UKR_ST_Security/01_Data/01_Generation/20240415_generator_parameters_UKR.xlsx'
 
+
 [model]
-soln_choice = 'full_st_2025_v2'
+soln_choice = 'full_main'
 
 [settings]
 geo_cols = ['Region', 'Subregion']
@@ -15,8 +17,9 @@ reg_ts = true
 
 [plots]
 load_plots = ['load_by_reg', 'pk_load_by_reg', 'use_by_reg', 'pk_netload_by_reg']
-gen_plots = ['gen_by_tech', 'gen_by_reg', 'av_cap_by_model', 'net_exports_by_reg', 'vre_by_reg_av', 'curtailment_rate', 'gen_cap_by_reg', 'gen_cap_by_tech', 'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
+gen_plots = ['gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'curtailment_rate', 'av_cap_by_model', 'net_exports_by_reg', 'vre_by_reg_av',  'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
 other_plots = ['co2_by_tech','co2_by_reg', 'co2_intensity_reg', 'op_costs_by_prop']
+quick_plots = [ 'gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'cf_tech', 'load_by_reg', 'use_by_reg']
 
 [run]
 working_dir = 'C:/Users/hart_c/showcase/solution-file-processing'

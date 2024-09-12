@@ -6,18 +6,31 @@ import os
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
+from zipfile import ZipFile
+import fnmatch
 
 from .utils.utils import catch_errors
-from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16, EXTENDED_PALETTE, SERVICES_PALETTE
+from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16, EXTENDED_PALETTE, SERVICES_PALETTE, IEA_PALETTE_PLUS
 from .constants import VRE_TECHS, PRETTY_MODEL_NAMES, SERVICE_TECH_IDX
 from .utils.write_excel import write_xlsx_column, write_xlsx_stack, write_xlsx_line, write_xlsx_scatter
 # from .utils.write_excel import IEA_CMAP_14, IEA_CMAP_16, IEA_CMAP_D8, IEA_CMAP_L8
+
+
 
 from .timeseries import create_output_11 as create_ts_output_11
 # from .timeseries import create_output_4 as create_timeseries_output_4
 from . import log
 
 print = log.info
+
+def create_plot_0_quicklook(c):
+    '''	
+    Function to create a quicklook plot for the model results.	Only to use annual summary results and to be used for quick comparison of models. Should equally be 
+    capable of running on LT or ST results as needed.
+    '''
+
+    print("Creating quicklook plots...")
 
 
 def _get_plot_2_variables(c, cols):
@@ -273,7 +286,7 @@ def create_plot_1c(c, toi=None):
     print("Done.")
         
         
-def create_plot_2(c, plot_vars=None):
+def create_plot_2_summary(c, plot_vars=None, plot_name= 'main'):
     
     """
     ### Plot 2: Annual summary plots by columnn
@@ -283,7 +296,7 @@ def create_plot_2(c, plot_vars=None):
 
     print("Creating plot 2...")
 
-    fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")    
+    fig_path = os.path.join(c.DIR_05_3_PLOTS, f"plot2_{plot_name}_summary.xlsx")    
     default_vars = c.LOAD_PLOTS + c.GEN_PLOTS + c.OTHER_PLOTS
 
     if plot_vars is None:
@@ -1108,3 +1121,49 @@ def create_plot_10_ts_by_model(c):
 
             write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='GWh', line_width=1)
     print("Done.")
+
+
+    
+def extract_plexos_LT_results(c):
+    
+
+    exp_out_path = Path(c.DIR_LT_OUTPUTS)
+
+    if exp_out_path is None:
+        print('No LT output path found. Exiting.')
+        return
+    
+    lt_solns_path = exp_out_path / 'LT_solution_files/'
+    lt_soln_zips = [ lt_solns_path / f for f in  os.listdir(lt_solns_path) if '.zip' in f]
+
+    for z in lt_soln_zips:
+        with ZipFile(z, 'r') as zipObj:
+            file_list = zipObj.namelist()
+            pattern = '* Units.csv'
+
+            filtered_list = []
+            for file in file_list:
+                if fnmatch.fnmatch(file, pattern):
+                    filtered_list.append(file)
+            
+            for f in filtered_list:
+                try:
+                    zipObj.extract(f, exp_out_path)
+                    print(f'Extracted {f} to {exp_out_path}')
+                except PermissionError:
+                    print(f'Could not extract {f} to {exp_out_path}. File already exists.')
+                    continue
+            
+            # Create a list of all the extracted files for Generator Units
+            # This can then be used to increase the capacity of the units by 5% and integerise the capacity
+            exp_units_files = [ exp_out_path / f for f in  os.listdir(exp_out_path) if 'Units.csv' in f]
+
+            for f in exp_units_files:
+                df = pd.read_csv(f)
+                df['Value'] = df['Value'] * 1.05
+                df.loc[df.Name.str.contains('Gas'),'Value'] = df['Value'].apply(np.round)
+                try:
+                    df.to_csv(f, index=False)
+                except PermissionError:
+                    print(f'Could not write to {f}. File already exists.')
+                    continue

@@ -8,7 +8,7 @@ import os
 
 from solution_file_processing.constants import VRE_TECHS, CONSTR_TECHS
 from solution_file_processing.timeseries import create_output_11
-from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16
+from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16, IEA_PALETTE_PLUS, EXTENDED_PALETTE, IEA_PALETTE
 from .constants import VRE_TECHS, PRETTY_MODEL_NAMES
 
 from solution_file_processing.utils.utils import drive_cache, memory_cache
@@ -74,7 +74,12 @@ class Variables:
         # Model palette
         model_ids = [m for m in PRETTY_MODEL_NAMES.values() if m in self.model_names] + [m for m in self.model_names if m not in PRETTY_MODEL_NAMES.values()]
         # Use extended palette so it can have more than 16 variables
-        model_palette = {model_ids[i]: IEA_PALETTE_16[i] for i in range(len(model_ids))}
+        if len(model_ids) < len(IEA_PALETTE_PLUS):
+            ## This is a bit of a hack to get the model ids to match the palette
+            ## This is because the IEA_PALETTE_PLUS is a dictionary with string keys and the model_ids are integers
+            model_palette = {model_ids[i]: IEA_PALETTE_PLUS[str(i)] for i in range(len(model_ids))}
+        else:
+            model_palette = {model_ids[i]: IEA_PALETTE_PLUS[str(i)] for i in range(16)} + {model_ids[i]: IEA_PALETTE_PLUS[i] for i in range(16, len(model_ids))}
 
         # Regions and technologies will always be consistent this way. May need to be copied to other parts of the code
         combined_palette = dict(STACK_PALETTE, **reg_palette, **model_palette)
@@ -396,8 +401,14 @@ class Variables:
     def nr_days(self):
         """
         TODO DOCSTRING
+
         """
-        return len(self.time_idx.dt.date.drop_duplicates())
+        year = self.c.o.gen_yr_df.timestamp.dt.year.drop_duplicates().values[0]
+        if year % 4 == 0:
+            return 366
+        else:
+            return 365
+
 
     @property
     @memory_cache
@@ -421,7 +432,8 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        gen_cap_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+        gen_cap_tech_reg = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gen_yr_df.WEO_tech != 'Battery')) |
+                                              ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity'))] \
             .groupby(['model'] + self.c.GEO_COLS + ['Category']) \
             .agg({'value': 'sum'}) \
             .value \
@@ -436,7 +448,8 @@ class Variables:
         TODO DOCSTRING
         """
         # For Capex calcs
-        gen_cap_plexos_tech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+        gen_cap_plexos_tech_reg = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gegen_yr_dfn_df.WEO_tech != 'Battery')) |
+                                              ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity'))] \
             .groupby(['model'] + self.c.GEO_COLS + ['PLEXOS technology']) \
             .agg({'value': 'sum'}) \
             .value \
@@ -451,7 +464,8 @@ class Variables:
         TODO DOCSTRING
         """
         # For error checking
-        gen_cap_plant = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+        gen_cap_plant = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gen_yr_df.WEO_tech == 'Battery')) |
+                                              ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity'))] \
             .groupby(['model', 'name']) \
             .agg({'value': 'sum'}) \
             .value \
@@ -465,7 +479,8 @@ class Variables:
         """
         TODO DOCSTRING
         """
-        gen_cap_subtech_reg = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Installed Capacity'] \
+        gen_cap_subtech_reg = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gen_yr_df.WEO_tech == 'Battery')) |
+                                              ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity'))] \
             .groupby(['model'] + self.c.GEO_COLS + ['CapacityCategory']) \
             .agg({'value': 'sum'}) \
             .value \
@@ -2717,3 +2732,19 @@ class Variables:
         th_ramp_pc_dc = th_ramp_pc_dc.reset_index(drop=True)
 
         return th_ramp_pc_dc
+
+    @property
+    @memory_cache
+    def gen_built_by_tech_reg(self):
+        """"
+        TODO DOCSTRING
+        """
+        df = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Capacity Built')&(self.c.o.gen_yr_df.WEO_tech != 'Battery')) |
+                                              ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity Built'))] \
+            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack(level='Category') \
+            .value \
+            .fillna(0)
+        return df

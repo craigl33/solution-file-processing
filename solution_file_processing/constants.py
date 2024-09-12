@@ -132,27 +132,21 @@ PRETTY_MODEL_NAMES = {
     
     'UKR_2021_Validation' : '2021',
     "UKR_2023_Td": "2023",
-    
-    "UKR_2025-BAU_Td": "2025",
-    "UKR_2025-BAU_ST_LT_eSG_Td_CO2": "2025_eSG",
-    "UKR_2025-BAU_ST_LT_eG_Td_CO2": "2025_eG",
-    "UKR_2025-BAU_ST_LT_eSBG_Td_CO2": "2025_eSBG",
-    "UKR_2025-BAU_ST_LT_eSG_Td_CO2_BTo": "2025_eSG-BTo",
 
+    "UKR_2025-BAU_eG_Td_CO2": '2025_eG',
+    "UKR_2025-BAU_eSBG_Td_CO2": '2025_eSBG',
+    "UKR_2025-BAU_eSBuG_Td_CO2": '2025_eSBuG',
+    "UKR_2025-BAU_eSG_Td_CO2": '2025_eSG',
+    "UKR_2025-BAU_eSG_Td_CO2_BTo": '2025_eSG_BTo',
+    "UKR_2025-BAU_Td": '2025',
 
-    "UKR_2030-BR_cPN_CO2": "2030-BR_cPN",
-    "UKR_2030-BR_cPN_eSG_ST_LT_CO2": "2030-BR_cPN_eSG",
-    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_ASb": "2030-BR_cPN_eSG_ASb",
-    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_ICc": "2030-BR_cPN_eSG_ICc",
-    "UKR_2030-BR_cPN_eSG_ST_LT_CO2_nBTo": "2030-BR_cPN_eSG_nBTo",
-    "UKR_2030-BR_cPN_eSBGW_ST_LT_CO2": "2030-BR_cPN_eSBGW",
+    "UKR_2030-BR_cPN_CO2": '2030-BR_cPN',
+    "UKR_2030-BR_cPN_eSBGW_CO2": '2030-BR_cPN_eSBGW',
+    "UKR_2030-BR_cPN_eSG_CO2": '2030-BR_cPN_eSG',
+    "UKR_2030-BR_cPN_eSG_CO2_ASb": '2030-BR_cPN_eSG_ASb',	
+    "UKR_2030-BR_cPN_eSG_CO2_ICc": '2030-BR_cPN_eSG_ICc',
+    "UKR_2030-BR_cPN_eSG_CO2_nBTo": '2030-BR_cPN_eSG_nBTo',	
 
-    "UKR_2030-BAU_cPN_eSG_ST_LT_CO2": "2030-BAU_cPN_eSG",
-    "UKR_2030-IR_cPN_eSG_ST_LT_CO2": "2030-IR_cPN_eSG",
-    "UKR_2030-BR_cO_eSG_ST_LT_CO2": "2030-BR_cO_eSG",
-    "UKR_2030-BR_cON_eSG_ST_LT_CO2": "2030-BR_cON_eSG",
-    "UKR_2030-BR_cP_eSG_ST_LT_CO2": "2030-BR_cP_eSG",
-        
 
     ######################
     # CHINA MODEL NAMES #
