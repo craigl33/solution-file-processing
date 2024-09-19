@@ -11,6 +11,8 @@ import dask.dataframe as dd
 import julia
 from h5plexos.query import PLEXOSSolution
 import math
+import shutil
+from pathlib import Path
 
 from solution_file_processing.objects import Objects
 from solution_file_processing.variables import Variables
@@ -131,6 +133,12 @@ class SolutionFilesConfig:
         self.DIR_05_1_SUMMARY_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'summary_out')
         self.DIR_05_2_TS_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'timeseries_out')
         self.DIR_05_3_PLOTS = os.path.join(self.DIR_05_DATA_PROCESSING, 'plots')
+        
+        try:
+            self.DIR_LT_OUTPUTS = self.cfg['path']['lt_output_path']
+        except KeyError:
+            self.DIR_LT_OUTPUTS = None
+
 
         # Create all necessary directories
         os.makedirs(self.DIR_04_CACHE, exist_ok=True)
@@ -152,6 +160,7 @@ class SolutionFilesConfig:
         self.GEN_PLOTS = self.cfg['plots']['gen_plots']
         self.LOAD_PLOTS = self.cfg['plots']['load_plots']
         self.OTHER_PLOTS = self.cfg['plots']['other_plots']
+        self.QUICK_PLOTS = self.cfg['plots']['quick_plots']
 
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
 
@@ -180,6 +189,25 @@ class SolutionFilesConfig:
         jl = Julia(compiled_modules=False)
         jl.using("H5PLEXOS")
 
+        ### Check if there are any files to convert in folder and all subfolders
+        ### If not, return, otherwise move all folders to root, delete subfolders and convert
+
+
+        ### Check if there are any files to convert in folder and all subfolders
+        soln_zip_files = [Path(os.path.join(root, name))
+                for root, dirs, files in os.walk(self.DIR_04_SOLUTION_FILES)
+                for name in files
+                    if name.endswith((".zip", ".ZIP"))]
+        
+        soln_root_path = Path(self.DIR_04_SOLUTION_FILES)
+        ### Move all files to root folder
+        for f in soln_zip_files:
+            if f.parent != soln_root_path:
+                # Move the file to the correct directory AND remvoe the subfolder
+                shutil.move(f, soln_root_path / f.name)
+                if len(os.listdir(f.parent)) == 0:
+                    os.rmdir(f.parent)
+            
         if os.listdir(self.DIR_04_SOLUTION_FILES):
             print(f'Found {len(os.listdir(self.DIR_04_SOLUTION_FILES))} files in the solution files directory.')
 
@@ -194,7 +222,7 @@ class SolutionFilesConfig:
             jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
-    def _get_object(self, timescale, object, return_type):
+    def _get_object(self, timescale, object, return_type, simulation_phase='ST'):
         """
         Retrieves a specific object based on the provided timescale.
         Does that by looping through all solution files (.h5) files in the 04_SolutionFiles folder and combining the
@@ -226,9 +254,14 @@ class SolutionFilesConfig:
             with PLEXOSSolution(os.path.join(self.DIR_04_SOLUTION_FILES, file)) as db:
                 silence_prints(False)
                 try:
-                    properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
+                    properties = list(db.h5file[f'data/{simulation_phase}/{timescale}/{object}/'].keys())
                 except KeyError:
-                    continue
+                    try:
+                        properties = list(db.h5file[f'data/LT/{timescale}/{object}/'].keys())
+                        print(f'No data found for {simulation_phase}. However, data found for LT. Consider restarting with correct settings. Automatically running now for LT.')
+                        simulation_phase = 'LT'
+                    except KeyError:
+                        continue
 
                 # For annual timescale, we use all properties
                 if timescale == 'year':
@@ -248,14 +281,14 @@ class SolutionFilesConfig:
                             # (this may be a bug that is corrected in future versions)
                             prop=obj_prop,
                             timescale=timescale,
-                            phase="ST").reset_index(),
+                            phase=simulation_phase).reset_index(),
 
                     else:
                         db_data = db.query_relation_property(
                             relation=object,
                             prop=obj_prop,
                             timescale=timescale,
-                            phase="ST").reset_index(),
+                            phase=simulation_phase).reset_index(),
                     if len(db_data) == 1:
                         db_data = db_data[0]
                     else:
@@ -276,7 +309,7 @@ class SolutionFilesConfig:
         else:
             return pd.concat(dfs)
 
-    def get_processed_object(self, timescale, object, return_type):
+    def get_processed_object(self, timescale, object, return_type, simulation_phase="ST"):
         """
         Retrieve the processed data for a specified object for either the interval or year timescale. It needs
         the uncompressed Plexos Solution Files in the 04_SolutionFiles folder. It loops through all Solution Files and
@@ -299,7 +332,7 @@ class SolutionFilesConfig:
 
         # - common_yr
         # todo craig: Can I get the model_yrs info also from other files?
-        model_yrs = self._get_object(timescale='year', object='nodes', return_type='pandas') \
+        model_yrs = self._get_object(timescale='year', object='nodes', return_type='pandas', simulation_phase=simulation_phase) \
             .groupby(['model']) \
             .first() \
             .timestamp.dt.year.values
@@ -310,11 +343,11 @@ class SolutionFilesConfig:
 
         # - filter_regs
         # todo craig: Can I get the model_yrs info also from other files?
-        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators', return_type=return_type),
+        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators', return_type=return_type, simulation_phase=simulation_phase),
                                       soln_idx=self.soln_idx[
                                           self.soln_idx.Object_type.str.lower() == 'generator'].drop(
                                           columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
-        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes', return_type=return_type),
+        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes', return_type=return_type, simulation_phase=simulation_phase),
                                        soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'node'].drop(
                                            columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
 
@@ -326,7 +359,7 @@ class SolutionFilesConfig:
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
-        df = self._get_object(timescale=timescale, object=object, return_type=return_type)
+        df = self._get_object(timescale=timescale, object=object, return_type=return_type, simulation_phase=simulation_phase)
 
         if return_type == 'dask':
             df = df.repartition(partition_size="100MB")  # Repartition to most efficient size

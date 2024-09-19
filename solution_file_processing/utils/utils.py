@@ -9,6 +9,11 @@ import functools
 import dask.dataframe as dd
 import pandas as pd
 
+from zipfile import ZipFile
+from pathlib import Path
+import fnmatch
+import numpy as np
+
 from .. import log
 
 print = log.info
@@ -202,4 +207,3 @@ def folders_in(path_to_parent):
             subfolders += os.path.join(path_to_parent,fname)
 
     return subfolders
-
