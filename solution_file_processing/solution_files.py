@@ -124,6 +124,7 @@ class SolutionFilesConfig:
         self.soln_idx = pd.read_excel(self.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
         # Load paths from configurations
+        self.DIR_01_MODEL_DIR = self.cfg['path']['model_dir']
         self.DIR_04_SOLUTION_FILES = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFiles',
                                                   self.cfg['model']['soln_choice'])
         self.DIR_04_CACHE = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFilesCache',

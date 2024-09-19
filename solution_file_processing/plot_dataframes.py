@@ -374,6 +374,20 @@ class PlotDataFrames:
     
     @property
     @memory_cache
+    def curtailment_rate_reg(self):
+        """
+        Returns the curtailment rate (%) in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = pd.concat( [self.c.v.curtailment_rate_reg, self.c.v.curtailment_rate.rename(columns={'value':'Overall'})])
+        units = '%'
+        plot_type = 'clustered'
+        plot_desc = 'Curtailment rate of VRE by region'
+
+        return df, units, plot_type, plot_desc
+    
+    @property
+    @memory_cache
     def re_curtailed_by_tech(self):
         """
         Returns the RE curtailed (including spilt hydro, etc.) by technology in a plot-ready dataframe for each model in the configuration object.
@@ -709,6 +723,21 @@ class PlotDataFrames:
     @property
     @memory_cache
     def res_margin_dly_ts(self):
+        """
+        TODO: DOCSTRING
+        """
+
+        df = self.c.v.reserve_margin_ts.value.groupby([pd.Grouper(level='model'), pd.Grouper(level='timestamp', freq='D')]).min().unstack('model')
+
+        units = '%'
+        plot_type = 'timeseries'
+        plot_desc = 'Available reserve margin (based on daily peak load) by model'
+
+        return df, units, plot_type, plot_desc
+    
+    @property
+    @memory_cache
+    def rs(self):
         """
         TODO: DOCSTRING
         """

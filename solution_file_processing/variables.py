@@ -719,6 +719,40 @@ class Variables:
             'model').sum()).fillna(0) * 100
         return re_curtailment_rate
 
+
+    @property
+    @memory_cache
+    def curtailment_rate_reg(self):
+        """
+        Get the curtailment rate
+        """
+        # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
+        # vre_add_df_columns
+        # To add something for subregions
+
+        # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
+
+        vre_gen_reg = self.c.o.gen_yr_df[
+            (self.c.o.gen_yr_df.property == 'Generation') & (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model', self.c.GEO_COLS[0]]) \
+            .agg({'value': 'sum'}) \
+            .value \
+            .unstack(level=self.c.GEO_COLS[0]) \
+            .fillna(0)
+        
+        vre_av_reg = self.c.o.gen_yr_df[
+            (self.c.o.gen_yr_df.property == 'Available Energy') & (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model', self.c.GEO_COLS[0]]) \
+            .agg({'value': 'sum'}) \
+            .value \
+            .unstack(level=self.c.GEO_COLS[0]) \
+            .fillna(0)
+
+        curtailment_rate_reg = vre_gen_reg / vre_av_reg
+
+        return curtailment_rate_reg
+    
+
     @property
     @memory_cache
     def curtailment_rate(self):
@@ -726,27 +760,26 @@ class Variables:
         Get the curtailment rate
         """
 
-        # Output 8 & 9
-
         # Fill in data for regions which have no VRE (i.e. zero arrays!) to allow similar arrays for load_ts and
         # vre_add_df_columns
         # To add something for subregions
 
         # There is an error in PLEXOS with Available Capacity versus Generation (Gen exceeds Av Capacity)
 
-        curtailment_rate = (self.vre_curtailed.sum(axis=1).groupby('model').sum() / self.vre_av_abs.sum(axis=1).groupby(
-            'model').sum()).fillna(0) * 100
+        vre_gen = self.c.o.gen_yr_df[
+            (self.c.o.gen_yr_df.property == 'Generation') & (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model']) \
+            .agg({'value': 'sum'}) \
+            .fillna(0)
+        
+        vre_av = self.c.o.gen_yr_df[
+            (self.c.o.gen_yr_df.property == 'Available Energy') & (self.c.o.gen_yr_df.Category.isin(VRE_TECHS))] \
+            .groupby(['model']) \
+            .agg({'value': 'sum'}) \
+            .fillna(0)
+        
+        curtailment_rate = vre_gen/ vre_av
 
-        # Note that this is the new implementation for ISLAND-style aggregation. using self.c.GEO_COLS[0] i.e. the top
-        # tier of regional grouping.
-        vre_curtailed_grouped = self.vre_curtailed.T.groupby(self.c.GEO_COLS[0]).sum().T
-        vre_av_abs_grouped = self.vre_av_abs.T.groupby(self.c.GEO_COLS[0]).sum().T
-
-        # This could be renamed _reg. But should be done in consistent manner, so leaving for now.
-        curtailment_rate_reg = (vre_curtailed_grouped.groupby('model').sum() /
-                                vre_av_abs_grouped.groupby('model').sum()).fillna(0) * 100
-
-        curtailment_rate = pd.concat([curtailment_rate_reg, curtailment_rate.rename('Overall')], axis=1)
 
         return curtailment_rate
     
@@ -1477,6 +1510,7 @@ class Variables:
         """
         vre_curtailed_ts = self.vre_av_abs_ts - self.vre_gen_abs_ts
         return vre_curtailed_ts
+    
 
     @property
     @memory_cache
