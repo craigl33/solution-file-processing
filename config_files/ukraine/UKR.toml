@@ -17,9 +17,9 @@ reg_ts = true
 
 [plots]
 load_plots = ['load_by_reg', 'pk_load_by_reg', 'use_by_reg', 'pk_netload_by_reg']
-gen_plots = ['gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'curtailment_rate', 'av_cap_by_model', 'net_exports_by_reg', 'vre_by_reg_av',  'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
+gen_plots = ['gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'curtailment_rate', 'curtailment_rate_reg','av_cap_by_model', 'net_exports_by_reg', 'vre_by_reg_av',  'cf_tech_trans', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg']
 other_plots = ['co2_by_tech','co2_by_reg', 'co2_intensity_reg', 'op_costs_by_prop']
-quick_plots = [ 'gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'cf_tech', 'load_by_reg', 'use_by_reg']
+quick_plots = [ 'gen_cap_by_reg', 'gen_cap_by_tech', 'gen_by_tech', 'gen_by_reg', 'cf_tech', 'load_by_reg', 'use_by_reg', 'curtailment_rate']
 
 [run]
 working_dir = 'C:/Users/hart_c/showcase/solution-file-processing'
