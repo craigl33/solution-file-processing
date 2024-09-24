@@ -34,7 +34,7 @@ The SFP package requires julia to be installed and have a few (julia) packages s
 **julia proxies**
 
 Just like python, julia will need to use the corporate proxies. To make sure these work when called from python, add these to a startup file so they are applied each time julia is started. 
-- Launch julia if you haven't already so it can initialise some folders on first start up.
+- Open julia if you haven't already so it can initialise some folders on first start up.
 - Find the `.julia` folder in your user directory, normally `C:\Users\LASTNAME_F\.julia`. Make sure hidden files are visible, on Win11: View > Show > Hidden Items.
 - If there is a `config` folder with a `startup.jl` file in, add the below proxy commands to the file. 
 - If there is no `config` folder, create it. Add the proxies by adding the commands below to a new file e.g. in Notepad, saving as `startup.jl` in the `config` folder (ie a .jl file not .txt). 
