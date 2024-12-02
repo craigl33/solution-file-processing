@@ -719,7 +719,7 @@ class PlotDataFrames:
         plot_desc = 'Available capacity time-series by model'
 
         return df, units, plot_type, plot_desc
-
+    
     @property
     @memory_cache
     def res_margin_dly_ts(self):
@@ -737,17 +737,72 @@ class PlotDataFrames:
     
     @property
     @memory_cache
-    def rs(self):
-        """
-        TODO: DOCSTRING
+    def gen_cap_built_tech(self):
         """
 
-        df = self.c.v.reserve_margin_ts.value.groupby([pd.Grouper(level='model'), pd.Grouper(level='timestamp', freq='D')]).min().unstack('model')
+        Returns the generation capacity built by technology in a plot-ready dataframe for each model in the configuration object.
 
-        units = '%'
-        plot_type = 'timeseries'
-        plot_desc = 'Available reserve margin (based on daily peak load) by model'
+        """
+        df = self.c.v.gen_built_by_tech_reg
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+       
+        df = df.groupby(["model", "Category"]).sum().value.unstack("Category")/1000
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity built by technology'
 
         return df, units, plot_type, plot_desc
     
+    @property
+    @memory_cache
+    def gen_cap_built_reg(self):
+        """
+        Returns the generation capacity built by region in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_built_by_tech_reg
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+        
+        df = df.groupby(["model", self.c.GEO_COLS[0]]).sum().value.unstack(self.c.GEO_COLS[0])/1000
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity built by region'
+
+        return df, units, plot_type, plot_desc
+
+    @property
+    @memory_cache
+    def gen_build_cost_by_tech(self):
+        """
+        Returns the generation capacity built by region in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_built_by_tech_reg / 1e3
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+        
+        units = '$m'
+        plot_type = 'stacked'
+        plot_desc = 'Annualized build cost by technology'
+
+        return df, units, plot_type, plot_desc
+
+    @property
+    @memory_cache
+    def cap_shortage_by_model(self):
+        """
+
+        Returns the generation capacity shortage by model in a plot-ready dataframe for each model in the configuration object.
+
+        """
+
+        df = self.c.v.cap_shortage_ts.groupby('model').agg({'value':'max'})
+        
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity shortage by model. Based on both USE and reserve shortfalls.'
+
+        return df, units, plot_type, plot_desc
     

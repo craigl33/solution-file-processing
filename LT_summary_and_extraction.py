@@ -14,5 +14,5 @@ config.convert_solution_files_to_h5()
 
 # # # # Create plots (stored in output/plots)
 
-sfp.plots.extract_plexos_LT_results(config)
+sfp.plots.extract_plexos_LT_results(config, scale=1.05)
 sfp.plots.create_plot_2_summary(config, plot_vars=config.QUICK_PLOTS, plot_name='quick')

@@ -72,12 +72,15 @@ def _get_plot_1_variables(c):
     gen_stack_total[c.GEO_COLS] = 'Overall'
     gen_stack_total = gen_stack_total.set_index(['model'] + c.GEO_COLS + ['timestamp'])
     ### Combine the total with the rest of the data and scale to GW
-    gen_stack_by_reg = pd.concat([gen_stack_by_reg, gen_stack_total], axis=0).groupby(['model'] + c.GEO_COLS + ['timestamp']).sum()/1000
+    gen_stack_by_reg = pd.concat([gen_stack_by_reg, gen_stack_total], axis=0).groupby(['model'] + c.GEO_COLS + ['timestamp']).sum()/1000 # Convert to GW
+    gen_stack_total = gen_stack_total/1000 # Convert to GW
     
     # Add summary region here too
     reg_ids = reg_ids + ['Overall']
 
-    return reg_ids, doi_summary, gen_stack_by_reg
+    return reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total.droplevel(c.GEO_COLS)
+
+
 
 def create_plot_1a(c):
     """
@@ -87,7 +90,7 @@ def create_plot_1a(c):
 
     print("Creating plot 1a...")
 
-    reg_ids, doi_summary, gen_stack_by_reg = _get_plot_1_variables(c)
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
 
     model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
@@ -140,6 +143,181 @@ def create_plot_1a(c):
                     )
     print("Done.")
 
+def create_plot_1a_overall(c):
+    """
+    Plot 1a: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
+
+    print("Creating plot 1a...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+        # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, "overall_plots")
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+        fig_path = os.path.join(
+            save_dir_model, "plot1a_overall_stack_doi_{}.xlsx".format(doi_name)
+        )
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+        ## If you leave it empty it will not know that sheet Main is already there
+        ## and will create a new sheet.
+            for m in c.v.model_names:
+    
+                
+                gen_stack = gen_stack_total.loc[pd.IndexSlice[m, :], :].droplevel(0)
+                toi_ref = pd.to_datetime(doi.loc[m])
+
+                gen_stack_doi = gen_stack.reset_index()
+                gen_stack_doi = gen_stack_doi.loc[
+                    (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+                    & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+                    ]
+                
+                gen_stack_doi = gen_stack_doi.set_index('timestamp')
+
+                write_xlsx_stack(
+                    df=gen_stack_doi,
+                    writer=writer,
+                    sheet_name=m,
+                    palette=STACK_PALETTE,
+                )
+        print("Done.")
+
+
+def create_plot_1a_overall_models(c, summary_table=None, plot_name="doi"):
+    """
+    Plot 1a: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
+
+    print("Creating plot 1a - models...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    if summary_table is None:
+        summary_table = doi_summary
+
+    doi_periods = [doi for doi in summary_table.index if "time" in doi]
+    doi_names = [doi for doi in summary_table.index if "time" not in doi]
+    
+    for m in c.v.model_names:
+
+        gen_stack = gen_stack_total.loc[pd.IndexSlice[m, :], :].droplevel(0)
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+        fig_path = os.path.join(
+            save_dir_model, f"plot1a_overall_{plot_name}_m_{m}.xlsx"
+        )
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+        ## If you leave it empty it will not know that sheet Main is already there
+        ## and will create a new sheet.
+            for i, p in enumerate(doi_periods):
+                doi = summary_table.loc[p]
+                doi_name = doi_names[i]
+                                
+                toi_ref = pd.to_datetime(doi.loc[m])
+
+                gen_stack_doi = gen_stack.reset_index()
+                gen_stack_doi = gen_stack_doi.loc[
+                    (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+                    & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+                    ]
+                
+                gen_stack_doi = gen_stack_doi.set_index('timestamp')
+
+                write_xlsx_stack(
+                    df=gen_stack_doi,
+                    writer=writer,
+                    sheet_name=doi_name,
+                    palette=STACK_PALETTE,
+                )
+        print("Done.")
+
+
+def create_plot_1b_overall(c, ref_m=None):
+    """
+    Plot 1 - overall: Generation stacks for national days of interest a specified reference model
+    # writes one file per DoI for overall model
+    """
+
+    print("Creating plot 1 overall...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    if ref_m is None:
+    ### Defaults to the model with the highest load. This is kinda arbirtary.
+        ref_model = c.v.model_names[0]
+    elif ref_m == 'USE':
+        ref_model = c.v.use_reg_ts.groupby('model').sum().idxmax().iloc[0]
+    else:
+        ref_model = ref_m
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, 'overall_gen_stacks')	
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+
+        toi_ref = pd.to_datetime(doi.loc[ref_model])
+
+        gen_stack_doi = gen_stack_total.reset_index()
+        gen_stack_doi = gen_stack_doi.loc[
+            (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+            & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+            ]
+        
+        gen_stack_doi = gen_stack_doi.set_index(["model",  "timestamp"])
+
+        # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+        fig_path = os.path.join(
+            save_dir_model, f"plot1_overall_stack_doi_{doi_name}_ref_{ref_m}.xlsx"
+        )
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+            ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+            ## If you leave it empty it will not know that sheet Main is already there
+            ## and will create a new sheet.
+
+            for m in c.v.model_names:
+                try:
+                    gen_stack_doi_m = gen_stack_doi.loc[pd.IndexSlice[m, :], :].droplevel(0)
+                except KeyError:
+                    print(f'Cannot find {m} in second level of index. Skipping. (Example index: '
+                            f'{gen_stack_doi.index[0]})')
+                    continue
+
+                write_xlsx_stack(
+                    df=gen_stack_doi_m,
+                    writer=writer,
+                    sheet_name=m,
+                    palette=STACK_PALETTE,
+                )
+    print("Done.")
+
 
 def create_plot_1b(c, ref_m=None):
     """
@@ -149,7 +327,7 @@ def create_plot_1b(c, ref_m=None):
 
     print("Creating plot 1b...")
 
-    reg_ids, doi_summary, gen_stack_by_reg = _get_plot_1_variables(c)
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
 
     model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
@@ -220,7 +398,7 @@ def create_plot_1c(c, toi=None):
 
     print("Creating plot 1c...")
     
-    reg_ids, doi_summary, gen_stack_by_reg = _get_plot_1_variables(c)
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
 
     model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
@@ -693,7 +871,10 @@ def create_plot_6_ldc_and_line_plots(c):
                 'th_ramp_pc_dc':c.v.th_ramp_pc_dc,
                 'ramp_abs_dc':c.v.ramp_dc,
                 'th_ramp_abs_dc':c.v.th_ramp_dc,
-                'srmc_dc':c.v.srmc_dc
+                'srmc_dc':c.v.srmc_dc,
+                'use_dc':c.v.use_dc,
+                'cap_shortage_dc':c.v.cap_shortage_dc,
+                'cap_shortage_monthly_ts':c.v.cap_shortage_monthly_ts
                 }      
 
     ln_plot_type = {'ldc':'ldc',
@@ -706,7 +887,10 @@ def create_plot_6_ldc_and_line_plots(c):
                 'th_ramp_pc_dc':'ldc',
                 'ramp_abs_dc':'ldc',
                 'th_ramp_abs_dc':'ldc',
-                'srmc_dc':'ldc'
+                'srmc_dc':'ldc',
+                'use_dc':'ldc',
+                'cap_shortage_dc':'ldc',
+                'cap_shortage_monthly_ts':'timeseries'
                 }      
     
 
@@ -720,7 +904,10 @@ def create_plot_6_ldc_and_line_plots(c):
                 'th_ramp_pc_dc':'%/3-hr',
                 'ramp_abs_dc':'MW/hr',
                 'th_ramp_abs_dc':'MW/3-hr',
-                'srmc_dc':'$/MWh'
+                'srmc_dc':'$/MWh',
+                'use_dc':'GW',
+                'cap_shortage_dc':'GW',
+                'cap_shortage_monthly_ts':'GW'
 
                 
                 }      
@@ -935,6 +1122,7 @@ def create_plot_8_services(c, ref_model=None):
 
     fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot8_services_fig.xlsx')
 
+
     with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
         for m in c.v.model_names:
             
@@ -942,6 +1130,8 @@ def create_plot_8_services(c, ref_model=None):
             
             services_out = pd.DataFrame(index=subtechs).rename_axis('Technology')
             save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+            if os.path.exists(save_dir_model) is False:
+                os.mkdir(save_dir_model)
             
         ## A. Energy contribution
             energy_contr = c.o.gen_yr_df[(c.o.gen_yr_df.property == 'Generation')&(c.o.gen_yr_df.model == m)].groupby('CapacityCategory') \
@@ -1041,7 +1231,7 @@ def create_plot_8_services(c, ref_model=None):
                 df=services_out,
                 writer=writer,
                 sheet_name= m,
-                type="bar",
+                type="column",
                 subtype="percent_stacked",
                 units="",
                 palette=SERVICES_PALETTE,
@@ -1124,16 +1314,18 @@ def create_plot_10_ts_by_model(c):
 
 
     
-def extract_plexos_LT_results(c):
+def extract_plexos_LT_results(c, scale=None):
     
 
-    exp_out_path = Path(c.DIR_LT_OUTPUTS)
+    exp_out_path = Path(c.DIR_LT_OUTPUTS) / 'NEW'
+    if exp_out_path.exists() is False:
+        exp_out_path.mkdir()
 
     if exp_out_path is None:
         print('No LT output path found. Exiting.')
         return
     
-    lt_solns_path = exp_out_path / 'LT_solution_files/'
+    lt_solns_path = Path(c.DIR_04_SOLUTION_FILES)
     lt_soln_zips = [ lt_solns_path / f for f in  os.listdir(lt_solns_path) if '.zip' in f]
 
     for z in lt_soln_zips:
@@ -1154,16 +1346,17 @@ def extract_plexos_LT_results(c):
                     print(f'Could not extract {f} to {exp_out_path}. File already exists.')
                     continue
             
-            # Create a list of all the extracted files for Generator Units
-            # This can then be used to increase the capacity of the units by 5% and integerise the capacity
-            exp_units_files = [ exp_out_path / f for f in  os.listdir(exp_out_path) if 'Units.csv' in f]
+    # Create a list of all the extracted files for Generator Units
+    # This can then be used to increase the capacity of the units by 5% and integerise the capacity
+    exp_units_files = [ exp_out_path / f for f in  os.listdir(exp_out_path) if 'Units.csv' in f]
 
-            for f in exp_units_files:
-                df = pd.read_csv(f)
-                df['Value'] = df['Value'] * 1.05
-                df.loc[df.Name.str.contains('Gas'),'Value'] = df['Value'].apply(np.round)
-                try:
-                    df.to_csv(f, index=False)
-                except PermissionError:
-                    print(f'Could not write to {f}. File already exists.')
-                    continue
+    if scale is not None:
+        for f in exp_units_files:
+            df = pd.read_csv(f)
+            df['Value'] = df['Value'] * scale
+            df['Value'] = np.round(df['Value'], 0)
+            try:
+                df.to_csv(f, index=False)
+            except PermissionError:
+                print(f'Could not write to {f}. File already exists.')
+                continue

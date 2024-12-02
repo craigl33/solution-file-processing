@@ -13,14 +13,15 @@ config = sfp.SolutionFilesConfig('config_files/ukraine/UKR2.toml')  # e.g. 'conf
 config.convert_solution_files_to_h5()
 
 # # # # Create plots (stored in output/plots)
-
+# sfp.plots.create_plot_2_summary(config, plot_vars=config.QUICK_PLOTS, plot_name='quick')
 sfp.plots.create_plot_2_summary(config)
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025')
+sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025_eG')
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025_eSG')
-sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030_cPN_eSG')
 
-sfp.plots.create_plot_1a(config)
-sfp.plots.create_plot_1b(config)
+
+sfp.plots.create_plot_1a_overall(config)
+# sfp.plots.create_plot_1b(config)
 # sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-BR_cPN_eSG')
 # sfp.plots.create_plot_3(config)
 sfp.plots.create_plot_6_ldc_and_line_plots(config)

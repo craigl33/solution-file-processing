@@ -207,3 +207,8 @@ def folders_in(path_to_parent):
             subfolders += os.path.join(path_to_parent,fname)
 
     return subfolders
+
+def get_median_index(d):
+    ranks = d.rank(pct=True)
+    close_to_median = abs(ranks - 0.5)
+    return close_to_median.idxmin()[-1]

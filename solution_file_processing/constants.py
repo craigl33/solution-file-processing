@@ -132,20 +132,27 @@ PRETTY_MODEL_NAMES = {
     
     'UKR_2021_Validation' : '2021',
     "UKR_2023_Td": "2023",
-
-    "UKR_2025-BAU_eG_Td_CO2": '2025_eG',
-    "UKR_2025-BAU_eSBG_Td_CO2": '2025_eSBG',
-    "UKR_2025-BAU_eSBuG_Td_CO2": '2025_eSBuG',
-    "UKR_2025-BAU_eSG_Td_CO2": '2025_eSG',
-    "UKR_2025-BAU_eSG_Td_CO2_BTo": '2025_eSG_BTo',
     "UKR_2025-BAU_Td": '2025',
+
+    "UKR_2025-BAU_eG_Td": '2025_eG',
+    "UKR_2025-BAU_eSG_Td": '2025_eSG',
+    "UKR_2025-BAU_eSBaG_Td": '2025_eSBaG',
+    "UKR_2025-BAU_eSBaG_Td_CO2": '2025_eSBaG_CO2',
+    "UKR_2025-BAU_eSBaG_Td_Ix_CO2": '2025_eSBaG_Ix_CO2',
+    "UKR_2025-BAU_eScBaG_Td": '2025_eScBaG',
+    "UKR_2025-BAU_eScBaG_Td_CO2": '2025_eScBaG_CO2',
+    "UKR_2025-BAU_eScBaG_Td_Ix": '2025_eScBaG_Ix',
+    "UKR_2025-BAU_eScBaG_Td_Ix_CO2": '2025_eScBaG_Ix_CO2',
+
 
     "UKR_2030-BR_cPN_CO2": '2030-BR_cPN',
     "UKR_2030-BR_cPN_eSBGW_CO2": '2030-BR_cPN_eSBGW',
     "UKR_2030-BR_cPN_eSG_CO2": '2030-BR_cPN_eSG',
     "UKR_2030-BR_cPN_eSG_CO2_ASb": '2030-BR_cPN_eSG_ASb',	
     "UKR_2030-BR_cPN_eSG_CO2_ICc": '2030-BR_cPN_eSG_ICc',
-    "UKR_2030-BR_cPN_eSG_CO2_nBTo": '2030-BR_cPN_eSG_nBTo',	
+    "UKR_2030-BR_cPN_eSG_CO2_nBTo": '2030-BR_cPN_eSG_nBTo',
+
+    
 
 
     ######################
