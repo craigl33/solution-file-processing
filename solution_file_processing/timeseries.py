@@ -126,6 +126,7 @@ def create_output_3(c):
     Creates following output files:
     - 03a_vre_available_ts.csv
     - 03b_vre_gen_ts.csv
+    - 03b_vre_gen_reg_ts.csv
     - 03c_vre_curtailed_ts.csv
     - 03c_RE_curtailed_ts.csv
     - for each model in /{model}/:

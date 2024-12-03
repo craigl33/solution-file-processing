@@ -314,6 +314,26 @@ class Variables:
         net_load_reg_ts = self.customer_load_reg_ts - self.vre_av_reg_abs_ts
         
         return net_load_reg_ts
+    
+    @property
+    @memory_cache
+    def net_load_reg_orig_ts(self):
+        """"
+        TODO DOCSTRING
+        """
+        net_load_reg_orig_ts = self.customer_load_reg_ts - self.vre_av_reg_abs_ts
+        
+        return net_load_reg_orig_ts
+
+    @property
+    @memory_cache
+    def net_load_reg_curtail_ts(self):
+        """"
+        TODO DOCSTRING
+        """
+        net_load_reg_curtail_ts = self.customer_load_reg_ts - self.vre_gen_reg_abs_ts
+        
+        return net_load_reg_curtail_ts
 
     @property
     @memory_cache
@@ -1286,6 +1306,29 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
+    def vre_gen_reg_abs(self):
+        """
+        TODO DOCSTRING
+        """
+        vre_gen_reg_abs = self.c.o.gen_df[(self.c.o.gen_df.property == 'Generation') &
+                                      (self.c.o.gen_df.Category.isin(VRE_TECHS))] \
+            .assign(timestamp=dd.to_datetime(self.c.o.gen_df['timestamp']).dt.floor('D')) \
+            .groupby(['model', 'Category',] + self.c.GEO_COLS + ['timestamp']) \
+            .agg({'value': 'sum'}) \
+            .compute() \
+            .unstack('Category') \
+            .fillna(0) \
+            .stack('Category') \
+            .value \
+            .unstack(level=self.c.GEO_COLS) \
+            .fillna(0) \
+            .apply(lambda x: x * self.hour_corr)
+        vre_gen_reg_abs = (vre_gen_reg_abs * self.geo_col_filler).fillna(0)
+        return vre_gen_reg_abs
+
+    @property
+    @memory_cache
     def vre_curtailed(self):
         """
         TODO DOCSTRING
@@ -1463,6 +1506,34 @@ class Variables:
             .unstack(level='CapacityCategory') \
             .fillna(0)
         return gen_by_subtech_ts
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def gen_by_subtech_shiftobjs_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        #add shift objects from purchasers onto generation 
+        #dsm_profiles_shifted_ts
+        dsm_profiles_shifted_ts_wide = pd.pivot(self.c.v.dsm_profiles_shifted_ts[['Reduced_Load_MW_abs']].reset_index(), 
+                                                columns='PLEXOS technology',
+                                                values = 'Reduced_Load_MW_abs',
+                                                index=['model','timestamp']).rename(columns=lambda x: x + '_turndown').reset_index()
+        
+        gen_by_subtech_shiftobjs_ts = pd.merge(self.c.v.gen_by_subtech_ts.reset_index(),dsm_profiles_shifted_ts_wide,on=['model', 'timestamp'],how='left', indicator=True)
+        try:
+            right_only = gen_by_subtech_shiftobjs_ts.value_counts('_merge').loc['right_only',:]
+            print(f'gen_by_subtech_shiftobjs_ts: {right_only.values[0]} rows only in dsm, not generation')
+        except:
+            pass
+        try:
+            left_only = gen_by_subtech_shiftobjs_ts.value_counts('_merge').loc['left_only',:]
+            print(f'gen_by_subtech_shiftobjs_ts: {left_only.values[0]} rows only in generation, not dsm')
+        except:
+            pass
+        gen_by_subtech_shiftobjs_ts = gen_by_subtech_shiftobjs_ts.drop(columns='_merge').set_index(['model', 'timestamp'])
+        return gen_by_subtech_shiftobjs_ts
 
     @property
     @memory_cache
@@ -1674,6 +1745,52 @@ class Variables:
                                        index=self.c.v.customer_load_ts.index, columns=['value'])
             
         return dsm_profiles_orig_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def dsm_profiles_shifted_ts(self):
+        """
+        DSM profiles with post_shift output load (Load), passthrough of the pre-shift input load (x), difference and absolute difference
+        """
+        # Model filler for comparison of models with different inputs (e.g. DSM or EVs not included)
+        # Series with indices matching the columns of the DF for filling in missing columns
+        
+        model_filler = pd.Series(data=[1] * len(self.c.v.model_names), index=self.c.v.model_names).rename_axis('model')
+
+        try:
+            df_len = len(self.c.o.purch_df)
+            #print(f'df_len is {df_len}')
+            if df_len > 0:
+                purch_df = self.c.o.purch_df
+        except ValueError:
+            purch_df = dd.from_pandas(pd.DataFrame(None), npartitions=1)
+            df_len = 0
+            print('Purchaser df length zero, using empty df')
+
+        if df_len > 0:
+            #print('Purchaser df is not empty, passed first condition')
+            dsm_profiles_shifted_ts = purch_df[
+                purch_df.name.str.contains('_Shift') & purch_df.property.isin(['x', 'Load'])].groupby(
+                ['model', 'timestamp', 'PLEXOS technology', 'property']).agg({'value': 'sum'}).compute()
+            if dsm_profiles_shifted_ts.shape[0] > 0:
+                #print('dsm profile made it through to creating the Shifted/Reduced_Load_MW_abs cols')
+                dsm_profiles_shifted_ts = dsm_profiles_shifted_ts.unstack('property')
+                dsm_profiles_shifted_ts = dsm_profiles_shifted_ts.droplevel(0, axis=1).fillna(0)
+                dsm_profiles_shifted_ts = dsm_profiles_shifted_ts.reorder_levels(
+                    ['model', 'timestamp', 'PLEXOS technology'])
+                dsm_profiles_shifted_ts = dsm_profiles_shifted_ts.assign(Shifted_Load_MW = lambda df: df.Load.sub(df.x),
+                                                                        Shifted_Load_MW_abs = lambda df: df.Shifted_Load_MW.abs(),
+                                                                        Reduced_Load_MW_abs = lambda df: df.Shifted_Load_MW.mask(df.Shifted_Load_MW>0, 0).abs())
+            else:
+                dsm_profiles_shifted_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),
+                                       index=self.c.v.customer_load_ts.index, columns=['value'])
+        else:
+            dsm_profiles_shifted_ts = pd.DataFrame(data=[0] * len(self.c.v.customer_load_ts.index),    
+                                       index=self.c.v.customer_load_ts.index, columns=['value'])
+        
+        return dsm_profiles_shifted_ts
+
     
     @property
     @memory_cache
@@ -2032,6 +2149,17 @@ class Variables:
         """
         ramp_by_gen_subtech_ts = (self.gen_by_subtech_ts - self.gen_by_subtech_ts.shift(1)).fillna(0)
         return ramp_by_gen_subtech_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def ramp_by_gen_subtech_shiftobj_ts(self):
+        """
+        TODO DOCSTRING
+        """
+        ramp_by_gen_subtech_shiftobj_ts = (self.gen_by_subtech_shiftobjs_ts - self.gen_by_subtech_shiftobjs_ts.shift(1)).fillna(0)
+        return ramp_by_gen_subtech_shiftobj_ts
+
 
     @property
     @memory_cache
@@ -2293,6 +2421,40 @@ class Variables:
     
     @property
     @memory_cache
+    @drive_cache('variables')
+    def bat_gen_res_ts(self):
+        #print(self.c.v.regres_prov_ts.columns)
+        regres = self.c.v.regres_prov_ts.reset_index()[self.c.v.regres_prov_ts.reset_index().Category == 'Battery'] \
+                    .rename(columns={'value':'Regres_prov'})
+        if 'CapacityCategory' in regres.columns:
+                    regres.drop(columns='CapacityCategory', inplace=True)
+        
+        despatch = (self.c.o.batt_df.reset_index()[self.c.o.batt_df.reset_index().property == 'Generation'][['timestamp','model','value']] \
+                    .groupby(['timestamp', 'model']).agg({'value':'sum'}).rename(columns={'value':'Generation_MWh'}) \
+                    .reset_index() \
+                    .sort_values(['model', 'timestamp']).compute())
+        
+        bat_gen_res_ts = pd.merge(despatch,
+                                  regres, 
+                                  how='inner',
+                                  on=['model', 'timestamp'])
+        return bat_gen_res_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def bat_gen_res(self):
+        
+        bat_gen_res = self.c.v.bat_gen_res_ts.groupby(['model', 'Category'])[['Generation_MWh', 'Regres_prov']] \
+                                    .sum() \
+                                    .div(10**3) \
+                                    .rename(columns={'Generation_MWh':'Generation'})
+        
+        return bat_gen_res
+
+    
+    @property
+    @memory_cache
     def reg_ids(self):
         reg_ids = list(np.unique(np.append(
                 self.load_by_reg.value.unstack(self.c.GEO_COLS).droplevel(level=[r for r in self.c.GEO_COLS if r != self.c.GEO_COLS[0]], axis=1).replace(0,np.nan).dropna(
@@ -2507,6 +2669,25 @@ class Variables:
         
 
         return spinres_av_ts
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def spinres_wshift_av_ts(self):
+        """
+        Obtain the spinning reserve available by region but with shift objects from purchasers
+        """
+
+        spinres_wshift_av_ts = dd.concat([self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Available Response')& (self.c.o.res_gen_df.ResType == 'Spinning')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}),
+            self.c.o.res_purch_df[(self.c.o.res_purch_df.property == 'Available Response')& (self.c.o.res_purch_df.ResType == 'Spinning')].assign(
+                CapacityCategory = lambda x: x['PLEXOScat'],
+                Category= lambda x: x['PLEXOScat'],).groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'})], axis=0).compute()
+        
+
+        return spinres_wshift_av_ts
+
     
     @property
     @memory_cache
@@ -2520,6 +2701,24 @@ class Variables:
                 ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
         
         return spinres_prov_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def spinres_wshift_prov_ts(self):
+        """
+        Obtain the spinning reserve provided by region but with shift objects from purchasers
+        """
+
+        spinres_wshift_prov_ts = dd.concat([self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Provision')& (self.c.o.res_gen_df.ResType == 'Spinning')].groupby(
+                ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}),
+                    self.c.o.res_purch_df[(self.c.o.res_purch_df.property == 'Provision')& (self.c.o.res_purch_df.ResType == 'Spinning')].assign(
+                CapacityCategory = lambda x: x['PLEXOScat'],
+                Category= lambda x: x['PLEXOScat'],).groupby(
+                ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'})], axis=0).compute()
+        
+        return spinres_wshift_prov_ts
+
 
 
     @property
@@ -2538,6 +2737,24 @@ class Variables:
     @property
     @memory_cache
     @drive_cache('variables')
+    def regres_wshift_av_ts(self):
+        '''
+        Obtain the regulating reserve available by region, incl shift objects
+        '''
+
+        regres_wshift_av_ts = dd.concat([self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Available Response')& (self.c.o.res_gen_df.ResType == 'Regulating')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}),
+        self.c.o.res_purch_df[(self.c.o.res_purch_df.property == 'Available Response')& (self.c.o.res_purch_df.ResType == 'Regulating')].assign(
+            CapacityCategory = lambda x: x['PLEXOScat'],
+            Category = lambda x: x['PLEXOScat']).groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'})], axis=0).compute()
+        
+        return regres_wshift_av_ts
+
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
     def regres_prov_ts(self):
         '''
         Obtain the regulating reserve provided by region
@@ -2547,6 +2764,24 @@ class Variables:
         ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}).compute()
         
         return regres_prov_ts
+    
+    @property
+    @memory_cache
+    @drive_cache('variables')
+    def regres_wshift_prov_ts(self):
+        '''
+        Obtain the regulating reserve provided by region. Batteries are already included in res_gen_df, purchasers (ie shift objects for China) are not so add those
+        '''
+
+        regres_wshift_prov_ts = dd.concat([self.c.o.res_gen_df[(self.c.o.res_gen_df.property == 'Provision') & (self.c.o.res_gen_df.ResType == 'Regulating')].groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'}),
+            self.c.o.res_purch_df[(self.c.o.res_purch_df.property == 'Provision') & (self.c.o.res_purch_df.ResType == 'Regulating')].assign(
+                CapacityCategory = lambda x: x['PLEXOScat'],
+                Category= lambda x: x['PLEXOScat'],).groupby(
+        ['model','CapacityCategory', 'Category','timestamp']).agg({'value':'sum'})], axis=0).compute()
+        
+        return regres_wshift_prov_ts
+
 
     @property
     @memory_cache

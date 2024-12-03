@@ -332,7 +332,8 @@ class Objects:
         _df = self.c.get_processed_object('interval', 'reserves_generators', return_type='dask')
 
         try:
-            bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
+            #bat_df = self.c.get_processed_object('interval', 'batteries', return_type='dask')
+            bat_df = self.c.get_processed_object('interval', 'reserves_batteries', return_type='dask')
             _df = dd.concat([_df, bat_df], axis=0)
         except ValueError:
             print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
@@ -361,7 +362,8 @@ class Objects:
         _df = self.c.get_processed_object('year', 'reserves_generators', return_type='pandas')
 
         try:
-            bat_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+            #bat_df = self.c.get_processed_object('year', 'batteries', return_type='pandas')
+            bat_df = self.c.get_processed_object('year', 'reserves_batteries', return_type='pandas')
             _df = pd.concat([_df, bat_df], axis=0)
         except ValueError:
             print("No batteries object exists. Will not be added to reserves_generators interval dataframe.")
@@ -376,6 +378,45 @@ class Objects:
             _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname').first().index.str.split('_').str[0])
 
         return _df
+
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def res_purch_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        _df = self.c.get_processed_object('interval', 'reserves_purchasers', return_type='dask')        
+        
+        #just do it off the _df.parent col? why bother with mapping a different df?
+        try:
+            _df['ResType'] = _df['parent'].str.split('_').str[0]
+        except:
+            try:
+                _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname')['Type'].first())
+            except KeyError:
+                _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname').first().index.str.split('_').str[0])
+
+        return _df
+
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def res_purch_yr_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        _df = self.c.get_processed_object('year', 'reserves_purchasers', return_type='pandas')
+        try:
+            _df['ResType'] = _df['parent'].str.split('_').str[0]
+        except:
+            try:
+                _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname')['Type'].first())
+            except KeyError:
+                _df['ResType'] = _df['parent'].map(self.res_yr_df.groupby('PLEXOSname').first().index.str.split('_').str[0])
+
+        return _df
+
 
 
     @property

@@ -553,7 +553,12 @@ def write_xlsx_column(
                     palette[df.columns[col_num - df.index.nlevels]]
                 ]
             except KeyError:
-                fill_colour = IEA_CMAP_16.colors[col_num - df.index.nlevels]
+                try:
+                    fill_colour = IEA_CMAP_16.colors[col_num - df.index.nlevels]
+                except:
+                    #e.g. adding DSR shift objects means more colours than are in the palette so just make anything else grey
+                    fill_colour = '#afafaf' #grey20
+
 
             # fill_colour = matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[20-col_num-df.index.nlevels])
 
