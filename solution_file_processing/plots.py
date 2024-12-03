@@ -879,7 +879,7 @@ def create_plot_7_co2_savings(c):
     print("Done.")
 
 
-def create_plot_8_services(c, ref_model=None):
+def create_plot_8_services(c, ref_model=None, individual_shift_durations = True):
     """
     Status:
     Plot 8 Services figure output
@@ -915,7 +915,14 @@ def create_plot_8_services(c, ref_model=None):
             ### All subtechs for consistent solution size/columns
             
             services_out = pd.DataFrame(index=subtechs).rename_axis('Technology')
+            #save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
             save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+            if os.path.exists(save_dir_model):
+                print(f'Saving to dir that already exists: {save_dir_model}')
+            else:
+                print(f'Dir didn\'t exist yet, creating: {save_dir_model}')
+
+            os.makedirs(save_dir_model, exist_ok=True)
             
         ## A. Energy contribution
             energy_contr = c.o.gen_yr_df[(c.o.gen_yr_df.property == 'Generation')&(c.o.gen_yr_df.model == m)].groupby('CapacityCategory') \
@@ -946,25 +953,41 @@ def create_plot_8_services(c, ref_model=None):
             
 
             ### NA should be filled up top instead
-            pk_contr = c.v.gen_by_subtech_ts.fillna(0).loc[ix[m,netload_100.index],:].reset_index(drop=True)
+            #pk_contr = c.v.gen_by_subtech_ts.fillna(0).loc[ix[m,netload_100.index],:].reset_index(drop=True)
+            pk_contr = c.v.gen_by_subtech_shiftobjs_ts.fillna(0).loc[ix[m,netload_100.index],:].reset_index(drop=True)
+            #print(f'pk_contr raw: {pk_contr.head()}')
             pk_contr = pk_contr.mean()
+            #print(f'pk_contr mean: {pk_contr}')
             pk_contr.loc[vre_techs] = 0
             vre_pk_contr = pd.Series(data=np.mean(load_100.values-netload_100.values), index = ['VRE'])
+            
             dsm_pk_contr = pd.Series(data=np.mean(c.v.net_load_ts.loc[ix[m,:]].value.nlargest(100) - c.v.net_load_orig_ts.loc[ix[m,:]].value.nlargest(100)), index=['DSMshift'])
-            pk_contr = pd.concat([pk_contr, vre_pk_contr, dsm_pk_contr])
+            #this only includes turned-down demand, ie outturn demand minus input profile
+            if individual_shift_durations:
+                pk_contr = pd.concat([pk_contr, vre_pk_contr, dsm_pk_contr])
+            else:
+                #this line sums all the shift objects into a single row. Commented out for now as want individual durations to show contrib of EV/electrolysers
+                dsm_shift_pk_contr = pd.Series(data=pk_contr.filter(regex='Shift\d+h').sum(), index=['DSM_shift_objs_turndown'])
+                #need to filter out the individual shift objects here if adding from pk_contr to add total in the concat with dsm_shift_pk_contr
+                pk_contr = pd.concat([pk_contr.drop(pk_contr.filter(regex="Shift\d+h").index), vre_pk_contr, dsm_pk_contr, dsm_shift_pk_contr])
+                
         
         #     ### DSM would go here too!
         #     pk_contr = pd.merge(non_vre_pk_contr, vre_pk_contr, left_index=True, right_index=True)
         #     pk_contr = pk_contr.sum()/pk_contr.sum().sum()
             
         ### D. Reserves
-            spin_res_contr = c.v.spinres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
-            spin_res_av_ann_contr = c.v.spinres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+        #commented out old versions and added new versions that include shift objects
+            #spin_res_contr = c.v.spinres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            spin_res_contr = c.v.spinres_wshift_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            #spin_res_av_ann_contr = c.v.spinres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            spin_res_av_ann_contr = c.v.spinres_wshift_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
             spin_res_contr = spin_res_contr.mask(spin_res_contr<0).fillna(0)
             spin_res_av_ann_contr = spin_res_av_ann_contr.mask(spin_res_av_ann_contr<0).fillna(0)
                 
             ## 100 most difficult periods for stability/reserves = highest net load ==> systen is the most strained 
-            spinres_av100 = c.v.spinres_av_ts.loc[ix[:,:,:,netload_100.index]]
+            #spinres_av100 = c.v.spinres_av_ts.loc[ix[:,:,:,netload_100.index]]
+            spinres_av100 = c.v.spinres_wshift_av_ts.loc[ix[:,:,:,netload_100.index]]
             spinres_av100 = spinres_av100.mask(spinres_av100<0).fillna(0)
             spin_res_av_contr = spinres_av100.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
 
@@ -972,17 +995,23 @@ def create_plot_8_services(c, ref_model=None):
 
             ### Some models have not have reg reserves so, this avoids this from breaking
             try:
-                reg_res_contr = c.v.regres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
-                reg_res_av_ann_contr = c.v.regres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                
+                #reg_res_contr = c.v.regres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                reg_res_contr = c.v.regres_wshift_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                #reg_res_av_ann_contr = c.v.regres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                reg_res_av_ann_contr = c.v.regres_wshift_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
                 ### Some bug?
                 reg_res_contr = reg_res_contr.mask(reg_res_contr<0).fillna(0)
                 reg_res_av_ann_contr = reg_res_av_ann_contr.mask(reg_res_av_ann_contr<0).fillna(0)
                 
                 ## 100 most difficult periods for stability/reserves = lowest inertia periods    
-                regres_av100 = c.v.regres_av_ts.loc[ix[:,:,:,netload_100.index]]
+                #regres_av100 = c.v.regres_av_ts.loc[ix[:,:,:,netload_100.index]]
+                regres_av100 = c.v.regres_wshift_av_ts.loc[ix[:,:,:,netload_100.index]]
+
                 regres_av100 = regres_av100.mask(regres_av100<0).fillna(0)
                 reg_res_av_contr = regres_av100.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
             except KeyError:
+                print('No regulating reserve added to plot8 services, check this')
                 reg_res_contr = pd.Series(data=np.zeros(len(spin_res_contr)), index = spin_res_contr.index)
                 reg_res_av_ann_contr = pd.Series(data=np.zeros(len(spin_res_av_contr)), index = spin_res_av_contr.index)
                 reg_res_av_contr = pd.Series(data=np.zeros(len(spin_res_av_contr)), index = spin_res_av_contr.index)
@@ -991,10 +1020,14 @@ def create_plot_8_services(c, ref_model=None):
         ### E. Upward ramp contribution
         ### TODO: Ramp contirbution from VRE should be zeroed/ignored
             ramp_100 = c.v.ramp_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr))
-            ramp_contr = c.v.ramp_by_gen_subtech_ts.loc[ix[m,ramp_100.index],].droplevel(0)
+            ramp_contr = c.v.ramp_by_gen_subtech_shiftobj_ts.loc[ix[m,ramp_100.index],].droplevel(0)
             ramp_contr = ramp_contr.mask(ramp_contr < 0).fillna(0).mean()
             dsm_ramp_contr = pd.Series(data=np.mean(c.v.ramp_orig_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr)) - ramp_100), index=['DSMshift'])
-            ramp_contr = pd.concat([ramp_contr, dsm_ramp_contr])
+            if individual_shift_durations:
+                ramp_contr = pd.concat([ramp_contr, dsm_ramp_contr])
+            else:
+                dsm_shift_ramp_contr = pd.Series(data=ramp_contr.filter(regex='Shift\d+h').sum(), index=['DSM_shift_objs_turndown'])    
+                ramp_contr = pd.concat([ramp_contr.drop(ramp_contr.filter(regex="Shift\d+h").index), dsm_ramp_contr, dsm_shift_ramp_contr])
 
         ### Out
 
@@ -1039,7 +1072,7 @@ def create_plot_9_av_cap(c):
         - plot6_ldc_plots.xlsx
     """
 
-    print("Creating plot 6...")
+    print("Creating plot 9...")
 
     plot_lines = {'av_cap':c.p.av_cap_ts[0],
                  'res_margin':c.p.res_margin_ts[0],

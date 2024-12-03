@@ -156,7 +156,7 @@ class SolutionFilesConfig:
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
 
     @staticmethod
-    def install_dependencies():
+    def install_dependencies(julia_pth = "julia"):
         """
         Install required dependencies for the Julia programming language. This is only needed to run the
         `convert_solution_files_to_h5()` method.
@@ -165,7 +165,7 @@ class SolutionFilesConfig:
         libraries, or components needed to work with the Julia programming language.
         Make sure you have the Julia programming language installed before using this function.
         """
-        julia.install()
+        julia.install(julia=julia_pth)
 
     def convert_solution_files_to_h5(self):
         """

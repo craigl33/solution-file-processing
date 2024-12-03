@@ -89,6 +89,8 @@ def create_output_3(c):
     - 03a_gen_by_tech_reg_orig.csv
     - 03c_gen_by_plexos_tech_reg.csv
     - 03d_gen_by_plants.csv
+    - 03e_gen_res_batt.csv
+    
     """
     print("Creating output 3...")
 
@@ -113,11 +115,15 @@ def create_output_3(c):
     (c.v.gen_by_plant
      .assign(units='GWh')
      .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03d_gen_by_plants.csv'), index=True))
+    (c.v.bat_gen_res_ts \
+     .assign(units='GWh') \
+     .to_csv(os.path.join(c.DIR_05_1_SUMMARY_OUT, '03e_gen_res_batt.csv'), index=True))
 
     print('Created file 03a_gen_by_tech_reg.csv.')
     print('Created file 03a_gen_by_tech_reg_orig.csv.')
     print('Created file 03c_gen_by_plexos_tech_reg.csv.')
     print('Created file 03d_gen_by_plants.csv.')
+    print('Created file 03e_gen_res_batt.csv.')
 
 
 @catch_errors

@@ -180,6 +180,15 @@ PRETTY_MODEL_NAMES = {
     "02_China_APS_2030_FDp_nBO_UCset_nMUT":"2030_APS-FDp-nBO-SM",
     "02_China_APS_2030_FDp_UCset_nMUT_nBAS":"2030_APS-FDp-SM_nBAS",
     "02_China_APS_2030_FDp_UCset_nMUT_nDSM":"2030_APS-FDp-SM_nDSM",
+    
+    "02_China_APS_2030_ED_nMUT_S24":"APS_2030_ED_nMUT_S24",
+    "02_China_APS_2030_ED_nMUT_S24_BtMW":"APS_2030_ED_nMUT_S24_BtMW",
+    "02_China_APS_2030_ED_nMUT_S24_DAS":"APS_2030_ED_nMUT_S24_DAS",
+    "02_China_APS_2030_ED_nMUT_S24_lowAS":"APS_2030_ED_nMUT_S24_lowAS",
+    "02_China_APS_2030_ED_UCset_nMUT_S24":"APS_2030_ED_UCset_nMUT_S24",
+    "01_China_2022_nMUT_FD_IRc_TWtoGW_updated":"2022_nMUT_FD_IRc_TWtoGW_updated",
+
+
 
 
     ### older
@@ -276,6 +285,27 @@ SERVICE_TECH_IDX = {'Coal':'Coal',
 'Battery_2h':'Storage',	
 'Battery_4h':'Storage',	
 'Battery_8h':'Storage',
+'DSM_shift_objs_turndown':'Demand shift',
+'Shift10h_turndown':'Shift10h',
+'Shift12h_turndown':'Shift12h',
+'Shift1h_turndown':'Shift1h',
+'Shift24h_turndown':'Shift24h',
+'Shift3h_turndown':'Shift3h',
+'Shift4h_turndown':'Shift4h',
+'Shift5h_turndown':'Shift5h',
+'Shift8h_turndown':'Shift8h',
+
+#these are for reserve so leave as is
+'DSM_Shift10h': 'Shift10h',
+'DSM_Al': 'DSM_Al',
+'DSM_Shift24h': 'Shift24h',
+'DSM_Shift1h': 'Shift1h',
+'DSM_Shift5h': 'Shift5h',
+'DSM_Shift2h': 'Shift2h',
+'DSM_Shift3h': 'Shift3h',
+'DSM_Shift12h': 'Shift12h',
+'DSM_Shift8h': 'Shift8h',
+'DSM_Shift4h': 'Shift4h',
 
 
 #### TODO: NEW TECHS based on changes from China model. This should be the template for other models, and therefore other models should be updated
