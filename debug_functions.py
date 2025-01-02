@@ -6,8 +6,9 @@ main directory and edit it there.
 import solution_file_processing as sfp
 
 # Initialize config with toml file
-config = sfp.SolutionFilesConfig('config_files/ukraine/UKR.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
+config = sfp.SolutionFilesConfig('config_files/ukraine/UKR2.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
 
 
-# sfp.plots.create_plot_1a_overall(config)
-sfp.plots.create_plot_8_services(config)
+sfp.plots.create_plot_1a_overall(config)
+# sfp.plots.create_plot_2_summary(config)
+# sfp.plots.create_plot_6_ldc_and_line_plots(config)

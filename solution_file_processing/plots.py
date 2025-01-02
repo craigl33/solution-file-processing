@@ -874,7 +874,12 @@ def create_plot_6_ldc_and_line_plots(c):
                 'srmc_dc':c.v.srmc_dc,
                 'use_dc':c.v.use_dc,
                 'cap_shortage_dc':c.v.cap_shortage_dc,
-                'cap_shortage_monthly_ts':c.v.cap_shortage_monthly_ts
+                'cap_shortage_monthly_ts':c.v.cap_shortage_monthly_ts,
+                'gen_cycling_dly_ts':c.v.gen_cycling_dly_ts,
+                'gen_cycling_pc_dly_ts':c.v.gen_cycling_pc_dly_ts,
+                'gen_cycling_dc':c.v.gen_cycling_dc,
+                'gen_cycling_pc_dc':c.v.gen_cycling_pc_dc
+                
                 }      
 
     ln_plot_type = {'ldc':'ldc',
@@ -890,7 +895,11 @@ def create_plot_6_ldc_and_line_plots(c):
                 'srmc_dc':'ldc',
                 'use_dc':'ldc',
                 'cap_shortage_dc':'ldc',
-                'cap_shortage_monthly_ts':'timeseries'
+                'cap_shortage_monthly_ts':'timeseries',
+                'gen_cycling_dly_ts':'timeseries',
+                'gen_cycling_pc_dly_ts':'timeseries',
+                'gen_cycling_dc':'ldc',
+                'gen_cycling_pc_dc':'ldc'
                 }      
     
 
@@ -907,9 +916,11 @@ def create_plot_6_ldc_and_line_plots(c):
                 'srmc_dc':'$/MWh',
                 'use_dc':'GW',
                 'cap_shortage_dc':'GW',
-                'cap_shortage_monthly_ts':'GW'
-
-                
+                'cap_shortage_monthly_ts':'GW',
+                'gen_cycling_dly_ts':'GW',
+                'gen_cycling_pc_dly_ts':f'% daily peak load',
+                'gen_cycling_dc':'GW',
+                'gen_cycling_pc_dc':f'% daily peak load'
                 }      
 
 
@@ -1260,7 +1271,8 @@ def create_plot_9_av_cap(c):
     plot_lines = {'av_cap':c.p.av_cap_ts[0],
                  'res_margin':c.p.res_margin_ts[0],
                  'av_cap_dly':c.p.av_cap_dly_ts[0],
-                 'res_margin_dly':c.p.res_margin_dly_ts[0]
+                 'res_margin_dly':c.p.res_margin_dly_ts[0],
+
                 }
     
     ln_plot_type = {'av_cap':'timeseries',
@@ -1286,7 +1298,7 @@ def create_plot_9_av_cap(c):
 
     print("Done.")
 
-def create_plot_10_ts_by_model(c):
+def create_plot_10a_vre_gen_by_model(c):
     """
     Status:
     Plot 10: TS plots by model
@@ -1297,7 +1309,7 @@ def create_plot_10_ts_by_model(c):
     """
 
     vre_gen_monthly_ts = c.v.vre_gen_monthly_ts
-    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10_ts_by_model_plots.xlsx')
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10a_vre_gen_by_model_plots.xlsx')
     
     with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
     
@@ -1311,6 +1323,60 @@ def create_plot_10_ts_by_model(c):
 
             write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='GWh', line_width=1)
     print("Done.")
+
+def create_plot_10b_vre_cf_by_model(c):
+    """
+    Status:
+    Plot 10: TS plots by model
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot10_ts_by_model_plots.xlsx
+    """
+
+    vre_cf_monthly_ts = c.v.vre_cf_monthly_ts
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10b_vre_cf_by_model_plots.xlsx')
+    
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for m in c.v.model_names:
+            df = vre_cf_monthly_ts.loc[pd.IndexSlice[m,]]
+            
+            if len(m) >= 31:
+                sheet_m = m[:15] + m[-15:]
+            else:
+                sheet_m = m
+
+            write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='%', line_width=1)
+    print("Done.")
+
+
+def create_plot_10c_vre_cf_gen_by_model(c):
+    """
+    Status:
+    Plot 10: TS plots by model
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot10_ts_by_model_plots.xlsx
+    """
+
+    vre_cf_monthly_ts = c.v.vre_cf_gen_monthly_ts
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10b_vre_cf_by_model_plots.xlsx')
+    
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for m in c.v.model_names:
+            df = vre_cf_monthly_ts.loc[pd.IndexSlice[m,]]
+            
+            if len(m) >= 31:
+                sheet_m = m[:15] + m[-15:]
+            else:
+                sheet_m = m
+
+            write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='%', line_width=1)
+    print("Done.")
+
 
 
     

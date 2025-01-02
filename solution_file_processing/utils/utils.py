@@ -156,15 +156,18 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
     # todo this can probably be done more efficiently and completely removed
     """
 
+
     # Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)
     if out_type == 'rel':
         df = df.rename(columns={0: 'value'})[['parent', 'child', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='child', right_on='PLEXOSname')
+        if soln_idx is not None:
+            df = dd.merge(df, soln_idx, left_on='child', right_on='PLEXOSname')
     else:
         df = df.rename(columns={0: 'value'})[['name', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='name', right_on='PLEXOSname')
+        if soln_idx is not None:
+            df = dd.merge(df, soln_idx, left_on='name', right_on='PLEXOSname')
 
     # Replace timestamp year with common year if provided
     if common_yr:

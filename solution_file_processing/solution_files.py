@@ -310,7 +310,7 @@ class SolutionFilesConfig:
         else:
             return pd.concat(dfs)
 
-    def get_processed_object(self, timescale, object, return_type, simulation_phase="ST"):
+    def get_processed_object(self, timescale, object, return_type, simulation_phase="ST", enrich=True):
         """
         Retrieve the processed data for a specified object for either the interval or year timescale. It needs
         the uncompressed Plexos Solution Files in the 04_SolutionFiles folder. It loops through all Solution Files and
@@ -379,12 +379,19 @@ class SolutionFilesConfig:
             o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
                      .drop(columns='Object_type'))
             if len(o_idx) > 0:
-                if '_' not in object:
-                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                ### Add this in to allow the processing of raw outputs. Useful for export prices, for e.g.
+                if enrich:
+                    soln_idx = o_idx
                 else:
-                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
-                                   pretty_model_names=PRETTY_MODEL_NAMES)
+                    soln_idx = None
+                
+                if '_' not in object:
+                    df = enrich_df(df, soln_idx=soln_idx, common_yr=common_yr,
+                                out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                else:
+                    df = enrich_df(df, soln_idx=soln_idx, common_yr=common_yr, out_type='rel',
+                                pretty_model_names=PRETTY_MODEL_NAMES)
+                    
 
                 # Check if df is empty (faster way for dask, instead of df.empty)
                 # This fails if objects are excluded from the SolutionIndex as they are from an external system.
@@ -412,12 +419,17 @@ class SolutionFilesConfig:
             o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
                      .drop(columns='Object_type'))
             if len(o_idx) > 0:
+                if enrich:
+                    soln_idx = o_idx
+                else:
+                    soln_idx = soln_idx = None
+            # Add this in to allow the processing of raw outputs. Useful for export prices, for e.g.
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                                out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
                 else:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
+                                out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):

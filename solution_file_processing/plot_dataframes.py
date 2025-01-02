@@ -8,6 +8,7 @@ the data is consistent across all functions.
 """
 
 import pandas as pd
+import numpy as np
 
 
 from solution_file_processing.utils.utils import memory_cache
@@ -779,7 +780,12 @@ class PlotDataFrames:
         Returns the generation capacity built by region in a plot-ready dataframe for each model in the configuration object.
         """
 
-        df = self.c.v.gen_built_by_tech_reg / 1e3
+        df = self.c.v.gen_build_cost_by_tech
+        df = (df.replace(0, np.nan).dropna(how='all', axis=1)
+              .dropna(how='all', axis=0)
+              .replace(np.nan, 0) / 1e3
+        )
+
         if df.shape[0] == 0:
             return pd.DataFrame(None), "", "", ""
         
@@ -806,3 +812,51 @@ class PlotDataFrames:
 
         return df, units, plot_type, plot_desc
     
+    @property
+    @memory_cache
+    def gen_cycling_pk(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_cycling_dly_ts.groupby('model').agg({'value':'max'})
+        
+        units = '%'
+        plot_type = 'stacked'
+        plot_desc = 'Generation cycling peak as a percentage of the peak generation'
+        return df, units, plot_type, plot_desc
+    
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_pk(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_cycling_pc_dly_ts.groupby('model').agg({'value':'max'})
+        
+        units = '%'
+        plot_type = 'stacked'
+        plot_desc = 'Generation cycling peak as a percentage of the peak generation'
+        return df, units, plot_type, plot_desc
+    
+    @property
+    @memory_cache
+    def import_cost(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df_costs = -self.c.v.export_cost_ts[self.c.v.export_cost_ts.value < 0].groupby('model').sum()/1e6
+        df_revenues = -self.c.v.export_cost_ts[self.c.v.export_cost_ts.value > 0].groupby('model').sum()/1e6
+        df = pd.concat([df_costs.value.rename('Costs'), df_revenues.value.rename('Revenues')], axis=1)
+
+        
+        units = 'USDm'
+        plot_type = 'stacked'
+        plot_desc = 'Costs and revenues of electricity imports and exports'
+        return df, units, plot_type, plot_desc

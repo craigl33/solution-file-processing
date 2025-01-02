@@ -326,6 +326,17 @@ class Objects:
         """
         _df = self.c.get_processed_object('interval', 'regions', return_type='dask')
         return _df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def reg_raw_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        _df = self.c.get_processed_object('interval', 'regions', return_type='dask', enrich=False)
+        # df = self.c._prettify_model_names(df)
+        return _df
 
     @property
     @memory_cache

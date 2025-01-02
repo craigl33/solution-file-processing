@@ -131,18 +131,42 @@ PRETTY_MODEL_NAMES = {
     #######################
     
     'UKR_2021_Validation' : '2021',
-    "UKR_2023_Td": "2023",
+    "UKR_2024_Td": "2024",
     "UKR_2025-BAU_Td": '2025',
 
+
     "UKR_2025-BAU_eG_Td": '2025_eG',
+    "UKR_2025-BAU_eG_Td_Rn": '2025_eG_Rn',
+    "UKR_2025-BAU_eG_Td_Ro": '2025_eG_Ro',
+    "UKR_2025-BAU_eSoG_Td": '2025_eSoG',
     "UKR_2025-BAU_eSG_Td": '2025_eSG',
+    "UKR_2025-BAU_eSG_Td_BTd": '2025_eSG_BTd',
+
+    "UKR_2025-BAU_eSG_Td_Brem": '2025_eSG_Brem',
     "UKR_2025-BAU_eSBaG_Td": '2025_eSBaG',
     "UKR_2025-BAU_eSBaG_Td_CO2": '2025_eSBaG_CO2',
+    "UKR_2025-BAU_eSBaG_Td_Ix": '2025_eSBaG_Ix',
+    "UKR_2025-BAU_eSWBaG_Td": '2025_eSWBaG',
+    "UKR_2025-BAU_eSWBaG_Td_Ix": '2025_eSWBaG_Ix',
+
     "UKR_2025-BAU_eSBaG_Td_Ix_CO2": '2025_eSBaG_Ix_CO2',
     "UKR_2025-BAU_eScBaG_Td": '2025_eScBaG',
     "UKR_2025-BAU_eScBaG_Td_CO2": '2025_eScBaG_CO2',
     "UKR_2025-BAU_eScBaG_Td_Ix": '2025_eScBaG_Ix',
     "UKR_2025-BAU_eScBaG_Td_Ix_CO2": '2025_eScBaG_Ix_CO2',
+
+    "UKR_2030-BAU_cPN_eSG_LT_CO2": '2030-BAU_cPN_eSG',
+    "UKR_2030-BR_cO_eSG_LT_CO2": '2030-BR_cO_eSG',
+    "UKR_2030-BR_cON_eSG_LT_CO2": '2030-BR_cON_eSG',
+    "UKR_2030-BR_cONZ_eSG_LT_CO2": '2030-BR_cONZ_eSG',
+    "UKR_2030-BR_cP_eSG_LT_CO2": '2030-BR_cP_eSG',
+    "UKR_2030-BR_cPN_eSG_LT_CO2": '2030-BR_cPN_eSG',
+    "UKR_2030-BR_cPN_eSG_LT_CO2_MIP": '2030-BR_cPN_eSG_MIP',
+    "UKR_2030-BR_cPN_eSG_LT_CO2_Wind": '2030-BR_cPN_eSG_Wind',
+    "UKR_2030-BR_cPN_eSG_LT_Ix_CO2": '2030-BR_cPN_eSG_Ix',
+    "UKR_2030-BR_cPN_eSGf_LT_CO2": '2030-BR_cPN_eSGf',
+    "UKR_2030-BR_cPN_eSGf_LT_Ix_CO2": '2030-BR_cPN_eSGf_Ix',
+    "UKR_2030-IR_cPN_eSG_LT_CO2": '2030-IR_cPN_eSG',
 
 
     "UKR_2030-BR_cPN_CO2": '2030-BR_cPN',
@@ -268,15 +292,15 @@ SERVICE_TECH_IDX = {'Coal':'Coal',
 'Wind':'Variable renewables',
 'Marine':'Bioenergy & other renewables',
 'Hydro':'Hydro',
-'PSH':'Storage',
+'PSH':'PSH',
 'DSM':'Demand response',
 'VRE':'Variable renewables',
-'Battery':'Storage',
+'Battery':'Battery',
 'Cofiring':'Coal',
-'Battery_1h':'Storage',
-'Battery_2h':'Storage',	
-'Battery_4h':'Storage',	
-'Battery_8h':'Storage',
+'Battery_1h':'Battery',
+'Battery_2h':'Battery',	
+'Battery_4h':'Battery',	
+'Battery_8h':'Battery',
 
 
 #### TODO: NEW TECHS based on changes from China model. This should be the template for other models, and therefore other models should be updated

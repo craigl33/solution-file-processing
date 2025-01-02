@@ -6,7 +6,7 @@ main directory and edit it there.
 import solution_file_processing as sfp
 
 # Initialize config with toml file
-config = sfp.SolutionFilesConfig('config_files/ukraine/UKR2.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
+config = sfp.SolutionFilesConfig('config_files/ukraine/UKR.toml')  # e.g. 'config_archive/vanilla_dev/IDN.toml'
 
 # Only when running the first time
 # config.install_dependencies()

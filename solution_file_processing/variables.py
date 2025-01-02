@@ -832,6 +832,9 @@ class Variables:
 
         gen_ramp_costs_by_reg = ramp_costs_by_gen_name.reset_index().groupby(
             ['model'] + self.c.GEO_COLS + ['Category', 'property']).agg({'value': 'sum'}).compute() / 1e6
+        
+        
+
 
         # ### Final dataframes of costs
         gen_op_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_ramp_costs_by_reg], axis=0).reset_index().groupby(
@@ -867,7 +870,6 @@ class Variables:
             ['model'] + self.c.GEO_COLS + ['Category', 'property']) \
                 .agg({'value': 'sum'}) \
                 .applymap(lambda x: x / 1e3)
-        
 
         gen_total_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_capex_by_reg], axis=0)
 
@@ -2600,7 +2602,7 @@ class Variables:
         """
 
         gen_build_cost_by_tech = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Annualized Build Cost'].groupby(
-                            ['model', 'PLEXOS technology']).agg({'value':'sum'}).value.unstack(level='PLEXOS technology').fillna(0)
+                            ['model', 'Category']).agg({'value':'sum'}).value.unstack(level='Category').fillna(0)
 
         return gen_build_cost_by_tech
 
@@ -2768,6 +2770,40 @@ class Variables:
 
     @property
     @memory_cache
+    def vre_cf_monthly_ts(self):
+        """
+        Obtain the monthly generation of VRE technologies
+        """
+
+        
+        df_gen = self.c.v.vre_av_abs_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        df_cap = self.c.v.gen_cap_tech_reg.sum(axis=1).unstack('Category')[['Wind', 'Solar']]
+
+        df = df_gen/df_cap
+
+        
+        return df
+    
+    @property
+    @memory_cache
+    def vre_cf_gen_monthly_ts(self):
+        """
+        Obtain the monthly generation of VRE technologies
+        """
+        
+        df_gen = self.c.v.gen_by_tech_reg_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        df_cap = self.c.v.gen_cap_tech_reg.sum(axis=1).unstack('Category')[['Wind', 'Solar']]
+
+        df = df_gen/df_cap
+
+        
+        return df
+    
+
+    @property
+    @memory_cache
     def srmc_reg_ts(self):
         """
         Obtain the SRMC by region
@@ -2806,6 +2842,7 @@ class Variables:
 
         return srmc_dc
     
+
     @property
     @memory_cache
     def ramp_dc(self):
@@ -2938,3 +2975,110 @@ class Variables:
                                                                                             
             
         return use_dc
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_dly_ts(self):
+        """
+        The daily generation cycling by model in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        gen_cycling_pc_dly_ts  = ((self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max() - \
+                              self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).min())/\
+                                self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max())
+        return gen_cycling_pc_dly_ts
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_dc(self):
+        """
+        The daily generation cycling duration curve based on the national aggregate.
+        """
+
+        gen_cycling_pc_dc = self.c.v.gen_cycling_pc_dly_ts.value.unstack('model')
+        gen_cycling_pc_dc = pd.DataFrame(np.flipud(np.sort(gen_cycling_pc_dc.values, axis=0)), index=gen_cycling_pc_dc.index, columns=gen_cycling_pc_dc.columns)
+        # Index = 0-8760
+        gen_cycling_pc_dc = gen_cycling_pc_dc.reset_index(drop=True)
+
+        return gen_cycling_pc_dc
+    
+    @property
+    @memory_cache
+    def gen_cycling_dly_ts(self):
+        """
+        The daily generation cycling by model in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        gen_cycling_dly_ts  = (self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max() - 
+                              self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).min())
+        return gen_cycling_dly_ts
+    
+    @property
+    @memory_cache
+    def gen_cycling_dc(self):
+        """
+        The daily generation cycling duration curve based on the national aggregate.
+        """
+
+        gen_cycling_dc = self.gen_cycling_dly_ts.value.unstack('model')
+        gen_cycling_dc = pd.DataFrame(np.flipud(np.sort(gen_cycling_dc.values, axis=0)), index=gen_cycling_dc.index, columns=gen_cycling_dc.columns)
+        # Index = 0-8760
+        gen_cycling_dc = gen_cycling_dc.reset_index(drop=True)
+
+        return gen_cycling_dc
+    
+    @property
+    @memory_cache
+    def price_by_reg_ts(self):
+        """
+        Nodal price by region
+        """
+
+        price_by_reg_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Price'].groupby(['model', 'timestamp', self.c.GEO_COLS[0]]).agg({'value':'mean'}).compute()
+        
+        return price_by_reg_ts
+    
+    @property
+    @memory_cache
+    def price_ts(self):
+        """
+        Average nodal price
+        """
+
+        price_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Price'].groupby(['model', 'timestamp']).agg({'value':'mean'}).compute()
+        
+        return price_ts
+    
+
+    @property
+    @memory_cache
+    def price_neighbours_ts(self):
+        """
+        Average nodal price for neighbouring regions. For Ukraine only, but this could be generalised for other projects.
+
+        """
+        price_all_regs_ts = self.c.o.reg_raw_df[self.c.o.reg_raw_df.property == 'Price'].compute()
+        price_all_regs_ts = price_all_regs_ts.groupby(['model','name','timestamp']).agg({'value':'sum'})
+
+        neighbour_nodes = ['ROU', 'SVK', 'POL', 'HUN']
+        price_neighbours_ts = price_all_regs_ts.value.unstack('name')[neighbour_nodes]
+        price_neighbours_ts = price_neighbours_ts.mean(axis=1).rename('value').to_frame()
+        
+        return price_neighbours_ts
+            
+    
+    @property
+    @memory_cache
+    def export_cost_ts(self):
+        """
+        Export revenue / import cost of electricity  using average nodal price of neighbouring regions
+        """
+
+        export_cost_ts = self.c.v.exports_ts * self.c.v.price_neighbours_ts
+        
+        return export_cost_ts

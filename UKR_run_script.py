@@ -17,7 +17,7 @@ config.convert_solution_files_to_h5()
 sfp.plots.create_plot_2_summary(config)
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2025')
 sfp.plots.create_plot_2b_ref_plots(config, ref_m='2021')
-sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030_cPN_eSG')
+# sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030_cPN_eSG')
 
 sfp.plots.create_plot_1a_overall(config)
 sfp.plots.create_plot_1a_overall_models(config)
@@ -31,7 +31,8 @@ sfp.plots.create_plot_8_services(config)
 sfp.plots.create_plot_5_undispatched_tech(config)
 sfp.plots.create_plot_7_co2_savings(config)
 sfp.plots.create_plot_9_av_cap(config)
-sfp.plots.create_plot_10_ts_by_model(config)
+sfp.plots.create_plot_10a_vre_gen_by_model(config)
+sfp.plots.create_plot_10b_vre_cf_by_model(config)
 # sfp.plots.create_plot_2b_ref_plots(config, ref_m='2030-IR_cPN_eSG')
 
 
