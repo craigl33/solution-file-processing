@@ -213,8 +213,10 @@ class Objects:
         """
     
 
-        df = self.c.get_processed_object('year', 'reserves', return_type='pandas')     
-
+        df = self.c.get_processed_object('year', 'reserves', return_type='pandas')   
+        if 'ResType' in df.columns:
+            print("Setting ResType column to Type column in res_yr_df")
+            df['ResType'] = df['Type']  
         return df
     
     @property
@@ -225,7 +227,10 @@ class Objects:
         TODO DOCSTRING
         """
 
-        df = self.c.get_processed_object('interval', 'reserves', return_type='pandas')    
+        df = self.c.get_processed_object('interval', 'reserves', return_type='dask')
+        if 'ResType' not in df.columns:
+            print("Setting ResType column to Type column in res_df")
+            df['ResType'] = df['Type']    
 
         return df
         
@@ -320,6 +325,17 @@ class Objects:
         TODO DOCSTRING
         """
         _df = self.c.get_processed_object('interval', 'regions', return_type='dask')
+        return _df
+    
+    @property
+    @memory_cache
+    @drive_cache('objects')
+    def reg_raw_df(self):
+        """"
+        TODO DOCSTRING
+        """
+        _df = self.c.get_processed_object('interval', 'regions', return_type='dask', enrich=False)
+        # df = self.c._prettify_model_names(df)
         return _df
 
     @property

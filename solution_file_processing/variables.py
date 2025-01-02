@@ -11,8 +11,9 @@ from solution_file_processing.timeseries import create_output_11
 from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16, IEA_PALETTE_PLUS, EXTENDED_PALETTE, IEA_PALETTE
 from .constants import VRE_TECHS, PRETTY_MODEL_NAMES
 
-from solution_file_processing.utils.utils import drive_cache, memory_cache
+from solution_file_processing.utils.utils import drive_cache, memory_cache, get_median_index
 from solution_file_processing import log
+
 
 
 
@@ -448,7 +449,7 @@ class Variables:
         TODO DOCSTRING
         """
         # For Capex calcs
-        gen_cap_plexos_tech_reg = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gegen_yr_dfn_df.WEO_tech != 'Battery')) |
+        gen_cap_plexos_tech_reg = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Installed Capacity')&(self.c.o.gen_yr_df.WEO_tech != 'Battery')) |
                                               ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity'))] \
             .groupby(['model'] + self.c.GEO_COLS + ['PLEXOS technology']) \
             .agg({'value': 'sum'}) \
@@ -831,6 +832,9 @@ class Variables:
 
         gen_ramp_costs_by_reg = ramp_costs_by_gen_name.reset_index().groupby(
             ['model'] + self.c.GEO_COLS + ['Category', 'property']).agg({'value': 'sum'}).compute() / 1e6
+        
+        
+
 
         # ### Final dataframes of costs
         gen_op_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_ramp_costs_by_reg], axis=0).reset_index().groupby(
@@ -866,7 +870,6 @@ class Variables:
             ['model'] + self.c.GEO_COLS + ['Category', 'property']) \
                 .agg({'value': 'sum'}) \
                 .applymap(lambda x: x / 1e3)
-        
 
         gen_total_costs_by_reg = pd.concat([gen_op_costs_by_reg, gen_capex_by_reg], axis=0)
 
@@ -2419,6 +2422,19 @@ class Variables:
     @property
     @memory_cache
     @drive_cache('variables')
+    def gen_stack(self):
+        '''
+        Create a variable for generation stack for overall model
+        '''
+
+        gen_stack = self.gen_stack_by_reg.groupby(['model','timestamp']).sum()
+
+        return gen_stack
+
+
+    @property
+    @memory_cache
+    @drive_cache('variables')
     def undisp_cap_by_tech_reg_ts(self):
         """
         Create a variable to debug whether all available capacity is dispatched when there is Unserved Energy at region level
@@ -2557,7 +2573,7 @@ class Variables:
         '''
 
         res_shorage_by_type_ts = self.c.o.res_df[self.c.o.res_df.property == 'Shortage']\
-            .groupby(['model','Type','timestamp']) \
+            .groupby(['model','ResType','timestamp']) \
             .agg({'value':'sum'}) \
             .value \
             .compute() \
@@ -2568,23 +2584,55 @@ class Variables:
 
     @property
     @memory_cache
+    def net_load_avg(self):
+        """
+        Obtain the average net load by model
+        """
+
+        net_load_avg = self.net_load_ts.unstack(level='model').resample('D').mean().stack().reorder_levels(
+            ['model', 'timestamp'])
+
+        return net_load_avg
+    
+    @property
+    @memory_cache
+    def gen_build_cost_by_tech(self):
+        """
+        Obtain the build cost by technology using PLEXOS technology
+        """
+
+        gen_build_cost_by_tech = self.c.o.gen_yr_df[self.c.o.gen_yr_df.property == 'Annualized Build Cost'].groupby(
+                            ['model', 'Category']).agg({'value':'sum'}).value.unstack(level='Category').fillna(0)
+
+        return gen_build_cost_by_tech
+
+    @property
+    @memory_cache
     def doi_summary(self):
         """
         Obtain a summary table of the days of interest
         """
 
-        net_load_avg = self.net_load_ts.unstack(level='model').resample('D').mean().stack().reorder_levels(
-            ['model', 'timestamp'])
-        # Time dataframes done nationally////
+        net_load_avg = self.net_load_avg
 
         wet_season = self.gen_by_tech_ts.loc[pd.IndexSlice[self.model_names[0], :]]['Hydro'].groupby(
             [pd.Grouper(level='timestamp', freq='M')]).sum().idxmax()
         dry_season = self.gen_by_tech_ts.loc[pd.IndexSlice[self.model_names[0], :]]['Hydro'].groupby(
             [pd.Grouper(level='timestamp', freq='M')]).sum().idxmin()
+                
+        
 
         ##########
+        min_cap = self.av_cap_by_tech_ts.sum(axis=1).groupby(level='model').min().rename('min_cap').to_frame()
+        
+        nl_median = self.net_load_ts.value.unstack(level='model').apply(lambda x: x.quantile(0.5, 'lower').max()).rename('net_load_median').to_frame()
+        nl_25pc_quantile = self.net_load_ts.value.unstack(level='model').apply(lambda x: x.quantile(0.25, 'lower').max()).rename('net_load_25pc_qt').to_frame()
+        nl_75pc_quantile = self.net_load_ts.value.unstack(level='model').apply(lambda x: x.quantile(0.75, 'lower').max()).rename('net_load_75pc_qt').to_frame()
+
         net_load_avg_max = net_load_avg.groupby(level='model').max().rename(columns={'value': 'net_load_avg_max'})
         net_load_avg_min = net_load_avg.groupby(level='model').min().rename(columns={'value': 'net_load_avg_min'})
+        net_load_avg_med = net_load_avg.groupby(level='model').median().rename(columns={'value': 'net_load_avg_med'})
+
         net_load_max = self.net_load_ts.groupby(level='model').max().rename(columns={'value': 'net_load_max'})
         net_load_min = self.net_load_ts.groupby(level='model').min().rename(columns={'value': 'net_load_min'})
         net_load_sto_min = self.net_load_sto_ts.groupby(level='model').min().rename(columns={'value': 'net_load_sto_min'})
@@ -2613,6 +2661,8 @@ class Variables:
         use_dly_max = self.use_dly_ts.groupby(level='model').max().rename(columns={'value': 'use_dly_max'})
 
         # ###########
+        min_cap['time_min_cap'] = self.av_cap_by_tech_ts.sum(axis=1).unstack(level='model').idxmin().values
+
         net_load_max['time_nlmax'] = self.net_load_ts.value.unstack(level='model').idxmax().values
         net_load_min['time_nlmin'] = self.net_load_ts.value.unstack(level='model').idxmin().values
         net_load_sto_min['time_nlstomin'] = self.net_load_sto_ts.value.unstack(level='model').idxmin().values
@@ -2639,6 +2689,12 @@ class Variables:
             .idxmin()
             .values)
         net_load_avg_max['time_nlamax'] = net_load_avg.unstack(level='model').idxmax().values
+        net_load_avg_med['time_nlamed'] = net_load_avg.unstack(level='model').apply(get_median_index, axis=1)
+
+        nl_median['time_nl_med'] = self.net_load_ts.value.unstack(level='model').apply(lambda x: (x == x.quantile(0.5, 'lower')).idxmax()).values
+        nl_25pc_quantile['time_nl_25pc_qt']  = self.net_load_ts.value.unstack(level='model').apply(lambda x: (x == x.quantile(0.75, 'lower')).idxmax()).values
+        nl_75pc_quantile['time_nl_75pc_qt']  = self.net_load_ts.value.unstack(level='model').apply(lambda x: (x == x.quantile(0.25, 'lower')).idxmax()).values
+
         net_load_avg_min['time_nlamin'] = net_load_avg.unstack(level='model').idxmin().values
         total_load_max['time_tlmax'] = self.total_load_ts.value.unstack(level='model').idxmax().values
         total_load_min['time_tlmin'] = self.total_load_ts.value.unstack(level='model').idxmin().values
@@ -2648,13 +2704,53 @@ class Variables:
         use_dly_max['time_usedmax'] = self.use_dly_ts.value.unstack(level='model').idxmax().values
 
         doi_summary = pd.concat(
-            [net_load_max, net_load_min, net_load_sto_min, curtail_max, net_load_avg_max, net_load_avg_min,
+            [min_cap, net_load_max, net_load_min, nl_median, nl_25pc_quantile, nl_75pc_quantile, net_load_sto_min, curtail_max, net_load_avg_max, net_load_avg_min, net_load_avg_med,
             net_load_max_wet, net_load_min_wet, net_load_max_dry, net_load_min_dry,
             total_load_max, total_load_min, ramp_max, inertia_min, use_max, use_dly_max],
             axis=1).stack().unstack(level='model').rename_axis('property', axis=0)
 
         return doi_summary
     
+    @property
+    @memory_cache
+    def use_summary(self):
+        """
+        Obtain a summary table of the days of system strain where USE is max
+        """
+
+        ##########
+               
+        use_summary = self.use_ts.value.unstack('model').groupby(pd.Grouper(freq='M')).max()
+        use_summary.index = use_summary.index.strftime('M%m')
+        use_summary_idx = self.use_ts.value.unstack('model').groupby(pd.Grouper(freq='M')).idxmax()
+        use_summary_idx.index = use_summary_idx.index.strftime('M%m_time')
+
+        use_summary = pd.concat([use_summary, use_summary_idx], axis=0).sort_index()
+
+
+        return use_summary
+    
+
+    @memory_cache
+    def min_cap_summary(self):
+        """
+        Obtain a summary table of the days of system strain where min cap is least
+        """
+
+        ##########
+              
+        min_cap_summary = self.av_cap_by_tech_ts.sum(axis=1).unstack('model').groupby(pd.Grouper(freq='M')).min()
+        min_cap_summary.index = min_cap_summary.index.strftime('M%m')
+        min_cap_summary_idx = self.av_cap_by_tech_ts.sum(axis=1).unstack('model').groupby(pd.Grouper(freq='M')).idxmin()
+        min_cap_summary_idx.index = min_cap_summary_idx.index.strftime('M%m_time')
+
+        min_cap_summary = pd.concat([min_cap_summary, min_cap_summary_idx], axis=0).sort_index()
+
+
+
+        return min_cap_summary
+    
+
 
     @property
     @memory_cache
@@ -2666,6 +2762,42 @@ class Variables:
         
         df = self.c.v.gen_by_tech_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
                     pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        df['VRE'] = df.sum(axis=1)
+
+        
+        return df
+    
+
+    @property
+    @memory_cache
+    def vre_cf_monthly_ts(self):
+        """
+        Obtain the monthly generation of VRE technologies
+        """
+
+        
+        df_gen = self.c.v.vre_av_abs_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        df_cap = self.c.v.gen_cap_tech_reg.sum(axis=1).unstack('Category')[['Wind', 'Solar']]
+
+        df = df_gen/df_cap
+
+        
+        return df
+    
+    @property
+    @memory_cache
+    def vre_cf_gen_monthly_ts(self):
+        """
+        Obtain the monthly generation of VRE technologies
+        """
+        
+        df_gen = self.c.v.gen_by_tech_reg_ts[['Wind', 'Solar']].groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).sum()/1000
+        df_cap = self.c.v.gen_cap_tech_reg.sum(axis=1).unstack('Category')[['Wind', 'Solar']]
+
+        df = df_gen/df_cap
+
         
         return df
     
@@ -2710,6 +2842,7 @@ class Variables:
 
         return srmc_dc
     
+
     @property
     @memory_cache
     def ramp_dc(self):
@@ -2775,10 +2908,177 @@ class Variables:
         """
         df = self.c.o.gen_yr_df[((self.c.o.gen_yr_df.property == 'Capacity Built')&(self.c.o.gen_yr_df.WEO_tech != 'Battery')) |
                                               ((self.c.o.gen_yr_df.WEO_tech == 'Battery') & (self.c.o.gen_yr_df.property == 'Generation Capacity Built'))] \
-            .groupby(['model', 'Category'] + self.c.GEO_COLS + ['timestamp']) \
-            .agg({'value': 'sum'}) \
-            .compute() \
-            .unstack(level='Category') \
-            .value \
-            .fillna(0)
+                                              
+        if df.shape[0] == 0:
+            return pd.DataFrame()
+        else: 
+            df = df.groupby(['model', 'Category', self.c.GEO_COLS[0]] ) \
+                .agg({'value': 'sum'}) \
+                .fillna(0)
+            
         return df
+    
+
+    @property
+    @memory_cache
+    def cap_shortage_ts(self):
+        """"
+        TODO DOCSTRING
+        """
+        df = self.res_shorage_by_type_ts.sum(axis=1).rename('value').to_frame() + self.use_ts
+                                              
+            
+        return df
+    
+    @property
+    @memory_cache
+    def cap_shortage_dc(self):
+        """"
+        TODO DOCSTRING
+        """
+        cap_shortage_dc = self.c.v.cap_shortage_ts.value.unstack('model')
+        cap_shortage_dc = pd.DataFrame(np.flipud(np.sort(cap_shortage_dc.values, axis=0)), index=cap_shortage_dc.index, columns=cap_shortage_dc.columns)
+        # Index = 0-8760
+        cap_shortage_dc = cap_shortage_dc.reset_index(drop=True)
+                                              
+            
+        return cap_shortage_dc
+    
+
+        
+    @property
+    @memory_cache
+    def cap_shortage_monthly_ts(self):
+        """
+
+        Returns the generation capacity shortage by model in a plot-ready dataframe for each model in the configuration object.
+
+        """
+
+        df = self.c.v.cap_shortage_ts.groupby([pd.Grouper(level='model'),
+                    pd.Grouper(level='timestamp', freq='M')]).max()
+        df = df.value.unstack('model')/1000
+        
+
+        return df
+    
+    @property
+    @memory_cache
+    def use_dc(self):
+        """"
+        TODO DOCSTRING
+        """
+        use_dc = self.c.v.use_ts.value.unstack('model')
+        use_dc = pd.DataFrame(np.flipud(np.sort(use_dc.values, axis=0)), index=use_dc.index, columns=use_dc.columns)
+        # Index = 0-8760
+        use_dc = use_dc.reset_index(drop=True)
+                                                                                            
+            
+        return use_dc
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_dly_ts(self):
+        """
+        The daily generation cycling by model in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        gen_cycling_pc_dly_ts  = ((self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max() - \
+                              self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).min())/\
+                                self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max())
+        return gen_cycling_pc_dly_ts
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_dc(self):
+        """
+        The daily generation cycling duration curve based on the national aggregate.
+        """
+
+        gen_cycling_pc_dc = self.c.v.gen_cycling_pc_dly_ts.value.unstack('model')
+        gen_cycling_pc_dc = pd.DataFrame(np.flipud(np.sort(gen_cycling_pc_dc.values, axis=0)), index=gen_cycling_pc_dc.index, columns=gen_cycling_pc_dc.columns)
+        # Index = 0-8760
+        gen_cycling_pc_dc = gen_cycling_pc_dc.reset_index(drop=True)
+
+        return gen_cycling_pc_dc
+    
+    @property
+    @memory_cache
+    def gen_cycling_dly_ts(self):
+        """
+        The daily generation cycling by model in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        gen_cycling_dly_ts  = (self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).max() - 
+                              self.net_load_ts.groupby([pd.Grouper(level='model'), 
+                                                        pd.Grouper(level='timestamp', freq='D')]).min())
+        return gen_cycling_dly_ts
+    
+    @property
+    @memory_cache
+    def gen_cycling_dc(self):
+        """
+        The daily generation cycling duration curve based on the national aggregate.
+        """
+
+        gen_cycling_dc = self.gen_cycling_dly_ts.value.unstack('model')
+        gen_cycling_dc = pd.DataFrame(np.flipud(np.sort(gen_cycling_dc.values, axis=0)), index=gen_cycling_dc.index, columns=gen_cycling_dc.columns)
+        # Index = 0-8760
+        gen_cycling_dc = gen_cycling_dc.reset_index(drop=True)
+
+        return gen_cycling_dc
+    
+    @property
+    @memory_cache
+    def price_by_reg_ts(self):
+        """
+        Nodal price by region
+        """
+
+        price_by_reg_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Price'].groupby(['model', 'timestamp', self.c.GEO_COLS[0]]).agg({'value':'mean'}).compute()
+        
+        return price_by_reg_ts
+    
+    @property
+    @memory_cache
+    def price_ts(self):
+        """
+        Average nodal price
+        """
+
+        price_ts = self.c.o.reg_df[self.c.o.reg_df.property == 'Price'].groupby(['model', 'timestamp']).agg({'value':'mean'}).compute()
+        
+        return price_ts
+    
+
+    @property
+    @memory_cache
+    def price_neighbours_ts(self):
+        """
+        Average nodal price for neighbouring regions. For Ukraine only, but this could be generalised for other projects.
+
+        """
+        price_all_regs_ts = self.c.o.reg_raw_df[self.c.o.reg_raw_df.property == 'Price'].compute()
+        price_all_regs_ts = price_all_regs_ts.groupby(['model','name','timestamp']).agg({'value':'sum'})
+
+        neighbour_nodes = ['ROU', 'SVK', 'POL', 'HUN']
+        price_neighbours_ts = price_all_regs_ts.value.unstack('name')[neighbour_nodes]
+        price_neighbours_ts = price_neighbours_ts.mean(axis=1).rename('value').to_frame()
+        
+        return price_neighbours_ts
+            
+    
+    @property
+    @memory_cache
+    def export_cost_ts(self):
+        """
+        Export revenue / import cost of electricity  using average nodal price of neighbouring regions
+        """
+
+        export_cost_ts = self.c.v.exports_ts * self.c.v.price_neighbours_ts
+        
+        return export_cost_ts

@@ -868,7 +868,7 @@ def write_xlsx_stack(
                 }
             )
 
-            leg_del_idx = [int(excel_col_num - 1)]
+            leg_del_idx = [int(excel_col_num - 1)] #Not working as we dont have all the variables in the graph itself
 
         elif df.columns[col_num] == "Curtailment":
             chart.add_series(
@@ -939,18 +939,19 @@ def write_xlsx_stack(
                 }
             )
         elif df.columns[col_num] == "Net Load w/ Exports":
-            chart2.add_series(
-                {
-                    "name": [sheet_name, 0, excel_col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
-                    "line": {
-                        "width": 1.5,
-                        "color": fill_colour,
-                        "dash_type": "dash",
-                    },
-                }
-            )
+            continue
+            # chart2.add_series(
+            #     {
+            #         "name": [sheet_name, 0, excel_col_num],
+            #         "categories": [sheet_name, 1, 0, df.shape[0], 0],
+            #         "values": [sheet_name, 1, excel_col_num, df.shape[0], excel_col_num],
+            #         "line": {
+            #             "width": 1.5,
+            #             "color": fill_colour,
+            #             "dash_type": "dash",
+            #         },
+            #     }
+            # )
         elif df.columns[col_num] == "Load w/ Exports":
             chart2.add_series(
                 {
@@ -1058,12 +1059,13 @@ def write_xlsx_stack(
     #     leg_del_idx = df.shape[1]
 
     if "Load2" in df.columns:
+
         chart.set_legend(
             {
                 "font": {"name": "Arial", "size": 10},
                 "position": "bottom",
                 "layout": {"x": 0, "y": 0.7, "width": 1, "height": 0.25},
-                "delete_series": leg_del_idx,
+                # "delete_series": leg_del_idx,
             }
         )
     else:

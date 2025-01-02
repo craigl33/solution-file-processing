@@ -8,6 +8,7 @@ the data is consistent across all functions.
 """
 
 import pandas as pd
+import numpy as np
 
 
 from solution_file_processing.utils.utils import memory_cache
@@ -719,7 +720,7 @@ class PlotDataFrames:
         plot_desc = 'Available capacity time-series by model'
 
         return df, units, plot_type, plot_desc
-
+    
     @property
     @memory_cache
     def res_margin_dly_ts(self):
@@ -737,17 +738,125 @@ class PlotDataFrames:
     
     @property
     @memory_cache
-    def rs(self):
-        """
-        TODO: DOCSTRING
+    def gen_cap_built_tech(self):
         """
 
-        df = self.c.v.reserve_margin_ts.value.groupby([pd.Grouper(level='model'), pd.Grouper(level='timestamp', freq='D')]).min().unstack('model')
+        Returns the generation capacity built by technology in a plot-ready dataframe for each model in the configuration object.
 
-        units = '%'
-        plot_type = 'timeseries'
-        plot_desc = 'Available reserve margin (based on daily peak load) by model'
+        """
+        df = self.c.v.gen_built_by_tech_reg
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+       
+        df = df.groupby(["model", "Category"]).sum().value.unstack("Category")/1000
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity built by technology'
 
         return df, units, plot_type, plot_desc
     
+    @property
+    @memory_cache
+    def gen_cap_built_reg(self):
+        """
+        Returns the generation capacity built by region in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_built_by_tech_reg
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+        
+        df = df.groupby(["model", self.c.GEO_COLS[0]]).sum().value.unstack(self.c.GEO_COLS[0])/1000
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity built by region'
+
+        return df, units, plot_type, plot_desc
+
+    @property
+    @memory_cache
+    def gen_build_cost_by_tech(self):
+        """
+        Returns the generation capacity built by region in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_build_cost_by_tech
+        df = (df.replace(0, np.nan).dropna(how='all', axis=1)
+              .dropna(how='all', axis=0)
+              .replace(np.nan, 0) / 1e3
+        )
+
+        if df.shape[0] == 0:
+            return pd.DataFrame(None), "", "", ""
+        
+        units = '$m'
+        plot_type = 'stacked'
+        plot_desc = 'Annualized build cost by technology'
+
+        return df, units, plot_type, plot_desc
+
+    @property
+    @memory_cache
+    def cap_shortage_by_model(self):
+        """
+
+        Returns the generation capacity shortage by model in a plot-ready dataframe for each model in the configuration object.
+
+        """
+
+        df = self.c.v.cap_shortage_ts.groupby('model').agg({'value':'max'})
+        
+        units = 'GW'
+        plot_type = 'stacked'
+        plot_desc = 'Generation capacity shortage by model. Based on both USE and reserve shortfalls.'
+
+        return df, units, plot_type, plot_desc
     
+    @property
+    @memory_cache
+    def gen_cycling_pk(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_cycling_dly_ts.groupby('model').agg({'value':'max'})
+        
+        units = '%'
+        plot_type = 'stacked'
+        plot_desc = 'Generation cycling peak as a percentage of the peak generation'
+        return df, units, plot_type, plot_desc
+    
+    
+    @property
+    @memory_cache
+    def gen_cycling_pc_pk(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df = self.c.v.gen_cycling_pc_dly_ts.groupby('model').agg({'value':'max'})
+        
+        units = '%'
+        plot_type = 'stacked'
+        plot_desc = 'Generation cycling peak as a percentage of the peak generation'
+        return df, units, plot_type, plot_desc
+    
+    @property
+    @memory_cache
+    def import_cost(self):
+        """
+
+        Returns the gen cycling peak as a percentage of the peak generation in a plot-ready dataframe for each model in the configuration object.
+        """
+
+        df_costs = -self.c.v.export_cost_ts[self.c.v.export_cost_ts.value < 0].groupby('model').sum()/1e6
+        df_revenues = -self.c.v.export_cost_ts[self.c.v.export_cost_ts.value > 0].groupby('model').sum()/1e6
+        df = pd.concat([df_costs.value.rename('Costs'), df_revenues.value.rename('Revenues')], axis=1)
+
+        
+        units = 'USDm'
+        plot_type = 'stacked'
+        plot_desc = 'Costs and revenues of electricity imports and exports'
+        return df, units, plot_type, plot_desc
