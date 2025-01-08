@@ -1,8 +1,9 @@
 """
-TODO Docstring
+TODO DOCSTRING
 """
 
 VRE_TECHS = ['Solar', 'Wind']
+CONSTR_TECHS = ['Hydro', 'Bioenergy', 'Geothermal']
 
 PRETTY_MODEL_NAMES = {
     'IDN_2019_Validation': '2019',
@@ -125,26 +126,134 @@ PRETTY_MODEL_NAMES = {
     "THA22_2037plus_EVFlex50_Batt_NoTOP_PPflex": '2037 VRE Plus + Sto + EV50 + ContrFlex',
     "THA22_2037plus_EVFlex50_Batt_PPflex": '2037 VRE Plus + Sto + EV50',
 
+    #######################
+    # UKRAINE MODEL NAMES #
+    #######################
+    
+    'UKR_2021_Validation' : '2021',
+    "UKR_2024_Td": "2024",
+    "UKR_2025-BAU_Td": '2025',
+
+
+    "UKR_2025-BAU_eG_Td": '2025_eG',
+    "UKR_2025-BAU_eG_Td_Rn": '2025_eG_Rn',
+    "UKR_2025-BAU_eG_Td_Ro": '2025_eG_Ro',
+    "UKR_2025-BAU_eSoG_Td": '2025_eSoG',
+    "UKR_2025-BAU_eSG_Td": '2025_eSG',
+    "UKR_2025-BAU_eSG_Td_BTd": '2025_eSG_BTd',
+
+    "UKR_2025-BAU_eSG_Td_Brem": '2025_eSG_Brem',
+    "UKR_2025-BAU_eSBaG_Td": '2025_eSBaG',
+    "UKR_2025-BAU_eSBaG_Td_CO2": '2025_eSBaG_CO2',
+    "UKR_2025-BAU_eSBaG_Td_Ix": '2025_eSBaG_Ix',
+    "UKR_2025-BAU_eSWBaG_Td": '2025_eSWBaG',
+    "UKR_2025-BAU_eSWBaG_Td_Ix": '2025_eSWBaG_Ix',
+
+    "UKR_2025-BAU_eSBaG_Td_Ix_CO2": '2025_eSBaG_Ix_CO2',
+    "UKR_2025-BAU_eScBaG_Td": '2025_eScBaG',
+    "UKR_2025-BAU_eScBaG_Td_CO2": '2025_eScBaG_CO2',
+    "UKR_2025-BAU_eScBaG_Td_Ix": '2025_eScBaG_Ix',
+    "UKR_2025-BAU_eScBaG_Td_Ix_CO2": '2025_eScBaG_Ix_CO2',
+
+    "UKR_2030-BAU_cPN_eSG_LT_CO2": '2030-BAU_cPN_eSG',
+    "UKR_2030-BR_cO_eSG_LT_CO2": '2030-BR_cO_eSG',
+    "UKR_2030-BR_cON_eSG_LT_CO2": '2030-BR_cON_eSG',
+    "UKR_2030-BR_cONZ_eSG_LT_CO2": '2030-BR_cONZ_eSG',
+    "UKR_2030-BR_cP_eSG_LT_CO2": '2030-BR_cP_eSG',
+    "UKR_2030-BR_cPN_eSG_LT_CO2": '2030-BR_cPN_eSG',
+    "UKR_2030-BR_cPN_eSG_LT_CO2_MIP": '2030-BR_cPN_eSG_MIP',
+    "UKR_2030-BR_cPN_eSG_LT_CO2_Wind": '2030-BR_cPN_eSG_Wind',
+    "UKR_2030-BR_cPN_eSG_LT_Ix_CO2": '2030-BR_cPN_eSG_Ix',
+    "UKR_2030-BR_cPN_eSGf_LT_CO2": '2030-BR_cPN_eSGf',
+    "UKR_2030-BR_cPN_eSGf_LT_Ix_CO2": '2030-BR_cPN_eSGf_Ix',
+    "UKR_2030-IR_cPN_eSG_LT_CO2": '2030-IR_cPN_eSG',
+
+
+    "UKR_2030-BR_cPN_CO2": '2030-BR_cPN',
+    "UKR_2030-BR_cPN_eSBGW_CO2": '2030-BR_cPN_eSBGW',
+    "UKR_2030-BR_cPN_eSG_CO2": '2030-BR_cPN_eSG',
+    "UKR_2030-BR_cPN_eSG_CO2_ASb": '2030-BR_cPN_eSG_ASb',	
+    "UKR_2030-BR_cPN_eSG_CO2_ICc": '2030-BR_cPN_eSG_ICc',
+    "UKR_2030-BR_cPN_eSG_CO2_nBTo": '2030-BR_cPN_eSG_nBTo',
+
+    
+
+
+    ######################
+    # CHINA MODEL NAMES #
+    ######################
+
+    "01_China_2022_nMUT_FD_IRc":"2022",  
+   
+    "02_China_APS_2030_ED_nMUT":"2030_APS-ED",
+    "02_China_APS_2030_FDp_nMUT":"2030_APS-FDp",
+    "02_China_APS_2030_FDp_nMUT_IRc":"2030_APS-FDp-IRc",
+    "02_China_APS_2030_FDp_nMUT_nDSM":"2030_APS-FDp_nDSM",
+
+    "02_China_APS_2030_ED_rem_links_nMUT":"2030_APS-ED-nIC",
+    "02_China_APS_2030_FD_rem_links_nMUT":"2030_APS-FD-nIC",
+    "02_China_APS_2030_FDp_ASb_rem_links_nMUT":"2030_APS-FDp-ASb-nIC",
+    "02_China_APS_2030_FDp_nBO_rem_links_nMUT":"2030_APS-FDp-nBO-nIC",
+    "02_China_APS_2030_FDp_rem_links_nMUT_nBAS":"2030_APS-FDp-nIC-nBAS",
+    "02_China_APS_2030_FDp_rem_links_nMUT_nDSM":"2030_APS-FDp-nIC-nDSM",
+
+    "02_China_APS_2030_ED_UCset_nMUT":"2030_APS-ED-SM",
+    "02_China_APS_2030_FD_UCset_nMUT":"2030_APS-FD-SM",
+    "02_China_APS_2030_FDp_ASb_UCset_nMUT":"2030_APS-FDp-ASb-SM",
+    "02_China_APS_2030_FDp_ASbd_UCset_nMUT":"2030_APS-FDp-ASf-SM",
+    "02_China_APS_2030_FDp_ASd_UCset_nMUT":"2030_APS-FDp-ASd-SM",
+    "02_China_APS_2030_FDp_nBO_UCset_nMUT":"2030_APS-FDp-nBO-SM",
+    "02_China_APS_2030_FDp_UCset_nMUT_nBAS":"2030_APS-FDp-SM_nBAS",
+    "02_China_APS_2030_FDp_UCset_nMUT_nDSM":"2030_APS-FDp-SM_nDSM",
+
+
+    ### older
+    "02_China_APS_2030_VPP_FDp_BTMopt_nMUT":"2030_APS_VPP-FDp-BTMo",
+    "02_China_APS_2030_VPP_FDp_BTMoptAS_DERsAS_nMUT":"2030_APS_VPP-FDp-ASf",
+    "02_China_APS_2030_VPP_FDp_BTMoptAS_nMUT":"2030_APS_VPP-FDp-ASb",
+    "02_China_APS_2030_VPP_FDp_DERsAS_nMUT":"2030_APS_VPP-FDp-ASd",
+    "02_China_APS_2030_VPP_FDp_nMUT":"2030_APS_VPP-FDp",
+    "02_China_APS_2030_VPPext_FDp_nMUT":"2030_APS_VPPx-FDp",
+
+
+    "02_China_APS_2030_FDp_rem_links_nMUT":"2030_APS-FDp-nIC",
+    "02_China_APS_2030_FDp_UCset_nMUT":"2030_APS-FDp-SM",
+    "02_China_APS_2030_VPP_FDp_rem_links_nMUT":"2030_APS_VPP-FDp-nIC",
+    "02_China_APS_2030_VPP_FDp_UCset_nMUT":"2030_APS_VPP-FDp-SM",
+    "02_China_APS_2030_VPPext_FDp_rem_links_nMUT":"2030_APS_VPPx-FDp_nIC",
+    "02_China_APS_2030_VPPext_FDp_UCset_nMUT":"2030_APS_VPPx-FDp-SM",
+
+    "02_China_APS_2030_VPP_FDp_UCset_nMUT_nBAS":"2030_APS_VPP-FDp-SM_nBAS",
+    "02_China_APS_2030_VPP_FDp_rem_links_nMUT_nBAS":"2030_APS_VPP-FDp-nIC_nBAS",
+    "02_China_APS_2030_VPP_FDp_nMUT_nBAS":"2030_APS_VPP-FDp_nBAS",
+    "02_China_APS_2030_FDp_nMUT_nBAS":"2030_APS-FDp_nBAS",
+
+
 }
 
 FILTER_OUT_OBJS = ['constraints', 'contingencyreserves_regions', 'decisionvariables', 'storages', 'timeslices',
                    'variables']
 
+### Traditionally, this was only used for timeseries DFs. This may need editing for certain outputs (to see)
+### Otherwise, we need to check whether its an interval DF or not, and then filter or not
 FILTER_PROPS = {
     'generators': ['Available Capacity', 'Generation', 'Installed Capacity', 'Min Energy Violation', 'Units',
                    'Units Generating', 'Units Out', 'Units Started', 'Forced Outage', 'Maintenance', 'Firm Capacity'],
     'batteries': ['Age', 'Energy', 'Generation', 'Hours Charging', 'Hours Discharging', 'Hours Idle',
-                  'Installed Capacity', 'Load', 'Losses', 'Lower Reserve', 'Net Generation', 'Raise Reserve',
+                  'Installed Capacity', 'Generation Capacity', 'Load', 'Losses', 'Lower Reserve', 'Net Generation', 'Raise Reserve',
                   'Regulation Lower Reserve', 'Regulation Raise Reserve', 'SoC'],
     'regions': ['Capacity Reserve Margin', 'Capacity Reserves', 'Customer Load', 'Dump Energy', 'Forced Outage',
                 'Generation', 'Generation Capacity', 'Load', 'Maintenance', 'Native Load', 'Pump Load', 'Battery Load',
                 'Transmission Losses', 'Unserved Energy', 'Unserved Energy Hours', 'Price', 'Shadow Price', 'SRMC'],
     # 'Exports', 'Imports'
 
-    'nodes': ['Customer Load', 'Exports', 'Generation', 'Generation Capacity',
+    'nodes': ['Customer Load', 'Net DC Export', 'Exports', 'Generation', 'Generation Capacity',
               'Imports', 'Load', 'Min Load', 'Native Load', 'Peak Load', 'Price', 'Pump Load', 'Battery Load',
               'Unserved Energy', 'Price', 'Shadow Price', 'SRMC'],
-    'lines': ['Export Limit', 'Flow', 'Import Limit', 'Loading', 'Loss', 'Units'],
+
+    'zones': ['Customer Load', 'Exports', 'Net Interchange', 'Generation', 'Imports', 'Unserved Energy'],
+
+    'lines': ['Export Limit', 'Flow', 'Flow Back', 'Import Limit', 'Loading', 'Loss', 'Units'],
 
     # ## differ by emission_gens or plain emissions
     # filter_props['emissions_generators'] = ['Cost', 'Intensity', 'Generator Production', ]
@@ -156,3 +265,65 @@ FILTER_PROPS = {
                             'Provision']
 
 }
+
+PLOTS_ALL_INCL = ['load_by_reg', 'use_by_reg', 'gen_by_tech', 'gen_by_WEOtech', 'gen_by_reg', 
+'net_gen_by_reg', 'vre_by_reg_byGen', 'vre_by_reg_byAv', 're_by_reg', 'pk_load_by_reg', 'pk_netload_by_reg', 'line_cap_reg', 
+'line_net_exports_reg', 'line_exports_reg', 'line_imports_reg', 'fuels_by_type', 'fuels_by_subtype', 'co2_by_tech', 
+'co2_by_fuels', 'co2_by_subfuels', 'co2_by_reg', 'co2_intensity_reg', 'curtailment_rate', 're_curtailed_by_tech', 
+'gen_cap_by_reg', 'gen_cap_by_tech', 'gen_cap_by_WEOtech', 'cf_tech', 'cf_tech_transposed', 'op_costs_by_tech', 'op_costs_by_prop', 
+'op_and_vio_costs_by_prop', 'tsc_by_tech', 'tsc_by_prop', 'lcoe_by_tech', 'lcoe_by_tech_T', 'ramp_pc_by_reg', 'th_ramp_pc_by_reg', 
+'ramp_by_reg', 'th_ramp_by_reg', 'dsm_pk_contr']
+
+
+SERVICE_TECH_IDX = {'Coal':'Coal',
+'Gas-CCGT':'Gas',
+'Gas-steam':'Gas',
+'Gas-OCGT':'Gas',
+'Fuel Cell':'Gas',
+'Oil':'Oil',
+'Coal (CCS)':'Coal',
+'Gas (CCS)':'Gas',
+'Nuclear':'Nuclear',
+'Bioenergy':'Bioenergy & other renewables',
+'Geothermal':'Geothermal',
+'Solar':'Variable renewables',
+'Other':'Bioenergy & other renewables',
+'Bioenergy (CCS)':'Bioenergy & other renewables',
+'Wind':'Variable renewables',
+'Marine':'Bioenergy & other renewables',
+'Hydro':'Hydro',
+'PSH':'PSH',
+'DSM':'Demand response',
+'VRE':'Variable renewables',
+'Battery':'Battery',
+'Cofiring':'Coal',
+'Battery_1h':'Battery',
+'Battery_2h':'Battery',	
+'Battery_4h':'Battery',	
+'Battery_8h':'Battery',
+
+
+#### TODO: NEW TECHS based on changes from China model. This should be the template for other models, and therefore other models should be updated
+
+#"Battery":"Storage",
+# Bioenergy
+"Gas_CCGT":"Gas",
+"Coal_IGCC":"Coal",
+"Coal_Supercritical":"Coal",
+"Coal_Subcritical":"Coal",
+"Fuel_cell":"Gas",
+"Gas_GT":"Gas",
+"Gas_steam":"Gas",
+# Geothermal
+# Hydro
+# Marine
+# Nuclear
+# Oil
+"ConcentratedSolarPower":"Bioenergy & other renewables",
+"SolarPV":"Variable renewables",
+"DSMshift":"Demand response",
+# Wind
+# DSM
+
+}
+

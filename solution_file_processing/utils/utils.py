@@ -4,15 +4,22 @@ This module, 'utils.py', contains a collection of functions that are used in the
 
 import os
 import sys
+import functools
 
 import dask.dataframe as dd
 import pandas as pd
+
+from zipfile import ZipFile
+from pathlib import Path
+import fnmatch
+import numpy as np
 
 from .. import log
 
 print = log.info
 
-def caching(cache_type):
+
+def drive_cache(cache_type):
     """
     This is a decorator for caching the results of a function. It's specially designed for the methods in the
     Objects and Variables classes in the caching.py file. This function can just be used as a decorator for any
@@ -22,6 +29,7 @@ def caching(cache_type):
     The cache can be either a pandas DataFrame or a dask DataFrame, depending on whether the cache directory 
     is a directory or a file.
 
+    
     Args:
         cache_type (str): The type of cache to use. This is used to determine the subdirectory in the cache directory
          where the results are stored. This can be either 'variables' or 'objects'.
@@ -29,12 +37,11 @@ def caching(cache_type):
     Returns:
         function: The wrapped function.
     """
+    def _drive_cache_decorator(func):
+        @functools.wraps(func)
+        def _drive_cache_wrapper(self, *args, **kwargs):
 
-    def _caching_decorator(func):
-        def _caching_wrapper(self, *args, **kwargs):
-            if getattr(self, f'_{func.__name__}') is not None:
-                return getattr(self, f'_{func.__name__}')
-
+            # Check if drive cached
             path = os.path.join(self.c.DIR_04_CACHE, cache_type, f'{func.__name__}.parquet')
             if self.c.cfg['run']['variables_cache'] and os.path.exists(path):
                 # Check if dask or pandas
@@ -57,9 +64,22 @@ def caching(cache_type):
             setattr(self, f'_{func.__name__}', call)
             return call
 
-        return _caching_wrapper
+        return _drive_cache_wrapper
 
-    return _caching_decorator
+    return _drive_cache_decorator
+
+
+def memory_cache(func):
+    @functools.wraps(func)
+    def _mem_cache_wrapper(self, *args, **kwargs):
+        attr_name = f'_{func.__name__}'
+        if not hasattr(self, attr_name):
+            result = func(self, *args, **kwargs)
+            setattr(self, attr_name, result)
+        return getattr(self, attr_name)
+
+    return _mem_cache_wrapper
+
 
 def catch_errors(func):
     """
@@ -136,23 +156,27 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
     # todo this can probably be done more efficiently and completely removed
     """
 
+
     # Output can relative type (i.e. emissions from generators) or direct type (i.e. just emissions)
     if out_type == 'rel':
         df = df.rename(columns={0: 'value'})[['parent', 'child', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='child', right_on='name')
+        if soln_idx is not None:
+            df = dd.merge(df, soln_idx, left_on='child', right_on='PLEXOSname')
     else:
         df = df.rename(columns={0: 'value'})[['name', 'property', 'timestamp', 'model', 'value']]
         # Add soln idx
-        df = dd.merge(df, soln_idx, left_on='name', right_on='name')
+        if soln_idx is not None:
+            df = dd.merge(df, soln_idx, left_on='name', right_on='PLEXOSname')
 
     # Replace timestamp year with common year if provided
     if common_yr:
         if isinstance(df, dd.DataFrame):
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr), meta=('timestamp', 'datetime64[ns]'))
         else:
+            ## Remove leap days if year is a leap year
+            df = df[~((df.timestamp.dt.month==2)&(df.timestamp.dt.day==29))]
             df.timestamp = df.timestamp.apply(lambda x: x.replace(year=common_yr))
-
 
     # df.loc[:, 'model'] = df.model.apply(
     #         lambda x: pretty_model_names[x] if x in pretty_model_names.keys() else x.split('Model ')[-1]
@@ -172,3 +196,22 @@ def enrich_df(df, soln_idx, common_yr=None, out_type='direct', pretty_model_name
         df = df.map_partitions(_prettify_model_names)
 
     return df
+
+
+def folders_in(path_to_parent):
+    """
+    Function to check whether a folder exists in a given path and return a list of all folders in that path.
+    This could be transferred to a more general library such as riselib or or a general utils library.
+    """
+    subfolders = []
+
+    for fname in os.listdir(path_to_parent):
+        if os.path.isdir(os.path.join(path_to_parent,fname)):
+            subfolders += os.path.join(path_to_parent,fname)
+
+    return subfolders
+
+def get_median_index(d):
+    ranks = d.rank(pct=True)
+    close_to_median = abs(ranks - 0.5)
+    return close_to_median.idxmin()[-1]

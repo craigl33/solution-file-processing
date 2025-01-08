@@ -4,941 +4,96 @@ TODO Docstring
 
 import os
 
-import matplotlib.pyplot as plt
-import matplotlib
-import seaborn as sns
-import calmap
 import pandas as pd
 import numpy as np
-
-from matplotlib.patches import Patch
-from matplotlib.lines import Line2D
-from matplotlib import colors
+from pathlib import Path
+from zipfile import ZipFile
+import fnmatch
 
 from .utils.utils import catch_errors
-from .constants import VRE_TECHS
+from .utils.write_excel import STACK_PALETTE, IEA_PALETTE_16, EXTENDED_PALETTE, SERVICES_PALETTE, IEA_PALETTE_PLUS
+from .constants import VRE_TECHS, PRETTY_MODEL_NAMES, SERVICE_TECH_IDX
+from .utils.write_excel import write_xlsx_column, write_xlsx_stack, write_xlsx_line, write_xlsx_scatter
+# from .utils.write_excel import IEA_CMAP_14, IEA_CMAP_16, IEA_CMAP_D8, IEA_CMAP_L8
+
+
+
+from .timeseries import create_output_11 as create_ts_output_11
+# from .timeseries import create_output_4 as create_timeseries_output_4
 from . import log
 
 print = log.info
 
-np.random.seed(sum(map(ord, 'calplot')))
+def create_plot_0_quicklook(c):
+    '''	
+    Function to create a quicklook plot for the model results.	Only to use annual summary results and to be used for quick comparison of models. Should equally be 
+    capable of running on LT or ST results as needed.
+    '''
 
-iea_palette = {'grey5': '#f2f2f2', 'grey10': '#e6e6e6', 'pl': '#b187ef', 'bl': '#49d3ff', 'tl': '#00e0e0',
-               'gl': '#68f394', 'yl': '#fff45a',
-               'ol': '#ffb743', 'rl': '#ff684d', 'gl': '#68f394', 'yl': '#fff45a', 'grey40': '#949494',
-               'grey50': '#6f6f6f',
-               'p': '#af6ab1', 'b': '#3e7ad3', 't': '#00ada1', 'g': '#1dbe62', 'y': '#fed324',
-               'o': '#f1a800', 'r': '#e34946', 'grey20': '#afafaf', 'black': '#000000', 'white': '#ffffff',
-               'iea_b': '#0044ff', 'iea_b50': '#80a2ff'}
+    print("Creating quicklook plots...")
 
-extended_palette = dict(
-    {'{}'.format(i): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20b').colors[i]) for i in np.arange(0, 20)},
-    **{'{}'.format(i + 20): plt.matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[i]) for i in
-       np.arange(0, 20)})
 
-### For overflow, i.e. things that go beyond the 16 or so colors of IEA palette.
-iea_palette_plus = dict(iea_palette, **extended_palette)
+def _get_plot_2_variables(c, cols):
+    """
+    Function to access plot variables for plot 2 based on input columns
+    
+    """
+    plot_cols, plot_units, plot_type, plot_desc = {col : getattr(c.p, col)[0] for col in cols}, {col : getattr(c.p, col)[1] for col in cols}, {col : getattr(c.p, col)[2] for col in cols}, {col : getattr(c.p, col)[3] for col in cols} 
 
-tech_palette = {'Coal': 'grey20', 'Abated coal': 'grey10', 'Cofiring': 'grey10', 'Gas': 'p', 'Abated gas': 'p',
-                'Oil': 'grey50', 'Hydro': 'bl', 'Geothermal': 'r', 'Bioenergy': 'gl', 'Solar': 'y', 'Wind': 'g',
-                'Fuel Cell': 't', 'Other': 't', 'Battery': 'b', 'Storage': 'b'}
+    return plot_cols, plot_units, plot_type, plot_desc
 
-# model_palette = {'2019':'rl', '2025 Base':'o', '2025 SolarPlus':'bl', '2025 SolarPlus Lite':'pl',  '2025 SolarPlus Extra':'gl' }
+def _get_plot_1_variables(c):
+    # -----
+    # Get: reg_ids
 
+    reg_ids = c.v.reg_ids
 
-### We should add load vs customer load (to see charging effect),
-### Similarly could add load + exports to get effective load
-stack_palette = {'Geothermal': 'o', 'Bioenergy': 'gl', 'Coal': 'grey20', 'Cofiring': 'grey5', 'Abated coal': 'grey5',
-                 'Gas': 'p', 'Abated gas': 'pl', 'Hydro': 'bl', 'Oil': 'grey50', 'Imports': 't', 'Other': 't',
-                 'Fuel Cell': 'tl', 'Storage': 'b',
-                 'Solar': 'y', 'Wind': 'g', 'Total Load': 'black', 'Load2': 'white', 'Exports': 'p', 'Net Load': 'r',
-                 'Curtailment': 'yl', 'Unserved Energy': 'iea_b', 'Underlying Load': 'p', 'Storage Load': 'grey50',
-                 'Nuclear': 'r'}
+    # -----
+    # Get: doi_summary
 
-reg_palette = {'APB_BALI': 'bl', 'APB_JBR': 'b', 'APB_JKB': 'pl', 'APB_JTD': 't', 'APB_JTM': 'y'}
-subreg_palette = {'BAL': 'bl', 'BNT': 'b', 'DIY': 'gl', 'JBR': 't', 'JKT': 'ol', 'JTE': 'pl', 'JTM': 'grey20',
-                  'SMN': 'r', 'SMS': 'tl'}
-isl_palette = {'JVB': 'bl', 'SUM': 'gl', 'KLM': 'rl', 'SLW': 'ol', 'MPN': 'pl', 'IDN': 'yl'}
+    doi_summary = c.v.doi_summary
 
-iea_palette_l8 = ['rl', 'ol', 'gl', 'bl', 'pl', 'grey10', 'yl',
-                  'tl']  ### got rid of light yellow as its a poor choice for plots.
-iea_palette_d8 = ['r', 'o', 'y', 'g', 't', 'b', 'p', 'grey50']
-iea_palette_16 = iea_palette_l8 + iea_palette_d8
+    # -----
+    # Get: gen_stack_by_reg
 
-iea_palette_14 = ['rl', 'ol', 'bl', 'gl', 'pl', 'grey10', 'y', 'tl', 'g', 't', 'b', 'grey50', 'yl', 'r', 'p']
-iea_cmap_l8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_l8])
-iea_cmap_d8 = colors.ListedColormap([iea_palette[c] for c in iea_palette_d8])
-iea_cmap_16 = colors.ListedColormap([iea_palette[c] for c in iea_palette_16])
-iea_cmap_14 = colors.ListedColormap([iea_palette[c] for c in iea_palette_14])
+    gen_stack_by_reg = c.v.gen_stack_by_reg
+    net_exports_ts  = c.v.exports_by_reg_ts.groupby(['model','timestamp']).sum()
 
-tab20bc = colors.ListedColormap([extended_palette[i] for i in extended_palette.keys()])
+     # Add a total column for full aggregation for generation stacks at national/regional level
+    gen_stack_total = gen_stack_by_reg.groupby(['model', 'timestamp']).sum()
+    exports_total = net_exports_ts.where(net_exports_ts > 0).fillna(0)
+    imports_total = net_exports_ts.where(net_exports_ts < 0).fillna(0).abs()
+    gen_stack_total.loc[:,'Imports'] = imports_total.value.rename('Imports')
+    gen_stack_total.loc[:,'Exports'] = exports_total.value.rename('Exports')
 
-# model_palette = dict(zip([m for m in pretty_model_names.values() if m in model_names], iea_palette_14[:len(model_names)]))
-combined_palette = dict(tech_palette, **subreg_palette, **reg_palette,
-                        **isl_palette)  # , **model_palette, **weo_Tech_palette)
+    gen_stack_total.loc[:,'Net Load w/ Exports'] = gen_stack_total['Net Load'].rename('Net Load w/ Exports') + exports_total.value.rename('Net Load w/ Exports')
+    gen_stack_total = gen_stack_total.reset_index()
+    
+    gen_stack_total[c.GEO_COLS] = 'Overall'
+    gen_stack_total = gen_stack_total.set_index(['model'] + c.GEO_COLS + ['timestamp'])
+    ### Combine the total with the rest of the data and scale to GW
+    gen_stack_by_reg = pd.concat([gen_stack_by_reg, gen_stack_total], axis=0).groupby(['model'] + c.GEO_COLS + ['timestamp']).sum()/1000 # Convert to GW
+    gen_stack_total = gen_stack_total/1000 # Convert to GW
+    
+    # Add summary region here too
+    reg_ids = reg_ids + ['Overall']
 
+    return reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total.droplevel(c.GEO_COLS)
 
-def write_xlsx_column(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        palette=combined_palette,
-        subtype="stacked",
-        units="",
-        total_scatter_col=None,
-        to_combine=False,
-        right_ax=None,
-):
-    cm_to_pixel = 37.7953
 
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    sort_index = [i for i in palette.keys() if i in df.index] + [
-        i for i in df.index if i not in palette.keys()
-    ]
 
-    if type(df.index == pd.Index):
-        df = df.loc[sort_index, sort_cols]
-    else:
-        df = df.loc[:, sort_cols]
+def create_plot_1a(c):
+    """
+    Plot 1a: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
 
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
+    print("Creating plot 1a...")
 
-    ### Whether we caluclate the scatter col or not. Should probably rename the variable from total_col, as its not always a total
-    if (total_scatter_col != None) & (total_scatter_col not in df.columns):
-        df.loc[:, total_scatter_col] = df.sum(axis=1)
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
 
-    df.to_excel(writer, sheet_name=sheet_name)
+    model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
 
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "%":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "column", "subtype": subtype})
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 7 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    if total_scatter_col != None:
-        chart2 = workbook.add_chart({"type": "scatter"})
-
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        if df.columns[col_num - df.index.nlevels] != total_scatter_col:
-            # Configure the series of the chart from the dataframe data.
-            ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-
-            try:
-                fill_colour = iea_palette_plus[
-                    palette[df.columns[col_num - df.index.nlevels]]
-                ]
-            except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-            # fill_colour = matplotlib.colors.rgb2hex(plt.cm.get_cmap('tab20c').colors[20-col_num-df.index.nlevels])
-
-            # Or using a list of values instead of category/value formulas:
-            #     [sheetname, first_row, first_col, last_row, last_col]
-
-            # Or using a list of values instead of category/value formulas:
-            #     [sheetname, first_row, first_col, last_row, last_col]
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "gap": 75,
-                    "fill": {"color": fill_colour, "border": "#000000"},
-                    "border": {"color": "#000000"},
-                }
-            )
-        else:
-            if right_ax != None:
-                chart2.add_series(
-                    {
-                        "name": [sheet_name, 0, col_num],
-                        "categories": [
-                            sheet_name,
-                            1,
-                            0,
-                            df.shape[0],
-                            df.index.nlevels - 1,
-                        ],
-                        "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                        "marker": {
-                            "type": "circle",
-                            "size": 8,
-                            "border": {"color": "#000000"},
-                            "fill": {"color": "#ffffff", "transparency": 30},
-                        },
-                        "y2_axis": True,
-                    }
-                )
-            else:
-                chart2.add_series(
-                    {
-                        "name": [sheet_name, 0, col_num],
-                        "categories": [
-                            sheet_name,
-                            1,
-                            0,
-                            df.shape[0],
-                            df.index.nlevels - 1,
-                        ],
-                        "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                        "marker": {
-                            "type": "circle",
-                            "size": 8,
-                            "border": {"color": "#000000"},
-                            "fill": {"color": "#ffffff", "transparency": 30},
-                        },
-                    }
-                )
-
-            ### This is the total column and will always be last, so we can just combine here and save an if/else loop
-            chart.combine(chart2)
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "line": {"color": "black"},
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    if right_ax != None:
-        if df.shape[1] > 1:
-            max_chars = np.max([len(c) for c in df.columns])
-            min_width = 0.075
-            width = min_width + max_chars * 0.01
-        else:
-            width = 0
-
-        chart2.set_y2_axis(
-            {
-                "major_gridlines": {"visible": False},
-                "num_font": {"name": "Arial", "size": 10},
-                "num_format": num_fmt,
-                "name": right_ax,
-                "name_font": {
-                    "name": "Arial",
-                    "size": 10,
-                    "bold": False,
-                    "text_rotation": -90,
-                },
-                "name_layout": {"x": 0.98 - width, "y": 0.02},
-                "line": {"none": True},
-                "major_gridlines": {
-                    "visible": True,
-                    "line": {"width": 1, "color": "#d9d9d9"},
-                },
-            }
-        )
-
-    chart.set_title({"none": True})
-
-    if df.shape[1] > 1:
-        max_chars = np.max([len(c) for c in df.columns])
-
-        ### Legend should not exceed 16chars and should always be more than 8chars
-
-        if max_chars < 8:
-            max_chars = 8
-        elif max_chars > 16:
-            max_chars = 16
-
-        min_width = 0.075
-        width = min_width + max_chars * 0.01
-
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "layout": {"x": 1 - width, "y": 0, "height": 1, "width": width},
-            }
-        )
-    else:
-        chart.set_legend({"visble": False})
-        chart.set_legend({"position": "none"})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-def write_xlsx_stack(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        palette=stack_palette,
-        units="MW",
-        to_combine=False,
-):
-    cm_to_pixel = 37.7953
-
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    df = df.loc[:, sort_cols]
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "area", "subtype": "stacked"})
-    chart2 = workbook.add_chart({"type": "line"})
-
-    sec_axis_vars = ["Load2", "Curtailment"]
-    write_xlsx_stack = ["Net Load", "Load"]
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        try:
-            fill_colour = iea_palette_plus[palette[df.columns[col_num - 1]]]
-        except KeyError:
-            print("Non-specified colour for: {}".format(df.columns[col_num - 1]))
-            fill_colour = iea_cmap_16.colors[col_num - 1]
-
-        if df.columns[col_num - 1] == "Load2":
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "fill": {"none": True},
-                    "border": {"none": True},
-                    "y2_axis": True,
-                }
-            )
-
-            leg_del_idx = [int(col_num - 1)]
-
-        elif df.columns[col_num - 1] == "Curtailment":
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "pattern": {
-                        "pattern": "light_upward_diagonal",
-                        "fg_color": iea_palette["y"],
-                        "bg_color": iea_palette["r"],
-                    },
-                    "border": {"none": True},
-                    "y2_axis": True,
-                }
-            )
-        elif df.columns[col_num - 1] == "Total Load":
-            chart2.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "line": {"width": 0.25, "color": "black", "dash_type": "solid"},
-                }
-            )
-        elif df.columns[col_num - 1] == "Underlying Load":
-            continue
-        elif df.columns[col_num - 1] == "Storage Load":
-            continue
-        #             chart2.add_series({
-        #                 'name':       [sheet_name, 0, col_num],
-        #                 'categories': [sheet_name, 1, 0, df.shape[0], 0],
-        #                 'values':     [sheet_name, 1, col_num, df.shape[0], col_num],
-        #                 'line': {'width': 1.00, 'color':iea_palette['p'], 'dash_type': 'dash'},
-        #             })
-        elif df.columns[col_num - 1] == "Net Load":
-            chart2.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "line": {
-                        "width": 1.00,
-                        "color": iea_palette["r"],
-                        "dash_type": "dash",
-                    },
-                }
-            )
-        else:
-            chart.add_series(
-                {
-                    "name": [sheet_name, 0, col_num],
-                    "categories": [sheet_name, 1, 0, df.shape[0], 0],
-                    "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                    "fill": {"color": fill_colour},
-                    "border": {"none": True},
-                }
-            )
-
-    # Configure the chart axes.
-    num_fmt = "# ###"
-
-    chart.combine(chart2)
-
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 9.5 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "dd mmm hh:mm",
-            "major_unit": 24,
-            "interval_unit": 24,
-            "interval_tick": 12,
-            "line": {"color": "black"},
-            "text_axis": True,
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_y2_axis({"visible": False})
-
-    #     leg_del_idx = df.shape[1]
-
-    if "Load2" in df.columns:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.7, "width": 1, "height": 0.25},
-                "delete_series": leg_del_idx,
-            }
-        )
-    else:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.7, "width": 1, "height": 0.25},
-            }
-        )
-
-    # Insert the chart into the worksheet.
-    worksheet.insert_chart("S2", chart)
-
-
-def write_xlsx_scatter(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        colour=None,
-        palette=combined_palette,
-        units="",
-        alpha=80,
-        to_combine=False,
-        markersize=4,
-        common_yr=2041,
-):
-    cm_to_pixel = 37.7953
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    # Create a chart object.
-    chart = workbook.add_chart({"type": "scatter"})
-    chart.set_size({"width": 15 * cm_to_pixel, "height": 8.5 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.1,
-                    "y": 0,
-                    "width": 0.9,
-                    "height": 0.8,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                #         'layout': {
-                #             'x':      0.1,
-                #             'y':      0,
-                #             'width':  0.9,
-                #             'height': 0.8,
-                #         },
-                "fill": {"none": True}
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(1, df.shape[1] + 1):
-        if colour != None:
-            fill_colour = colour
-        else:
-            try:
-                fill_colour = iea_palette_plus[
-                    palette[df.columns[col_num - df.index.nlevels]]
-                ]
-            except KeyError:
-                fill_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-        chart.add_series(
-            {
-                "name": [sheet_name, 0, col_num],
-                "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                "marker": {
-                    "type": "circle",
-                    "size": markersize,
-                    "border": {"color": fill_colour},
-                    "fill": {"color": fill_colour, "transparency": alpha},
-                },
-            }
-        )
-
-    # Configure the chart axes.
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "mmm",
-            "date_axis": True,
-            "min": pd.to_datetime("01-01-{}".format(common_yr)),
-            "max": pd.to_datetime("31-12-{}".format(common_yr)),
-            "major_unit": 31,
-            "interval_unit": 31,
-            "interval_tick": 31,
-            "label_position": label_position,
-        }
-    )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_title({"none": True})
-
-    chart.set_legend(
-        {
-            "font": {"name": "Arial", "size": 10},
-            "position": "bottom",
-            #                       'layout': {'x':      0,
-            #                                 'y':      0.7,
-            #                                 'width':  1,
-            #                                 'height': 0.25
-            #                                },
-            #                      'delete_series': [leg_del_idx]
-        }
-    )
-
-    #     chart.set_legend({'num_font':  {'name': 'Arial', 'size': 10}})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-def write_xlsx_line(
-        df,
-        writer,
-        excel_file=None,
-        sheet_name="Sheet1",
-        subtype="timeseries",
-        palette=combined_palette,
-        units="",
-        ldc_idx=None,
-        label_position="next_to",
-        to_combine=False,
-        line_width=1.5,
-):
-    cm_to_pixel = 37.7953
-
-    ## Sort columns by order in palettes described above
-    sort_cols = [c for c in palette.keys() if c in df.columns] + [
-        c for c in df.columns if c not in palette.keys()
-    ]
-    sort_index = [i for i in palette.keys() if i in df.index] + [
-        i for i in df.index if i not in palette.keys()
-    ]
-
-    if type(df.index == pd.Index):
-        df = df.loc[sort_index, sort_cols]
-    else:
-        df = df.loc[:, sort_cols]
-
-    if subtype == "ldc":
-        if ldc_idx is None:
-            df.index = (np.arange(0, df.shape[0]) + 1) / df.shape[0]
-        else:
-            df.index = ldc_idx
-
-    if excel_file:
-        writer = pd.ExcelWriter(excel_file, engine="xlsxwriter")
-
-    df.to_excel(writer, sheet_name=sheet_name)
-
-    # Access the XlsxWriter workbook and worksheet objects from the dataframe.
-    workbook = writer.book
-    worksheet = writer.sheets[sheet_name]
-
-    if units == "":
-        num_fmt = "0%"
-        units = ""
-    else:
-        num_fmt = "# ###"
-
-    if subtype == "timeseries":
-        chart = workbook.add_chart({"type": "line"})
-    else:
-        chart = workbook.add_chart({"type": "scatter", "subtype": "line"})
-
-    # Create a chart object.
-    if to_combine:
-        chart.set_size({"width": 7.5 * cm_to_pixel, "height": 7 * cm_to_pixel})
-    else:
-        chart.set_size({"width": 15 * cm_to_pixel, "height": 7 * cm_to_pixel})
-
-    if to_combine:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.25,
-                    "y": 0,
-                    "width": 0.75,
-                    "height": 0.65,
-                },
-                "fill": {"none": True},
-            }
-        )
-    else:
-        chart.set_plotarea(
-            {
-                "layout": {
-                    "x": 0.25,
-                    "y": 0,
-                    "width": 0.75,
-                    "height": 0.65,
-                },
-                "fill": {"none": True},
-            }
-        )
-
-    chart.set_chartarea(
-        {
-            "fill": {"none": True},
-            "border": {"none": True},
-        }
-    )
-
-    # Configure the series of the chart from the dataframe data.
-    ## Col_num iterates from first data column, which varies if it is multiindex columns or not
-    for col_num in np.arange(df.index.nlevels, df.shape[1] + df.index.nlevels):
-        try:
-            line_colour = iea_palette_plus[
-                palette[df.columns[col_num - df.index.nlevels]]
-            ]
-        except KeyError:
-            line_colour = iea_cmap_16.colors[col_num - df.index.nlevels]
-
-        chart.add_series(
-            {
-                "name": [sheet_name, 0, col_num],
-                "categories": [sheet_name, 1, 0, df.shape[0], df.index.nlevels - 1],
-                "values": [sheet_name, 1, col_num, df.shape[0], col_num],
-                "line": {"color": line_colour, "width": line_width},
-                "marker": {"type": "none"},
-            }
-        )
-
-    ### Set label_position to low if there are negative values
-    if (df < 0).sum().sum() > 0:
-        label_position = "low"
-    else:
-        label_position = "next_to"
-
-    chart.set_x_axis(
-        {
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": "dd mmm hh:mm",
-            "major_unit": 24,
-            "interval_unit": 24,
-            "interval_tick": 12,
-            "line": {"color": "black"},
-            "text_axis": True,
-            "label_position": label_position,
-        }
-    )
-
-    if subtype == "ldc":
-        if np.round(np.max(df.index) / 5, -1) < 1:
-            chart.set_x_axis(
-                {
-                    "num_font": {"name": "Arial", "size": 10},
-                    "line": {"color": "black"},
-                    "major_unit": np.round(np.max(df.index) / 5, -1),
-                    "min": 0,
-                    "max": np.max(df.index),
-                    "num_format": "0.0%",
-                    "label_position": label_position,
-                }
-            )
-        else:
-            chart.set_x_axis(
-                {
-                    "num_font": {"name": "Arial", "size": 10},
-                    "line": {"color": "black"},
-                    "major_unit": np.round(np.max(df.index) / 5, -1),
-                    "min": 0,
-                    "max": np.max(df.index),
-                    "num_format": "0%",
-                    "label_position": label_position,
-                }
-            )
-    else:
-        chart.set_x_axis(
-            {
-                "num_font": {"name": "Arial", "size": 10},
-                "line": {"color": "black"},
-                "num_format": "mmm",
-                "major_unit": 30,
-                "label_position": label_position,
-            }
-        )
-
-    chart.set_y_axis(
-        {
-            "major_gridlines": {"visible": False},
-            "num_font": {"name": "Arial", "size": 10},
-            "num_format": num_fmt,
-            "name": units,
-            "name_font": {
-                "name": "Arial",
-                "size": 10,
-                "bold": False,
-                "text_rotation": -90,
-            },
-            "name_layout": {"x": 0.02, "y": 0.02},
-            "line": {"none": True},
-            "major_gridlines": {
-                "visible": True,
-                "line": {"width": 1, "color": "#d9d9d9"},
-            },
-        }
-    )
-
-    chart.set_title({"none": True})
-
-    if df.shape[1] > 1:
-        chart.set_legend(
-            {
-                "font": {"name": "Arial", "size": 10},
-                "position": "bottom",
-                "layout": {"x": 0, "y": 0.85, "height": 0.15, "width": 1},
-            }
-        )
-
-    #         max_chars = np.max([len(c) for c in df.columns])
-    #         min_width = 0.075
-    #         width = min_width + max_chars*0.01
-
-    #         chart.set_legend({'font':  {'name': 'Arial', 'size': 10},
-    #                           'layout': {'x': 1- width,
-    #                                     'y':      0,
-    #                                     'height': 1,
-    #                                     'width':width
-    #                                    }})
-    else:
-        chart.set_legend({"visble": False})
-        chart.set_legend({"position": "none"})
-
-    # Insert the chart into the worksheet....this probably should depend on the size of the dataframe
-
-    if to_combine:
-        worksheet.insert_chart("K22", chart)
-    else:
-        worksheet.insert_chart("K2", chart)
-
-
-def plot_1a(c):
-    ### Plot 1: Generation stacks for national days of interest
-
-    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
-
-    ####
     doi_periods = [doi for doi in doi_summary.index if "time" in doi]
     doi_names = [doi for doi in doi_summary.index if "time" not in doi]
 
@@ -947,75 +102,12 @@ def plot_1a(c):
         doi_name = doi_names[i]
 
         for m in c.v.model_names:
-            save_dir_model = os.path.join(save_dir_plots, m)
+            save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
             if os.path.exists(save_dir_model) is False:
                 os.mkdir(save_dir_model)
 
-            gen_stack = gen_stack_by_reg.loc[ix[m, :, :], :]
-            toi = doi.loc[m]
-
-            gen_stack_doi = gen_stack.reset_index()
-            gen_stack_doi = gen_stack_doi.loc[
-                (gen_stack_doi.timestamp.dt.date >= toi.date() - pd.Timedelta("3D"))
-                & (gen_stack_doi.timestamp.dt.date <= toi.date() + pd.Timedelta("3D"))
-                ]
-            gen_stack_doi = gen_stack_doi.set_index(["model", "Region", "timestamp"])
-
-            # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
-            fig_path = os.path.join(
-                save_dir_model, "plot1a_stack_ntl_doi_{}.xlsx".format(doi_name)
-            )
-            #         shutil.copyfile(fig_template_path, fig_path)
-
-            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
-                ## ExcelWriter for some reason uses writer.sheets to access the sheet.
-                ## If you leave it empty it will not know that sheet Main is already there
-                ## and will create a new sheet.
-
-                for reg in model_regs:
-                    gen_stack_doi_reg = gen_stack_doi.loc[ix[:, reg, :], :].droplevel(
-                        [0, 1]
-                    )
-                    write_xlsx_stack(
-                        df=gen_stack_doi_reg,
-                        writer=writer,
-                        sheet_name=reg,
-                        palette=stack_palette,
-                    )
-
-
-def plot_1b(c):
-    ### Plot 1b: Generation stacks for national days of interest a specified reference model
-
-    load_by_reg = c.o.node_yr_df[c.o.node_yr_df.property == 'Load'].groupby(
-        ['model', 'timestamp'] + c.GEO_COLS).sum().value
-
-    reg_ids = list(np.unique(np.append(
-        load_by_reg.unstack(c.GEO_COLS).droplevel(level=[c for c in c.GEO_COLS if c != 'Region'], axis=1).replace(0,
-                                                                                                                  np.nan).dropna(
-            how='all', axis=1).columns,
-        gen_by_tech_reg.droplevel(level=[c for c in c.GEO_COLS if c != 'Region'], axis=1).replace(0, np.nan).dropna(
-            how='all', axis=1).columns)))
-
-    model_regs = reg_ids + ["JVB", "SUM", "IDN"]
-
-    ### Ref model is based on highest USE....this can be changed/even selected via drop-down menu, etc.
-    ref_model = use_reg_ts.groupby("model").sum().idxmax().iloc[0]
-    ####|
-    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
-    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
-
-    for i, p in enumerate(doi_periods):
-        doi = doi_summary.loc[p]
-        doi_name = doi_names[i]
-
-        for m in model_names:
-            save_dir_model = os.path.join(save_dir_plots, m)
-            if os.path.exists(save_dir_model) is False:
-                os.mkdir(save_dir_model)
-
-            gen_stack = gen_stack_by_reg.loc[ix[m, :, :], :]
-            toi_ref = doi.loc[ref_model]
+            gen_stack = gen_stack_by_reg.loc[pd.IndexSlice[m, :, :], :]
+            toi_ref = pd.to_datetime(doi.loc[m])
 
             gen_stack_doi = gen_stack.reset_index()
             gen_stack_doi = gen_stack_doi.loc[
@@ -1026,480 +118,482 @@ def plot_1b(c):
 
             # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
             fig_path = os.path.join(
-                save_dir_model, "plot1b_stack_ntl_ref_doi_{}.xlsx".format(doi_name)
+                save_dir_model, "plot1a_stack_doi_{}.xlsx".format(doi_name)
             )
-            #         shutil.copyfile(fig_template_path, fig_path)
 
-            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
+            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
                 ## ExcelWriter for some reason uses writer.sheets to access the sheet.
                 ## If you leave it empty it will not know that sheet Main is already there
                 ## and will create a new sheet.
 
                 for reg in model_regs:
-                    gen_stack_doi_reg = gen_stack_doi.loc[ix[:, reg, :], :].droplevel(
-                        [0, 1]
-                    )
+                    try:
+                        gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel([0, 1])
+                    except KeyError:
+                        print(f'Cannot find {reg} in second level of index. Skipping. (Example index: '
+                              f'{gen_stack_doi.index[0]})')
+                        continue
+
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'], errors='ignore')
                     write_xlsx_stack(
                         df=gen_stack_doi_reg,
                         writer=writer,
                         sheet_name=reg,
-                        palette=stack_palette,
+                        palette=STACK_PALETTE,
                     )
+    print("Done.")
 
-
-def get_plot_data(c):
-    plot_cols = {
-        "load_by_reg":
-            customer_load_by_reg.groupby(["model", "Region"]).sum().unstack(level="model") / 1000,
-        "load_by_isl":
-            customer_load_by_reg.groupby(["model", "Island"]).sum().unstack(level="model") / 1000,
-        # 'pk_load_by_reg': load_by_reg_ts.groupby(['model', 'Region']).max().unstack(level='model'),
-        "pk_load_by_isl": customer_load_reg_ts.groupby(geo_cols[0], axis=1).sum().stack(geo_cols[0]).groupby(
-            ["model", geo_cols[0]]).max().unstack(level="model") / 1000,
-        # 'pk_netload_by_reg': net_load_reg_ts.stack(geo_cols).groupby(['model', 'Region']).max().unstack(leel='model'),
-        "pk_netload_by_isl": net_load_reg_ts.groupby(geo_cols[0], axis=1)
-                             .sum()
-                             .stack(geo_cols[0])
-                             .groupby(["model", geo_cols[0]])
-                             .max()
-                             .unstack(level="model")
-                             / 1000,
-        "line_cap_isl": line_cap_isl["Export Limit"].rename("value").unstack(level="line")
-                        / 1000,
-        "line_net_exports_isl": (
-                                        line_imp_exp_isl["Flow"] - line_imp_exp_isl["Flow Back"]
-                                ).unstack("line")
-                                / 1000,
-        "line_exports_isl": (line_imp_exp_isl["Flow"]).unstack("line") / 1000,
-        "line_imports_isl": (line_imp_exp_isl["Flow Back"]).unstack("line") / 1000,
-        #              'use_by_reg': use_by_reg.groupby(['model','Region']).sum().unstack(level='Region'),
-        "use_by_isl": use_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island")
-                      / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_WEOtech": gen_by_weoTech_reg.groupby(["model", "WEO_Tech_simpl"])
-                          .sum()
-                          .sum(axis=1)
-                          .unstack(level="WEO_Tech_simpl")
-                          / 1000,
-        #              'gen_by_reg': gen_by_tech_reg.stack(geo_cols).groupby(['model', 'Region']).sum().unstack(level='Region'),
-        "gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                      .groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1000,
-        "net_gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          .fillna(0)
-                          / 1000
-                          - load_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island") / 1000,
-        "gen_cap_by_isl": gen_cap_tech_reg.stack(geo_cols)
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          / 1000,
-        "gen_cap_by_tech": gen_cap_tech_reg.stack(geo_cols)
-                           .groupby(["model", "Category"])
-                           .sum()
-                           .unstack(level="Category")
-                           / 1000,
-        "gen_cap_by_WEOtech": gen_cap_by_weoTech_reg.groupby(["model", "WEO_Tech_simpl"])
-                              .sum()
-                              .sum(axis=1)
-                              .unstack(level="WEO_Tech_simpl")
-                              / 1000,
-        "cf_tech": cf_tech,
-        "cf_tech_transposed": cf_tech.T,
-        "vre_by_isl_byGen": vre_by_isl,
-        "vre_by_isl_byAv": vre_av_reg_abs_ts.groupby("model")
-                           .sum()
-                           .groupby(geo_cols[0], axis=1)
-                           .sum()
-                           / 1000
-                           / gen_by_tech_reg.groupby("model").sum().groupby(geo_cols[0], axis=1).sum(),
-        "re_by_isl": re_by_isl,
-        "curtailment_rate": curtailment_rate / 100,
-        "re_curtailed_by_tech": re_curtailment_rate_by_tech,
-        "fuels_by_type": fuel_by_type.groupby(["model", "Type"])
-        .sum()
-        .unstack("Type")
-        .replace(0, np.nan)
-        .dropna(axis=1, how="all")
-        .fillna(0),
-        #              'fuels_by_subtype': fuel_by_type.groupby(['model', 'Category']).sum().unstack('Category').replace(0,np.nan).dropna(axis=1,how="all").fillna(0),
-        "co2_by_tech": co2_by_tech_reg.groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1e6,
-        "co2_by_fuels": co2_fuels_by_reg.groupby(["model", "Type"]).sum().unstack("Type")
-                        / 1e6,
-        #              'co2_by_subfuels': co2_fuels_by_reg.groupby(['model', 'Category']).sum().unstack('Category')/1e6,
-        #              'co2_by_reg': co2_by_tech_reg.groupby(['model', 'Region']).sum().unstack(level='Region')/1e6,
-        "co2_by_isl": co2_by_tech_reg.groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1e6,
-        #              'co2_intensity_reg': co2_by_reg.unstack(geo_cols).groupby('Region', axis=1).sum()/gen_by_tech_reg.groupby('model').sum().groupby('Region',axis=1).sum(),
-        "co2_intensity_isl": co2_by_reg.unstack(geo_cols).groupby("Island", axis=1).sum()
-                             / gen_by_tech_reg.groupby("model").sum().groupby("Island", axis=1).sum(),
-        #              'gen_cap_by_reg': gen_cap_tech_reg.stack(geo_cols).groupby(['model', 'Region']).sum().unstack(level='Region'),
-        #              'op_costs_by_tech' : gen_op_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "op_costs_by_prop": gen_op_costs_by_reg.groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        "op_and_vio_costs_by_prop": gen_op_and_vio_costs_reg.groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'tsc_by_tech' : gen_total_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "tsc_by_prop": gen_total_costs_by_reg.groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'lcoe_by_tech' : lcoe_tech.unstack(level='Category'),
-        #              'lcoe_by_tech_T' : lcoe_tech.unstack(level='model'),
-        "ramp_pc_by_isl": pd.concat(
-            [
-                (
-                        ramp_reg_ts.groupby(["model", geo_cols[0], "timestamp"]).sum()
-                        / daily_pk_reg_ts.stack(geo_cols)
-                        .groupby(["model", geo_cols[0], "timestamp"])
-                        .sum()
-                )
-                .groupby(["model", geo_cols[0]])
-                .max()
-                .unstack(level=geo_cols[0])
-                * 100,
-                ramp_pc_ts.groupby(["model"]).max().rename("IDN"),
-            ],
-            axis=1,
-        ),
-        "th_ramp_pc_by_isl": pd.concat(
-            [
-                (
-                        th_ramp_reg_ts.groupby(["model", geo_cols[0], "timestamp"]).sum()
-                        / daily_pk_reg_ts.stack(geo_cols)
-                        .groupby(["model", geo_cols[0], "timestamp"])
-                        .sum()
-                )
-                .groupby(["model", geo_cols[0]])
-                .max()
-                .unstack(level=geo_cols[0])
-                * 100,
-                th_ramp_pc_ts.groupby(["model"]).max().rename("IDN"),
-            ],
-            axis=1,
-        ),
-        "ramp_by_isl": pd.concat(
-            [
-                ramp_reg_ts.unstack(geo_cols)
-                .groupby(level=geo_cols[0], axis=1)
-                .sum()
-                .groupby(["model"])
-                .max(),
-                ramp_ts.groupby(["model"]).max().value.rename("IDN"),
-            ],
-            axis=1,
-        ),
-        #              'th_ramp_by_isl' :pd.concat([th_ramp_reg_ts.unstack(geo_cols).groupby(level=geo_cols[0],axis=1).sum().groupby(['model']).max(), th_ramp_ts.groupby(['model']).max().value.rename('IDN')], axis=1)
-        "dsm_pk_contr": (nldc_orig.iloc[:100, :] - nldc.iloc[:100, :])
-        .mean()
-        .rename("value")
-        .to_frame(),
-    }
-
-    ###Java-Bali and Sumatra only
-    incl_regs = ["JVB", "SUM"]
-
-    plot_cols_JVBSUMonly = {
-        "load_by_isl": customer_load_by_reg.loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Island"])
-                       .sum()
-                       .unstack(level="model")
-                       / 1000,
-        #              'pk_load_by_reg': load_by_reg_ts.groupby(['model', 'Region']).max().unstack(level='model'),
-        "pk_load_by_isl": customer_load_reg_ts.loc[:, ix[incl_regs,]]
-                          .groupby(geo_cols[0], axis=1)
-                          .sum()
-                          .stack(geo_cols[0])
-                          .groupby(["model", geo_cols[0]])
-                          .max()
-                          .unstack(level="model")
-                          / 1000,
-        #              'pk_netload_by_reg': net_load_reg_ts.stack(geo_cols).groupby(['model', 'Region']).max().unstack(leel='model'),
-        "pk_netload_by_isl": net_load_reg_ts.loc[:, ix[incl_regs,]]
-                             .groupby(geo_cols[0], axis=1)
-                             .sum()
-                             .stack(geo_cols[0])
-                             .groupby(["model", geo_cols[0]])
-                             .max()
-                             .unstack(level="model")
-                             / 1000,
-        #              'use_by_reg': use_by_reg.groupby(['model','Region']).sum().unstack(level='Region'),
-        "use_by_isl": use_by_reg.loc[ix[:, incl_regs, :]]
-                      .groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_tech": gen_by_tech_reg.stack(geo_cols)
-                       .loc[ix[:, :, incl_regs, :]]
-                       .groupby(["model", "Category"])
-                       .sum()
-                       .unstack(level="Category")
-                       / 1000,
-        "gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                      .loc[ix[:, :, incl_regs, :]]
-                      .groupby(["model", "Island"])
-                      .sum()
-                      .unstack(level="Island")
-                      / 1000,
-        "net_gen_by_isl": gen_by_tech_reg.stack(geo_cols)
-                          .loc[ix[:, :, incl_regs, :]]
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          .fillna(0)
-                          / 1000
-                          - load_by_reg.groupby(["model", "Island"]).sum().unstack(level="Island") / 1000,
-        "gen_cap_by_isl": gen_cap_tech_reg.stack(geo_cols)
-                          .loc[ix[:, :, incl_regs, :]]
-                          .groupby(["model", "Island"])
-                          .sum()
-                          .unstack(level="Island")
-                          / 1000,
-        "gen_cap_by_tech": gen_cap_tech_reg.stack(geo_cols)
-                           .loc[ix[:, :, incl_regs, :]]
-                           .groupby(["model", "Category"])
-                           .sum()
-                           .unstack(level="Category")
-                           / 1000,
-        "cf_tech": cf_tech_JVBSUMonly,
-        "cf_tech_transposed": cf_tech_JVBSUMonly.T,
-        "vre_by_isl_byGen": vre_by_isl_JVBSUMonly,
-        "vre_by_isl_byAv": vre_av_reg_abs_ts.loc[:, ix[incl_regs,]]
-                           .groupby("model")
-                           .sum()
-                           .groupby(geo_cols[0], axis=1)
-                           .sum()
-                           / 1000
-                           / gen_by_tech_reg.loc[:, ix[incl_regs,]]
-                           .groupby("model")
-                           .sum()
-                           .groupby(geo_cols[0], axis=1)
-                           .sum(),
-        "re_by_isl": re_by_isl_JVBSUMonly,
-        "curtailment_rate": curtailment_rate_JVBSUMonly / 100,
-        "op_costs_by_prop": gen_op_costs_by_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        "op_and_vio_costs_by_prop": gen_op_and_vio_costs_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'tsc_by_tech' : gen_total_costs_by_reg.groupby(['model', 'Category']).sum().unstack(level='Category'),
-        "tsc_by_prop": gen_total_costs_by_reg.loc[
-            ix[
-            :,
-            incl_regs,
-            ]
-        ]
-        .groupby(["model", "property"])
-        .sum()
-        .unstack(level="property"),
-        #              'lcoe_by_tech' : lcoe_tech.unstack(level='Category'),
-        #              'lcoe_by_tech_T' : lcoe_tech.unstack(level='model'),
-    }
-
-    plot_type = {
-        "load_by_reg": "clustered",
-        "load_by_isl": "clustered",
-        "pk_load_by_reg": "clustered",
-        "pk_load_by_isl": "clustered",
-        "pk_netload_by_reg": "clustered",
-        "pk_netload_by_isl": "clustered",
-        "line_cap_isl": "clustered",
-        "line_net_exports_isl": "clustered",
-        "line_exports_isl": "clustered",
-        "line_imports_isl": "clustered",
-        "use_by_reg": "stacked",
-        "use_by_isl": "stacked",
-        "gen_by_tech": "stacked",
-        "gen_by_WEOtech": "stacked",
-        "gen_by_reg": "stacked",
-        "gen_by_isl": "stacked",
-        "net_gen_by_isl": "clustered",
-        "vre_by_isl_byGen": "clustered",
-        "vre_by_isl_byAv": "clustered",
-        "re_by_isl": "clustered",
-        "fuels_by_type": "stacked",
-        "fuels_by_subtype": "stacked",
-        "co2_by_tech": "stacked",
-        "co2_by_fuels": "stacked",
-        "co2_by_subfuels": "stacked",
-        "co2_by_tech": "stacked",
-        "co2_by_reg": "stacked",
-        "co2_by_isl": "stacked",
-        "co2_intensity_reg": "clustered",
-        "co2_intensity_isl": "clustered",
-        "curtailment_rate": "clustered",
-        "re_curtailed_by_tech": "clustered",
-        "gen_cap_by_reg": "stacked",
-        "gen_cap_by_isl": "stacked",
-        "gen_cap_by_tech": "stacked",
-        "gen_cap_by_WEOtech": "stacked",
-        "cf_tech": "clustered",
-        "cf_tech_transposed": "clustered",
-        "op_costs_by_tech": "stacked",
-        "op_costs_by_prop": "stacked",
-        "op_and_vio_costs_by_prop": "stacked",
-        "tsc_by_tech": "stacked",
-        "tsc_by_prop": "stacked",
-        "lcoe_by_tech": "clustered",
-        "lcoe_by_tech_T": "clustered",
-        "ramp_pc_by_isl": "clustered",
-        "th_ramp_pc_by_isl": "clustered",
-        "ramp_by_isl": "clustered",
-        "th_ramp_by_isl": "clustered",
-        "dsm_pk_contr": "clustered",
-    }
-
-    plot_units = {
-        "load_by_reg": "TWh",
-        "load_by_isl": "TWh",
-        "use_by_reg": "TWh",
-        "use_by_isl": "TWh",
-        "gen_by_tech": "TWh",
-        "gen_by_WEOtech": "TWh",
-        "gen_by_reg": "TWh",
-        "gen_by_isl": "TWh",
-        "net_gen_by_isl": "TWh",
-        "vre_by_isl_byGen": "%",
-        "vre_by_isl_byAv": "%",
-        "re_by_isl": "%",
-        "pk_load_by_reg": "GW",
-        "pk_load_by_isl": "GW",
-        "pk_netload_by_reg": "GW",
-        "pk_netload_by_isl": "GW",
-        "line_cap_isl": "GW",
-        "line_net_exports_isl": "TWh",
-        "line_exports_isl": "TWh",
-        "line_imports_isl": "TWh",
-        "fuels_by_type": "TJ",
-        "fuels_by_subtype": "TJ",
-        "co2_by_tech": "million tonnes",
-        "co2_by_fuels": "million tonnes",
-        "co2_by_subfuels": "million tonnes",
-        "co2_by_tech": "million tonnes",
-        "co2_by_reg": "million tonnes",
-        "co2_by_isl": "million tonnes",
-        "co2_intensity_reg": "kg/MWh",
-        "co2_intensity_isl": "kg/MWh",
-        "curtailment_rate": "%",
-        "re_curtailed_by_tech": "%",
-        "gen_cap_by_reg": "GW",
-        "gen_cap_by_isl": "GW",
-        "gen_cap_by_tech": "GW",
-        "gen_cap_by_WEOtech": "GW",
-        "cf_tech": "%",
-        "cf_tech_transposed": "%",
-        "op_costs_by_tech": "USDm",
-        "op_costs_by_prop": "USDm",
-        "op_and_vio_costs_by_prop": "USDm",
-        "tsc_by_tech": "USDm",
-        "tsc_by_prop": "USDm",
-        "lcoe_by_tech": "USD/MWh",
-        "lcoe_by_tech_T": "USD/MWh",
-        "ramp_pc_by_isl": "%/hr",
-        "th_ramp_pc_by_isl": "%/hr",
-        "ramp_by_isl": "MW/hr",
-        "th_ramp_by_isl": "MW/hr",
-        "dsm_pk_contr": "GW",
-    }
-
-    return plot_cols, plot_type, plot_units, plot_cols_JVBSUMonly
-
-
-def create_plot_2(c):
-    ### Plot 2: Annual summary plots by columnn
-
-    fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots.xlsx")
-
-    with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
-        for i in plot_cols.keys():
-            if plot_cols[i].shape[0] == 0:
-                print("Empty dataframe for: {}".format(i))
-            else:
-                write_xlsx_column(
-                    df=plot_cols[i],
-                    writer=writer,
-                    sheet_name=i,
-                    subtype=plot_type[i],
-                    units=plot_units[i],
-                    palette=combined_palette,
-                )
-
-    fig_path = os.path.join(c.DIR_05_3_PLOTS, "plot2_annual_summary_plots_JVBSUMonly.xlsx")
-
-    with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
-        for i in plot_cols_JVBSUMonly.keys():
-            if plot_cols_JVBSUMonly[i].shape[0] == 0:
-                print("Empty dataframe for: {}".format(i))
-            else:
-                write_xlsx_column(
-                    df=plot_cols_JVBSUMonly[i],
-                    writer=writer,
-                    sheet_name=i,
-                    subtype=plot_type[i],
-                    units=plot_units[i],
-                    palette=combined_palette,
-                )
-
-
-def create_plot_3(c):
+def create_plot_1a_overall(c):
     """
-    Status: Could work, but can't be run because 03 year output is missing
+    Plot 1a: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
     """
-    ### Gen by tech/reg plots per model
-    for ref_m in c.v.model_names:
-        save_dir_model = os.path.join(save_dir_plots, ref_m)
+
+    print("Creating plot 1a...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+        # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, "overall_plots")
         if os.path.exists(save_dir_model) is False:
             os.mkdir(save_dir_model)
 
         fig_path = os.path.join(
-            save_dir_model, "plot3_gen_by_tech_reg_{}.xlsx".format(ref_m)
+            save_dir_model, "plot1a_overall_stack_doi_{}.xlsx".format(doi_name)
         )
-        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+        ## If you leave it empty it will not know that sheet Main is already there
+        ## and will create a new sheet.
+            for m in c.v.model_names:
+    
+                
+                gen_stack = gen_stack_total.loc[pd.IndexSlice[m, :], :].droplevel(0)
+                toi_ref = pd.to_datetime(doi.loc[m])
+
+                gen_stack_doi = gen_stack.reset_index()
+                gen_stack_doi = gen_stack_doi.loc[
+                    (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+                    & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+                    ]
+                
+                gen_stack_doi = gen_stack_doi.set_index('timestamp')
+
+                write_xlsx_stack(
+                    df=gen_stack_doi,
+                    writer=writer,
+                    sheet_name=m,
+                    palette=STACK_PALETTE,
+                )
+        print("Done.")
+
+
+def create_plot_1a_overall_models(c, summary_table=None, plot_name="doi"):
+    """
+    Plot 1a: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
+
+    print("Creating plot 1a - models...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    if summary_table is None:
+        summary_table = doi_summary
+
+    doi_periods = [doi for doi in summary_table.index if "time" in doi]
+    doi_names = [doi for doi in summary_table.index if "time" not in doi]
+    
+    for m in c.v.model_names:
+
+        gen_stack = gen_stack_total.loc[pd.IndexSlice[m, :], :].droplevel(0)
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+        fig_path = os.path.join(
+            save_dir_model, f"plot1a_overall_{plot_name}_m_{m}.xlsx"
+        )
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+        ## If you leave it empty it will not know that sheet Main is already there
+        ## and will create a new sheet.
+            for i, p in enumerate(doi_periods):
+                doi = summary_table.loc[p]
+                doi_name = doi_names[i]
+                                
+                toi_ref = pd.to_datetime(doi.loc[m])
+
+                gen_stack_doi = gen_stack.reset_index()
+                gen_stack_doi = gen_stack_doi.loc[
+                    (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+                    & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+                    ]
+                
+                gen_stack_doi = gen_stack_doi.set_index('timestamp')
+
+                write_xlsx_stack(
+                    df=gen_stack_doi,
+                    writer=writer,
+                    sheet_name=doi_name,
+                    palette=STACK_PALETTE,
+                )
+        print("Done.")
+
+
+def create_plot_1b_overall(c, ref_m=None):
+    """
+    Plot 1 - overall: Generation stacks for national days of interest a specified reference model
+    # writes one file per DoI for overall model
+    """
+
+    print("Creating plot 1 overall...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    if ref_m is None:
+    ### Defaults to the model with the highest load. This is kinda arbirtary.
+        ref_model = c.v.model_names[0]
+    elif ref_m == 'USE':
+        ref_model = c.v.use_reg_ts.groupby('model').sum().idxmax().iloc[0]
+    else:
+        ref_model = ref_m
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+
+        
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, 'overall_gen_stacks')	
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+
+        toi_ref = pd.to_datetime(doi.loc[ref_model])
+
+        gen_stack_doi = gen_stack_total.reset_index()
+        gen_stack_doi = gen_stack_doi.loc[
+            (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+            & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+            ]
+        
+        gen_stack_doi = gen_stack_doi.set_index(["model",  "timestamp"])
+
+        # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+        fig_path = os.path.join(
+            save_dir_model, f"plot1_overall_stack_doi_{doi_name}_ref_{ref_m}.xlsx"
+        )
+
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+            ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+            ## If you leave it empty it will not know that sheet Main is already there
+            ## and will create a new sheet.
+
+            for m in c.v.model_names:
+                try:
+                    gen_stack_doi_m = gen_stack_doi.loc[pd.IndexSlice[m, :], :].droplevel(0)
+                except KeyError:
+                    print(f'Cannot find {m} in second level of index. Skipping. (Example index: '
+                            f'{gen_stack_doi.index[0]})')
+                    continue
+
+                write_xlsx_stack(
+                    df=gen_stack_doi_m,
+                    writer=writer,
+                    sheet_name=m,
+                    palette=STACK_PALETTE,
+                )
+    print("Done.")
+
+
+def create_plot_1b(c, ref_m=None):
+    """
+    Plot 1b: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
+
+    print("Creating plot 1b...")
+
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    if ref_m is None:
+    ### Defaults to the model with the highest load. This is kinda arbirtary.
+        ref_model = c.v.model_names[0]
+    elif ref_m == 'USE':
+        ref_model = c.v.use_reg_ts.groupby('model').sum().idxmax().iloc[0]
+    else:
+        ref_model = ref_m
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+
+        for m in c.v.model_names:
+            save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+            if os.path.exists(save_dir_model) is False:
+                os.mkdir(save_dir_model)
+
+            gen_stack = gen_stack_by_reg.loc[pd.IndexSlice[m, :, :], :]
+            toi_ref = pd.to_datetime(doi.loc[ref_model])
+
+            gen_stack_doi = gen_stack.reset_index()
+            gen_stack_doi = gen_stack_doi.loc[
+                (gen_stack_doi.timestamp.dt.date >= toi_ref.date() - pd.Timedelta("3D"))
+                & (gen_stack_doi.timestamp.dt.date <= toi_ref.date() + pd.Timedelta("3D"))
+                ]
+            
+            gen_stack_doi = gen_stack_doi.set_index(["model", "Region", "timestamp"])
+
+            # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+            fig_path = os.path.join(
+                save_dir_model, f"plot1b_stack_doi_{doi_name}_ref_{ref_m}.xlsx"
+            )
+
+            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+                ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+                ## If you leave it empty it will not know that sheet Main is already there
+                ## and will create a new sheet.
+
+                for reg in model_regs:
+                    try:
+                        gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel([0, 1])
+                    except KeyError:
+                        print(f'Cannot find {reg} in second level of index. Skipping. (Example index: '
+                              f'{gen_stack_doi.index[0]})')
+                        continue
+
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'], errors='ignore')
+                    write_xlsx_stack(
+                        df=gen_stack_doi_reg,
+                        writer=writer,
+                        sheet_name=reg,
+                        palette=STACK_PALETTE,
+                    )
+    print("Done.")
+
+
+def create_plot_1c(c, toi=None):
+    """
+    Plot 1b: Generation stacks for national days of interest a specified reference model
+    # Todo works but has two bugs: Wrong index, Aggregation for full country is missing
+    """
+
+    print("Creating plot 1c...")
+    
+    reg_ids, doi_summary, gen_stack_by_reg, gen_stack_total = _get_plot_1_variables(c)
+
+    model_regs = reg_ids # + ["JVB", "SUM", "IDN"] # todo, This is the reason for missing aggregation, needs generalization
+
+    doi_periods = [doi for doi in doi_summary.index if "time" in doi]
+    doi_names = [doi for doi in doi_summary.index if "time" not in doi]
+
+    ref_model = c.v.use_reg_ts.groupby('model').sum().idxmax().iloc[0]
+
+    for i, p in enumerate(doi_periods):
+        doi = doi_summary.loc[p]
+        doi_name = doi_names[i]
+
+        for m in c.v.model_names:
+            save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+            if os.path.exists(save_dir_model) is False:
+                os.mkdir(save_dir_model)
+
+            gen_stack = gen_stack_by_reg.loc[pd.IndexSlice[m, :, :], :]
+            gen_stack_doi = gen_stack.reset_index()
+            yoi = gen_stack_doi.timestamp.dt.year.unique()[0]
+
+
+            if toi != None:
+                doi = pd.to_datetime(f"{toi}-{yoi}").date()
+                gen_stack_doi = gen_stack_doi.loc[
+                    (gen_stack_doi.timestamp.dt.date >= doi - pd.Timedelta("3D"))
+                    & (gen_stack_doi.timestamp.dt.date <= doi + pd.Timedelta("3D"))
+                    ]
+            else:
+                gen_stack_doi = gen_stack
+
+            gen_stack_doi = gen_stack_doi.set_index(["model", c.GEO_COLS[0], "timestamp"])
+            
+        
+            # gen_stack_doi = gen_stack_doi_reg.groupby(['model', 'timestamp'], as_index=False).sum()
+            #         shutil.copyfile(fig_template_path, fig_path)
+
+            if toi != None:
+                fig_path = os.path.join(m, 'plot1c_stack_custom_date_{}.xlsx'.format(str(toi)))
+            else:
+                fig_path = os.path.join(m, 'plot1c_stack_entire_year.xlsx')
+
+            with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+                ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+                ## If you leave it empty it will not know that sheet Main is already there
+                ## and will create a new sheet.
+
+                for reg in model_regs:
+                    try:
+                        gen_stack_doi_reg = gen_stack_doi.loc[pd.IndexSlice[:, reg, :], :].droplevel([0, 1])
+                    except KeyError:
+                        print(f'Cannot find {reg} in second level of index. Skipping. (Example index: '
+                              f'{gen_stack_doi.index[0]})')
+                        continue
+
+                    gen_stack_doi_reg = gen_stack_doi_reg.drop(columns=['Island', 'Subregion'], errors='ignore')
+                    write_xlsx_stack(
+                        df=gen_stack_doi_reg,
+                        writer=writer,
+                        sheet_name=reg,
+                        palette=STACK_PALETTE,
+                    )
+    print("Done.")
+        
+        
+def create_plot_2_summary(c, plot_vars=None, plot_name= 'main'):
+    
+    """
+    ### Plot 2: Annual summary plots by columnn
+
+    ### TODO: It would be a great idea to add some of the VRE phase classification metrics here too.
+    """
+
+    print("Creating plot 2...")
+
+    fig_path = os.path.join(c.DIR_05_3_PLOTS, f"plot2_{plot_name}_summary.xlsx")    
+    default_vars = c.LOAD_PLOTS + c.GEN_PLOTS + c.OTHER_PLOTS
+
+    if plot_vars is None:
+        plot_cols, plot_units, plot_type, plot_desc = _get_plot_2_variables(c, default_vars)
+    else:
+        plot_cols, plot_units, plot_type, plot_desc = _get_plot_2_variables(c, plot_vars)
+
+    with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        for i, df in plot_cols.items():
+            if df.shape[0] == 0:
+                print(f"Empty dataframe for: {i}")
+            else:
+                write_xlsx_column(
+                    df=df,
+                    writer=writer,
+                    sheet_name=i,
+                    subtype=plot_type[i],
+                    units=plot_units[i],
+                    palette=c.v.combined_palette,
+                    desc=plot_desc[i]
+                )
+        
+    print("Done.")
+
+
+def create_plot_2b_ref_plots(c, plot_vars=None, ref_m=None):
+    """
+    Status:
+    Plot2a: Annual summary plots by column relative to a reference model
+
+    Creates following output files:
+    - for each model in /{model}/:
+        - plot2b_annual_relative_ref_{model}.xlsx
+    """
+    
+    # Get rid of cofiring if any for the purpose of comparison
+
+    default_vars = c.LOAD_PLOTS + c.GEN_PLOTS + c.OTHER_PLOTS
+
+    if plot_vars is None:
+        plot_cols, plot_units, plot_type, plot_desc = _get_plot_2_variables(c, default_vars)
+    else:
+        plot_cols, plot_units, plot_type, plot_desc = _get_plot_2_variables(c, plot_vars)
+
+    if ref_m is None:
+        ref_m = c.v.model_names[0]
+
+    if ref_m not in c.v.model_names:
+        print(f"Error: {ref_m} is not a valid model name.")
+        return
+
+    print(f"Creating plot 2b with reference to {ref_m} model")
+
+    fig_path = os.path.join(c.DIR_05_3_PLOTS, f"plot2b_annual_plots_relative_ref_{ref_m}.xlsx")    
+
+    with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        for i, df in plot_cols.items():
+            if df.shape[0] == 0:
+                print(f"Empty dataframe for: {i}")
+            else:
+
+
+                if df.axes[0].name == "model":
+                    # Adds in a total column for the comparison of totals between models
+                    df.loc[:,'Overall'] = df.sum(axis=1)
+                    ref_srs = df.loc[ref_m, :]
+                    df = df.sub(ref_srs, axis=1)
+                    df_pc = df.div(ref_srs, axis=1).replace(np.inf, np.nan).replace(-np.inf, np.nan).fillna(0)
+                elif df.axes[1].name == "model":
+                    ref_srs = df.loc[:, ref_m]
+                    df = df.sub(ref_srs, axis=0) # subtract ref_srs from each row
+                    df_pc = df.div(ref_srs, axis=0).replace(np.inf, np.nan).replace(-np.inf, np.nan).fillna(0) # divide each row by ref_srs
+                else:
+                    print(f"Error: {i} has no model axis.")
+                    continue                
+
+                write_xlsx_column(
+                    df=df,
+                    writer=writer,
+                    sheet_name=i,
+                    subtype=plot_type[i],
+                    units=plot_units[i],
+                    palette=c.v.combined_palette,
+                    desc=plot_desc[i]
+                )
+
+                write_xlsx_column(
+                    df=df_pc,
+                    writer=writer,
+                    sheet_name=f"{i}_pc",
+                    subtype='clustered',
+                    units='%',
+                    palette=c.v.combined_palette,
+                    desc=plot_desc[i]
+                )
+    print("Done.")
+
+
+
+def create_plot_3(c):
+    """
+    # Annual generation by tech/reg plots per model
+    """
+    ### Gen by tech/reg plots per model
+    for ref_m in c.v.model_names:
+        save_dir_model = os.path.join(c.DIR_05_3_PLOTS, ref_m)
+        if os.path.exists(save_dir_model) is False:
+            os.mkdir(save_dir_model)
+
+        fig_path = os.path.join(
+            save_dir_model, f"plot3_gen_by_tech_reg_{ref_m}.xlsx"
+        )
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
             gen_tech_reg_m = (
-                    gen_by_tech_reg.loc[pd.IndexSlice[ref_m, :]].groupby(c.GEO_COLS[0], axis=1).sum().T
+                    c.v.gen_by_tech_reg.loc[pd.IndexSlice[ref_m, :]].groupby(c.GEO_COLS[0], axis=1).sum().T
                     / 1000
             )
             gen_cap_tech_reg_m = (
-                    gen_cap_tech_reg.loc[pd.IndexSlice[ref_m, :]].groupby(c.GEO_COLS[0], axis=1).sum().T
+                    c.v.gen_cap_tech_reg.loc[pd.IndexSlice[ref_m, :]].groupby(c.GEO_COLS[0], axis=1).sum().T
                     / 1000
             )
 
@@ -1509,7 +603,7 @@ def create_plot_3(c):
                 sheet_name="gen_tech_reg",
                 subtype="stacked",
                 units="TWh",
-                palette=combined_palette,
+                palette=STACK_PALETTE,
             )
             write_xlsx_column(
                 df=gen_cap_tech_reg_m,
@@ -1517,54 +611,53 @@ def create_plot_3(c):
                 sheet_name="gen_cap_tech_reg",
                 subtype="stacked",
                 units="GW",
-                palette=combined_palette,
+                palette=STACK_PALETTE,
             )
+    print("Done.")
 
 
-def create_plot_6(c):
+def create_plot_4_costs(c):
     """
-    Status: Could work, but can't be run because 04 interval output is missing
+    # todo Could work, but can't be run because implementation of 04 ts output is missing
     """
-    ### Plot 6: Cost savings plots by reference model
+    ### Plot 4: Cost savings plots by reference model
 
-    ### Get rid of cofiring if any for the purpose of comparison
-    gen_op_costs_by_reg = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '04a_gen_op_costs_reg.csv'))
-    gen_op_costs_by_tech = (
-        gen_op_costs_by_reg.unstack("Category")
-        .rename(columns={"Cofiring": "Coal"})
-        .stack()
-        .groupby(["model", "Category"])
-        .sum()
-        .unstack("model")
+    ### Cofiring stuff that was built in is now removed
+
+    print("Creating plot 4...")
+
+    gen_op_costs_by_tech = c.v.gen_op_costs_by_reg.groupby(["model", "Category"]) \
+        .sum() \
+        .value \
+        .unstack("model") \
         .fillna(0)
-    )
-    gen_total_costs_by_reg = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '04c_gen_total_costs_reg.csv'))
-    gen_total_costs_by_tech = (
-        gen_total_costs_by_reg.unstack("Category")
-        .rename(columns={"Cofiring": "Coal"})
-        .stack()
-        .groupby(["model", "Category"])
-        .sum()
-        .unstack("model")
+    
+    gen_total_costs_by_reg = c.v.gen_total_costs_by_reg
+    gen_total_costs_by_tech = gen_total_costs_by_reg.groupby(["model", "Category"]) \
+        .sum() \
+        .value \
+        .unstack("model") \
         .fillna(0)
-    )
 
     gen_op_costs_by_prop = (
-        gen_op_costs_by_reg.groupby(["model", "property"]).sum().unstack("model").fillna(0)
+        c.v.gen_op_costs_by_reg.groupby(["model", "property"]).sum().value.unstack("model").fillna(0)
     )
     gen_total_costs_by_prop = (
-        gen_total_costs_by_reg.groupby(["model", "property"])
+        c.v.gen_total_costs_by_reg.groupby(["model", "property"])
         .sum()
+        .value
         .unstack("model")
         .fillna(0)
     )
-    gen_op_and_vio_costs_reg = pd.read_csv(os.path.join(c.DIR_05_2_TS_OUT, '04b_gen_op_and_vio_costs_reg.csv'))
-    gen_op_vio_costs_by_prop = (
-        gen_op_and_vio_costs_reg.groupby(["model", "property"])
-        .sum()
-        .unstack("model")
-        .fillna(0)
-    )
+
+    ### TODO: Implement gen_op_and_vio_costs_reg in the variables!
+    # gen_op_and_vio_costs_reg = c.v.gen_op_and_vio_costs_reg
+    # gen_op_vio_costs_by_prop = (
+    #     gen_op_and_vio_costs_reg.groupby(["model", "property"])
+    #     .sum()
+    #     .unstack("model")
+    #     .fillna(0)
+    # )
 
     for ref_m in c.v.model_names:
         save_dir_model = os.path.join(c.DIR_05_3_PLOTS, ref_m)
@@ -1574,9 +667,9 @@ def create_plot_6(c):
         fig_path = os.path.join(
             save_dir_model, "plot6_cost_savings_ref_{}.xlsx".format(ref_m)
         )
-        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
             ref_op_prop = gen_op_costs_by_prop[ref_m]
-            ref_op_vio_prop = gen_op_vio_costs_by_prop[ref_m]
+            # ref_op_vio_prop = gen_op_vio_costs_by_prop[ref_m]
             ref_tsc_prop = gen_total_costs_by_prop[ref_m]
             ref_op_tech = gen_op_costs_by_tech[ref_m]
             ref_tsc_tech = gen_total_costs_by_tech[ref_m]
@@ -1584,12 +677,12 @@ def create_plot_6(c):
             savings_op_by_prop = (
                 (-gen_op_costs_by_prop).drop(columns=ref_m).subtract(-ref_op_prop, axis=0).T
             )
-            savings_op_vio_by_prop = (
-                (-gen_op_vio_costs_by_prop)
-                .drop(columns=ref_m)
-                .subtract(-ref_op_vio_prop, axis=0)
-                .T
-            )
+            # savings_op_vio_by_prop = (
+            #     (-gen_op_vio_costs_by_prop)
+            #     .drop(columns=ref_m)
+            #     .subtract(-ref_op_vio_prop, axis=0)
+            #     .T
+            # )
             savings_tsc_by_prop = (
                 (-gen_total_costs_by_prop)
                 .drop(columns=ref_m)
@@ -1607,7 +700,7 @@ def create_plot_6(c):
             )
 
             savings_op_by_prop_pc = savings_op_by_prop / ref_op_prop.sum()
-            savings_op_vio_by_prop_pc = savings_op_vio_by_prop / ref_op_vio_prop.sum()
+            # savings_op_vio_by_prop_pc = savings_op_vio_by_prop / ref_op_vio_prop.sum()
             savings_tsc_by_prop_pc = savings_tsc_by_prop / ref_tsc_prop.sum()
             savings_op_by_tech_pc = savings_op_by_tech / ref_op_tech.sum()
             savings_tsc_by_tech_pc = savings_tsc_by_tech / ref_tsc_tech.sum()
@@ -1620,14 +713,14 @@ def create_plot_6(c):
                 units="USDm",
                 total_scatter_col="Total savings",
             )
-            write_xlsx_column(
-                df=savings_op_vio_by_prop,
-                writer=writer,
-                sheet_name="savings_op_vio_by_prop",
-                subtype="stacked",
-                units="USDm",
-                total_scatter_col="Total savings",
-            )
+            # write_xlsx_column(
+            #     df=savings_op_vio_by_prop,
+            #     writer=writer,
+            #     sheet_name="savings_op_vio_by_prop",
+            #     subtype="stacked",
+            #     units="USDm",
+            #     total_scatter_col="Total savings",
+            # )
             write_xlsx_column(
                 df=savings_tsc_by_prop,
                 writer=writer,
@@ -1657,23 +750,23 @@ def create_plot_6(c):
                 writer=writer,
                 sheet_name="savings_op_by_prop_pc",
                 subtype="stacked",
-                units="",
+                units="%",
                 total_scatter_col="Relative savings",
             )
-            write_xlsx_column(
-                df=savings_op_vio_by_prop_pc,
-                writer=writer,
-                sheet_name="savings_op_vio_by_prop_pc",
-                subtype="stacked",
-                units="",
-                total_scatter_col="Relative savings",
-            )
+            # write_xlsx_column(
+            #     df=savings_op_vio_by_prop_pc,
+            #     writer=writer,
+            #     sheet_name="savings_op_vio_by_prop_pc",
+            #     subtype="stacked",
+            #     units="",
+            #     total_scatter_col="Relative savings",
+            # )
             write_xlsx_column(
                 df=savings_tsc_by_prop_pc,
                 writer=writer,
                 sheet_name="savings_tsc_by_prop_pc",
                 subtype="stacked",
-                units="",
+                units="%",
                 total_scatter_col="Relative savings",
             )
             write_xlsx_column(
@@ -1681,7 +774,7 @@ def create_plot_6(c):
                 writer=writer,
                 sheet_name="savings_op_by_tech_pc",
                 subtype="stacked",
-                units="",
+                units="%",
                 total_scatter_col="Relative savings",
             )
             write_xlsx_column(
@@ -1689,21 +782,174 @@ def create_plot_6(c):
                 writer=writer,
                 sheet_name="savings_tsc_by_tech_pc",
                 subtype="stacked",
-                units="",
+                units="%",
                 total_scatter_col="Relative savings",
             )
+        print("Done.")
 
 
-def plot_7(c):
+@catch_errors
+def create_plot_5_undispatched_tech(c):
+        """
+        Output 5: to plot undispatched capacity for USE (and maybe other metrics)
+
+        """
+
+        #### Output 5: to plot undispatched capacity for USE (and maybe other metrics)
+        ix = pd.IndexSlice
+
+        print('Creating output 5 for undispatched capacity during USE...')
+
+        if c.cfg['settings']['reg_ts']:
+            for m in c.v.model_names:
+                save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+                if os.path.exists(save_dir_model) is False:
+                    os.mkdir(save_dir_model)
+                    
+                model_use_ts = c.v.use_ts.loc[ix[m,:]].reset_index()
+                use_periods = model_use_ts[model_use_ts.value>0]
+                model_use_reg_ts = c.v.use_reg_ts.loc[ix[m,:]].reset_index()
+                
+                if len(use_periods) == 0:
+                    print(f"No USE for {m}. No output created for undispatched capacity during USE.")
+                    use_days = None
+                    continue
+                else:
+                    use_days = np.unique(use_periods.timestamp.dt.date)
+
+                fig_path = os.path.join(save_dir_model, f"plot5_undisp_cap_during_USE_{m}.xlsx")
+
+
+                with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+                ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+                ## If you leave it empty it will not know that sheet Main is already there
+                ## and will create a new sheet.
+
+                    for reg in c.v.reg_ids:
+
+                        undisp_cap_by_reg = c.v.undisp_cap_by_tech_reg_ts.groupby(
+                            ['model', c.GEO_COLS[0],'timestamp']).sum().loc[m,reg,:].reset_index()
+                        undisp_cap_by_reg = undisp_cap_by_reg.loc[undisp_cap_by_reg.timestamp.dt.date.isin(use_days)].set_index('timestamp')
+        
+                        use_reg = model_use_reg_ts.loc[model_use_reg_ts.timestamp.dt.date.isin(use_days)].set_index('timestamp').groupby(
+                            level=c.GEO_COLS[0], axis=1).sum()[reg].to_frame().rename(columns={reg:'Unserved Energy'})
+                        undisp_cap_by_reg = pd.concat([undisp_cap_by_reg, use_reg], axis=1)
+
+
+
+                        write_xlsx_stack(
+                            df=undisp_cap_by_reg,
+                            writer=writer,
+                            sheet_name=reg,
+                            palette=STACK_PALETTE,
+                        )
+
+                    
+
+        print('Done.')
+
+
+def create_plot_6_ldc_and_line_plots(c):
+    """
+    Status:
+    Plot 6: LDC and nLDC plots
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot6_ldc_plots.xlsx
+    """
+
+    print("Creating plot 6...")
+
+    plot_lines = {'ldc':c.v.ldc/1000,
+                'nldc':c.v.nldc/1000,
+                'nldc_curtail':c.v.nldc_curtail/1000,
+                'nldc_sto':c.v.nldc_sto/1000,
+                'nldc_sto_curtail':c.v.nldc_sto_curtail/1000,
+                'curtailment_dc':c.v.curtailment_dc/1000,
+                'ramp_pc_dc':c.v.ramp_pc_dc,
+                'th_ramp_pc_dc':c.v.th_ramp_pc_dc,
+                'ramp_abs_dc':c.v.ramp_dc,
+                'th_ramp_abs_dc':c.v.th_ramp_dc,
+                'srmc_dc':c.v.srmc_dc,
+                'use_dc':c.v.use_dc,
+                'cap_shortage_dc':c.v.cap_shortage_dc,
+                'cap_shortage_monthly_ts':c.v.cap_shortage_monthly_ts,
+                'gen_cycling_dly_ts':c.v.gen_cycling_dly_ts,
+                'gen_cycling_pc_dly_ts':c.v.gen_cycling_pc_dly_ts,
+                'gen_cycling_dc':c.v.gen_cycling_dc,
+                'gen_cycling_pc_dc':c.v.gen_cycling_pc_dc
+                
+                }      
+
+    ln_plot_type = {'ldc':'ldc',
+                'nldc':'ldc',
+                'nldc_curtail':'ldc',
+                'nldc_sto':'ldc',
+                'nldc_sto_curtail':'ldc',
+                'curtailment_dc':'ldc',
+                'ramp_pc_dc':'ldc',
+                'th_ramp_pc_dc':'ldc',
+                'ramp_abs_dc':'ldc',
+                'th_ramp_abs_dc':'ldc',
+                'srmc_dc':'ldc',
+                'use_dc':'ldc',
+                'cap_shortage_dc':'ldc',
+                'cap_shortage_monthly_ts':'timeseries',
+                'gen_cycling_dly_ts':'timeseries',
+                'gen_cycling_pc_dly_ts':'timeseries',
+                'gen_cycling_dc':'ldc',
+                'gen_cycling_pc_dc':'ldc'
+                }      
+    
+
+    ln_plot_units = {'ldc':'GW',
+                'nldc':'GW',
+                'nldc_curtail':'GW',
+                'nldc_sto':'GW',
+                'nldc_sto_curtail':'GW',
+                'curtailment_dc':'GW',
+                'ramp_pc_dc':'%/hr',
+                'th_ramp_pc_dc':'%/3-hr',
+                'ramp_abs_dc':'MW/hr',
+                'th_ramp_abs_dc':'MW/3-hr',
+                'srmc_dc':'$/MWh',
+                'use_dc':'GW',
+                'cap_shortage_dc':'GW',
+                'cap_shortage_monthly_ts':'GW',
+                'gen_cycling_dly_ts':'GW',
+                'gen_cycling_pc_dly_ts':f'% daily peak load',
+                'gen_cycling_dc':'GW',
+                'gen_cycling_pc_dc':f'% daily peak load'
+                }      
+
+
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot6_ldc_and_line_plots.xlsx')
+
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for i in plot_lines.keys():
+            write_xlsx_line(df=plot_lines[i], writer=writer, sheet_name=i,subtype=ln_plot_type[i], units=ln_plot_units[i], line_width=1.5)   
+
+    print("Done.")
+
+
+def create_plot_7_co2_savings(c):
     """
     Status:
     Plot7: CO2 savings plots by reference model
+
+    Creates following output files:
+    - for each model in /{model}/:
+        - plot7_co2_savings_ref_{model}.xlsx
     """
+    print("Creating plot 7...")
     # Get rid of cofiring if any for the purpose of comparison
     co2_by_tech_reg = c.o.em_gen_yr_df[c.o.em_gen_yr_df.parent.str.contains('CO2') &
                                        (c.o.em_gen_yr_df.property == 'Production')] \
         .groupby(['model'] + c.GEO_COLS + ['Category']) \
-        .agg({'value': 'sum'}).compute()
+        .agg({'value': 'sum'})
+    
     co2_by_tech = (
             co2_by_tech_reg
             .unstack("Category")
@@ -1725,9 +971,9 @@ def plot_7(c):
             .droplevel(0, axis=1)  # Drop not needed multiindex ('value' column)
             / 1e6
     )
-    co2_by_isl_plt = (
+    co2_by_reg_plt = (
             co2_by_tech_reg
-            .groupby(["model", "Island"])
+            .groupby(["model", c.GEO_COLS[0]])
             .sum()
             .unstack("model")
             .fillna(0)
@@ -1736,7 +982,7 @@ def plot_7(c):
     )
 
     em_by_type_tech_reg = c.o.em_gen_yr_df[(c.o.em_gen_yr_df.property == 'Production')].groupby(
-        ['model', 'parent'] + c.GEO_COLS + ['Category']).agg({'value': 'sum'}).reset_index().compute()
+        ['model', 'parent'] + c.GEO_COLS + ['Category']).agg({'value': 'sum'}).reset_index()
 
     def get_parent(x):
         return x if '_' not in x else x.split('_')[0]
@@ -1755,10 +1001,10 @@ def plot_7(c):
         fig_path = os.path.join(
             save_dir_model, "plot7_co2_savings_ref_{}.xlsx".format(ref_m)
         )
-        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer:
+        with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
             ref_co2_tech = co2_by_tech[ref_m]
             ref_co2_reg = co2_by_reg_plt[ref_m]
-            ref_co2_isl = co2_by_isl_plt[ref_m]
+            ref_co2_reg = co2_by_reg_plt[ref_m]
             ref_em_type = em_by_type[ref_m]
 
             co2_savings_by_tech = (
@@ -1767,8 +1013,8 @@ def plot_7(c):
             co2_savings_by_reg = (
                 (-co2_by_reg_plt).drop(columns=ref_m).subtract(-ref_co2_reg, axis=0).T
             )
-            co2_savings_by_isl = (
-                (-co2_by_isl_plt).drop(columns=ref_m).subtract(-ref_co2_isl, axis=0).T
+            co2_savings_by_reg = (
+                (-co2_by_reg_plt).drop(columns=ref_m).subtract(-ref_co2_reg, axis=0).T
             )
 
             em_savings_by_reg = (
@@ -1781,9 +1027,9 @@ def plot_7(c):
             co2_savings_by_reg_pc = (-co2_by_reg_plt).drop(columns=ref_m).subtract(
                 -ref_co2_reg, axis=0
             ).T / ref_co2_reg.sum()
-            co2_savings_by_isl_pc = (-co2_by_isl_plt).drop(columns=ref_m).subtract(
-                -ref_co2_isl, axis=0
-            ).T / ref_co2_isl.sum()
+            co2_savings_by_reg_pc = (-co2_by_reg_plt).drop(columns=ref_m).subtract(
+                -ref_co2_reg, axis=0
+            ).T / ref_co2_reg.sum()
             em_savings_by_reg_pc = (-em_by_type).drop(columns=ref_m).subtract(
                 -ref_em_type, axis=0
             ).T / ref_em_type
@@ -1805,9 +1051,9 @@ def plot_7(c):
                 total_scatter_col="Total reduction",
             )
             write_xlsx_column(
-                df=co2_savings_by_isl,
+                df=co2_savings_by_reg,
                 writer=writer,
-                sheet_name="co2_savings_by_isl_abs",
+                sheet_name="co2_savings_by_reg_abs",
                 subtype="stacked",
                 units="million tonnes",
                 total_scatter_col="Total reduction",
@@ -1839,9 +1085,9 @@ def plot_7(c):
                 total_scatter_col="Relative reduction",
             )
             write_xlsx_column(
-                df=co2_savings_by_isl_pc,
+                df=co2_savings_by_reg_pc,
                 writer=writer,
-                sheet_name="co2_savings_by_isl_pc",
+                sheet_name="co2_savings_by_reg_pc",
                 subtype="stacked",
                 units="",
                 total_scatter_col="Relative reduction",
@@ -1855,3 +1101,328 @@ def plot_7(c):
                 units="",
             )
     print("Done.")
+
+
+def create_plot_8_services(c, ref_model=None):
+    """
+    Status:
+    Plot 8 Services figure output
+
+    Creates following output files:
+    - for each model in /{model}/:
+        - plot8_services_{model}.xlsx
+
+    Services are as follows:
+
+    Generation
+    InertiaContribution
+    PeakContribution
+    PeakContribution_actual
+    Regulating reserve
+    Spinning reserve
+    UpRampContribution
+    """	
+
+    ix = pd.IndexSlice
+
+    # service_tech_idx = pd.read_excel('/templates/fig00_services_template.xlsx', sheet_name='tech_idx')
+    subtechs = c.o.gen_yr_df[c.o.gen_yr_df.property == 'Generation'].CapacityCategory.unique()
+
+    if ref_model is None:
+        ref_model = c.v.model_names[0]
+
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot8_services_fig.xlsx')
+
+
+    with pd.ExcelWriter(fig_path, engine="xlsxwriter") as writer: # pylint: disable=abstract-class-instantiated
+        for m in c.v.model_names:
+            
+            ### All subtechs for consistent solution size/columns
+            
+            services_out = pd.DataFrame(index=subtechs).rename_axis('Technology')
+            save_dir_model = os.path.join(c.DIR_05_3_PLOTS, m)
+            if os.path.exists(save_dir_model) is False:
+                os.mkdir(save_dir_model)
+            
+        ## A. Energy contribution
+            energy_contr = c.o.gen_yr_df[(c.o.gen_yr_df.property == 'Generation')&(c.o.gen_yr_df.model == m)].groupby('CapacityCategory') \
+                                .agg({'value':'sum'}).value
+
+        ## B. Inertia
+            ### Calc. lowest 100 inertia periods
+
+            total_inertia = c.v.inertia_by_reg.loc[ix[m,]].groupby(level='timestamp') \
+                                .agg({'value':'sum'}).value
+            inertia_100 = total_inertia.nsmallest(n=100)
+            # stability_100 = total_inertia.nsmallest(n=100)
+
+            inertia_by_tech100 = c.v.gen_inertia.groupby(['model','CapacityCategory','timestamp']) \
+                                .agg({'InertiaLo':'sum'}).InertiaLo.loc[ix[m,]].unstack(
+                'CapacityCategory').loc[inertia_100.index]
+            inertia_contr = inertia_by_tech100.sum(axis=0)
+            
+        ### C. Peak contribution
+            ## Calc 100 top periods
+            # CapacityCategory and other indices are not consistent across projects
+            # This is a temporary fix
+            vre_techs = [ c for c in c.v.gen_by_subtech_ts.columns if c in  ['Solar', 'SolarPV' 'Wind'] ]
+        #     gen_by_subtech_ts = gen_df[gen_df.property == 'Generation'].groupby(['model','CapacityCategory','timestamp']).sum().loc[ix[m,]]
+            non_vre_techs = [c for c in c.v.gen_by_subtech_ts.columns if c not in vre_techs ]
+            load_100 = c.v.customer_load_orig_ts.loc[ix[m,:]].value.nlargest(100)
+            netload_100 = c.v.net_load_orig_ts.loc[ix[m,:]].value.nlargest(100)
+            
+
+            ### NA should be filled up top instead
+            pk_contr = c.v.gen_by_subtech_ts.fillna(0).loc[ix[m,netload_100.index],:].reset_index(drop=True)
+            pk_contr = pk_contr.mean()
+            pk_contr.loc[vre_techs] = 0
+            vre_pk_contr = pd.Series(data=np.mean(load_100.values-netload_100.values), index = ['VRE'])
+            dsm_pk_contr = pd.Series(data=np.mean(c.v.net_load_ts.loc[ix[m,:]].value.nlargest(100) - c.v.net_load_orig_ts.loc[ix[m,:]].value.nlargest(100)), index=['DSMshift'])
+            pk_contr = pd.concat([pk_contr, vre_pk_contr, dsm_pk_contr])
+        
+        #     ### DSM would go here too!
+        #     pk_contr = pd.merge(non_vre_pk_contr, vre_pk_contr, left_index=True, right_index=True)
+        #     pk_contr = pk_contr.sum()/pk_contr.sum().sum()
+            
+        ### D. Reserves
+            spin_res_contr = c.v.spinres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            spin_res_av_ann_contr = c.v.spinres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            spin_res_contr = spin_res_contr.mask(spin_res_contr<0).fillna(0)
+            spin_res_av_ann_contr = spin_res_av_ann_contr.mask(spin_res_av_ann_contr<0).fillna(0)
+                
+            ## 100 most difficult periods for stability/reserves = highest net load ==> systen is the most strained 
+            spinres_av100 = c.v.spinres_av_ts.loc[ix[:,:,:,netload_100.index]]
+            spinres_av100 = spinres_av100.mask(spinres_av100<0).fillna(0)
+            spin_res_av_contr = spinres_av100.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+
+
+
+            ### Some models have not have reg reserves so, this avoids this from breaking
+            try:
+                reg_res_contr = c.v.regres_prov_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                reg_res_av_ann_contr = c.v.regres_av_ts.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+                ### Some bug?
+                reg_res_contr = reg_res_contr.mask(reg_res_contr<0).fillna(0)
+                reg_res_av_ann_contr = reg_res_av_ann_contr.mask(reg_res_av_ann_contr<0).fillna(0)
+                
+                ## 100 most difficult periods for stability/reserves = lowest inertia periods    
+                regres_av100 = c.v.regres_av_ts.loc[ix[:,:,:,netload_100.index]]
+                regres_av100 = regres_av100.mask(regres_av100<0).fillna(0)
+                reg_res_av_contr = regres_av100.groupby(['model','CapacityCategory']).agg({'value':'sum'}).value.loc[ix[m,],]
+            except KeyError:
+                reg_res_contr = pd.Series(data=np.zeros(len(spin_res_contr)), index = spin_res_contr.index)
+                reg_res_av_ann_contr = pd.Series(data=np.zeros(len(spin_res_av_contr)), index = spin_res_av_contr.index)
+                reg_res_av_contr = pd.Series(data=np.zeros(len(spin_res_av_contr)), index = spin_res_av_contr.index)
+                
+            
+        ### E. Upward ramp contribution
+        ### TODO: Ramp contirbution from VRE should be zeroed/ignored
+            ramp_100 = c.v.ramp_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr))
+            ramp_contr = c.v.ramp_by_gen_subtech_ts.loc[ix[m,ramp_100.index],].droplevel(0)
+            ramp_contr = ramp_contr.mask(ramp_contr < 0).fillna(0).mean()
+            dsm_ramp_contr = pd.Series(data=np.mean(c.v.ramp_orig_ts.loc[ix[m,:],:].droplevel(0).value.nlargest(int(0.1*8760*c.v.hour_corr)) - ramp_100), index=['DSMshift'])
+            ramp_contr = pd.concat([ramp_contr, dsm_ramp_contr])
+
+        ### Out
+
+            services_out = pd.concat([services_out, energy_contr.rename('Energy'), pk_contr.rename('Peak'), ramp_contr.rename('UpwardRamps'),
+                                spin_res_contr.rename('SpinRes'), reg_res_contr.rename('RegRes'), inertia_contr.rename('Inertia'),
+                                    spin_res_av_contr.rename('SpinResAv'), reg_res_av_contr.rename('RegResAv'), ], axis=1).fillna(0)
+            
+
+            services_out.index = [SERVICE_TECH_IDX[i] for i in services_out.index]
+            services_out = services_out.groupby(services_out.index).sum().T
+
+            ## All model names should be shortened to 31 characters for sheet_names
+            if len(m) >= 31:
+                m = m[:15] + m[-15:]
+
+            # TODO: Need to fix the dimensions of the chart area, legend, etc.
+            write_xlsx_column(
+                df=services_out,
+                writer=writer,
+                sheet_name= m,
+                type="column",
+                subtype="percent_stacked",
+                units="",
+                palette=SERVICES_PALETTE,
+                to_combine=True
+            )
+
+    
+            # This should be an EXCEL output using some sort of aggregation from indices
+            services_out.reset_index().rename(columns={'index':'property'}).to_csv(os.path.join(save_dir_model, 'plot8_services_fig.csv'), index=False)
+
+        print("Creating plot 8...")
+
+
+def create_plot_9_av_cap(c):
+    """
+    Status:
+    Plot 6: LDC and nLDC plots
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot6_ldc_plots.xlsx
+    """
+
+    print("Creating plot 6...")
+
+    plot_lines = {'av_cap':c.p.av_cap_ts[0],
+                 'res_margin':c.p.res_margin_ts[0],
+                 'av_cap_dly':c.p.av_cap_dly_ts[0],
+                 'res_margin_dly':c.p.res_margin_dly_ts[0],
+
+                }
+    
+    ln_plot_type = {'av_cap':'timeseries',
+                'res_margin':'timeseries',
+                'av_cap_dly':'timeseries',
+                'res_margin_dly':'timeseries'
+                }
+
+    ln_plot_units = {'av_cap':'GW',
+                'res_margin':'%',
+                'av_cap_dly':'GW',
+                'res_margin_dly':'%'
+                }
+
+
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot9_av_cap_plots.xlsx')
+
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for i in plot_lines.keys():
+            print(i)
+            write_xlsx_line(df=plot_lines[i], writer=writer, sheet_name=i,subtype=ln_plot_type[i], units=ln_plot_units[i], line_width=1.5)   
+
+    print("Done.")
+
+def create_plot_10a_vre_gen_by_model(c):
+    """
+    Status:
+    Plot 10: TS plots by model
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot10_ts_by_model_plots.xlsx
+    """
+
+    vre_gen_monthly_ts = c.v.vre_gen_monthly_ts
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10a_vre_gen_by_model_plots.xlsx')
+    
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for m in c.v.model_names:
+            df = vre_gen_monthly_ts.loc[pd.IndexSlice[m,]]
+            
+            if len(m) >= 31:
+                sheet_m = m[:15] + m[-15:]
+            else:
+                sheet_m = m
+
+            write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='GWh', line_width=1)
+    print("Done.")
+
+def create_plot_10b_vre_cf_by_model(c):
+    """
+    Status:
+    Plot 10: TS plots by model
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot10_ts_by_model_plots.xlsx
+    """
+
+    vre_cf_monthly_ts = c.v.vre_cf_monthly_ts
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10b_vre_cf_by_model_plots.xlsx')
+    
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for m in c.v.model_names:
+            df = vre_cf_monthly_ts.loc[pd.IndexSlice[m,]]
+            
+            if len(m) >= 31:
+                sheet_m = m[:15] + m[-15:]
+            else:
+                sheet_m = m
+
+            write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='%', line_width=1)
+    print("Done.")
+
+
+def create_plot_10c_vre_cf_gen_by_model(c):
+    """
+    Status:
+    Plot 10: TS plots by model
+
+    Creates following output files:
+    - for all models in a single file:
+        - plot10_ts_by_model_plots.xlsx
+    """
+
+    vre_cf_monthly_ts = c.v.vre_cf_gen_monthly_ts
+    fig_path = os.path.join(c.DIR_05_3_PLOTS,'plot10b_vre_cf_by_model_plots.xlsx')
+    
+    with pd.ExcelWriter(fig_path, engine='xlsxwriter') as writer: # pylint: disable=abstract-class-instantiated
+    
+        for m in c.v.model_names:
+            df = vre_cf_monthly_ts.loc[pd.IndexSlice[m,]]
+            
+            if len(m) >= 31:
+                sheet_m = m[:15] + m[-15:]
+            else:
+                sheet_m = m
+
+            write_xlsx_line(df=df, writer=writer, sheet_name=sheet_m, subtype='timeseries', units='%', line_width=1)
+    print("Done.")
+
+
+
+    
+def extract_plexos_LT_results(c, scale=None):
+    
+
+    exp_out_path = Path(c.DIR_LT_OUTPUTS) / 'NEW'
+    if exp_out_path.exists() is False:
+        exp_out_path.mkdir()
+
+    if exp_out_path is None:
+        print('No LT output path found. Exiting.')
+        return
+    
+    lt_solns_path = Path(c.DIR_04_SOLUTION_FILES)
+    lt_soln_zips = [ lt_solns_path / f for f in  os.listdir(lt_solns_path) if '.zip' in f]
+
+    for z in lt_soln_zips:
+        with ZipFile(z, 'r') as zipObj:
+            file_list = zipObj.namelist()
+            pattern = '* Units.csv'
+
+            filtered_list = []
+            for file in file_list:
+                if fnmatch.fnmatch(file, pattern):
+                    filtered_list.append(file)
+            
+            for f in filtered_list:
+                try:
+                    zipObj.extract(f, exp_out_path)
+                    print(f'Extracted {f} to {exp_out_path}')
+                except PermissionError:
+                    print(f'Could not extract {f} to {exp_out_path}. File already exists.')
+                    continue
+            
+    # Create a list of all the extracted files for Generator Units
+    # This can then be used to increase the capacity of the units by 5% and integerise the capacity
+    exp_units_files = [ exp_out_path / f for f in  os.listdir(exp_out_path) if 'Units.csv' in f]
+
+    if scale is not None:
+        for f in exp_units_files:
+            df = pd.read_csv(f)
+            df['Value'] = df['Value'] * scale
+            df['Value'] = np.round(df['Value'], 0)
+            try:
+                df.to_csv(f, index=False)
+            except PermissionError:
+                print(f'Could not write to {f}. File already exists.')
+                continue

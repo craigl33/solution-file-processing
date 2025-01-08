@@ -11,10 +11,15 @@ import dask.dataframe as dd
 import julia
 from h5plexos.query import PLEXOSSolution
 import math
+import shutil
+from pathlib import Path
 
+from solution_file_processing.objects import Objects
+from solution_file_processing.variables import Variables
+from solution_file_processing.plot_dataframes import PlotDataFrames
 from .utils.utils import get_files, enrich_df, silence_prints
-from .constants import PRETTY_MODEL_NAMES, FILTER_PROPS
-from .caching import Objects, Variables
+from .constants import FILTER_PROPS, PRETTY_MODEL_NAMES
+
 from . import log
 
 print = log.info
@@ -87,7 +92,23 @@ class SolutionFilesConfig:
             raise FileNotFoundError(f'Could not find configuration file {os.path.basename(config_name)} in '
                                     f'{os.path.abspath(config_name)}.')
 
-        ## Apply configurations
+        # -----
+        # Do some checks on the configuration
+
+        # Check files and directories
+        if not os.path.exists(self.cfg['path']['model_dir']):
+            if not os.path.isdir(self.cfg['path']['model_dir']):
+                raise FileNotFoundError(f'Could not find model directory {self.cfg["path"]["model_dir"]}.')
+        if not os.path.exists(self.cfg['path']['soln_idx_path']):
+            if not os.path.isfile(self.cfg['path']['soln_idx_path']):
+                raise FileNotFoundError(f'Could not find solution index file {self.cfg["path"]["soln_idx_path"]}.')
+        if not os.path.exists(self.cfg['run']['log_file_path']):
+            if not os.path.isdir(os.path.dirname(self.cfg['run']['log_file_path'])):
+                raise FileNotFoundError(f'Could not find log file directory {self.cfg["run"]["log_file_path"]}.')
+
+        # -----
+        # Apply configurations
+
         # For logging
         if self.cfg['run']['log_file_path']:
             log_file_path = self.cfg['run']['log_file_path']
@@ -103,6 +124,7 @@ class SolutionFilesConfig:
         self.soln_idx = pd.read_excel(self.cfg['path']['soln_idx_path'], sheet_name='SolutionIndex', engine='openpyxl')
 
         # Load paths from configurations
+        self.DIR_01_MODEL_DIR = self.cfg['path']['model_dir']
         self.DIR_04_SOLUTION_FILES = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFiles',
                                                   self.cfg['model']['soln_choice'])
         self.DIR_04_CACHE = os.path.join(self.cfg['path']['model_dir'], '04_SolutionFilesCache',
@@ -112,6 +134,12 @@ class SolutionFilesConfig:
         self.DIR_05_1_SUMMARY_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'summary_out')
         self.DIR_05_2_TS_OUT = os.path.join(self.DIR_05_DATA_PROCESSING, 'timeseries_out')
         self.DIR_05_3_PLOTS = os.path.join(self.DIR_05_DATA_PROCESSING, 'plots')
+        
+        try:
+            self.DIR_LT_OUTPUTS = self.cfg['path']['lt_output_path']
+        except KeyError:
+            self.DIR_LT_OUTPUTS = None
+
 
         # Create all necessary directories
         os.makedirs(self.DIR_04_CACHE, exist_ok=True)
@@ -123,9 +151,17 @@ class SolutionFilesConfig:
         # Define some constants for easier access
         self.GEO_COLS = self.cfg['settings']['geo_cols']
 
-        # Initialize caching system
-        self.v = Variables(self)
+        # Initialize variables system with caches
+
         self.o = Objects(self)
+        self.v = Variables(self)
+        self.p = PlotDataFrames(self)
+        
+        # Initialize access to plot configurations
+        self.GEN_PLOTS = self.cfg['plots']['gen_plots']
+        self.LOAD_PLOTS = self.cfg['plots']['load_plots']
+        self.OTHER_PLOTS = self.cfg['plots']['other_plots']
+        self.QUICK_PLOTS = self.cfg['plots']['quick_plots']
 
         print(f'Initialized SolutionFilesConfig for {self.config_name}.')
 
@@ -154,6 +190,28 @@ class SolutionFilesConfig:
         jl = Julia(compiled_modules=False)
         jl.using("H5PLEXOS")
 
+        ### Check if there are any files to convert in folder and all subfolders
+        ### If not, return, otherwise move all folders to root, delete subfolders and convert
+
+
+        ### Check if there are any files to convert in folder and all subfolders
+        soln_zip_files = [Path(os.path.join(root, name))
+                for root, dirs, files in os.walk(self.DIR_04_SOLUTION_FILES)
+                for name in files
+                    if name.endswith((".zip", ".ZIP"))]
+        
+        soln_root_path = Path(self.DIR_04_SOLUTION_FILES)
+        ### Move all files to root folder
+        for f in soln_zip_files:
+            if f.parent != soln_root_path:
+                # Move the file to the correct directory AND remvoe the subfolder
+                shutil.move(f, soln_root_path / f.name)
+                if len(os.listdir(f.parent)) == 0:
+                    os.rmdir(f.parent)
+            
+        if os.listdir(self.DIR_04_SOLUTION_FILES):
+            print(f'Found {len(os.listdir(self.DIR_04_SOLUTION_FILES))} files in the solution files directory.')
+
         soln_zip_files = [f for f in os.listdir(self.DIR_04_SOLUTION_FILES)
                           if f.endswith('.zip')]
 
@@ -165,7 +223,7 @@ class SolutionFilesConfig:
             jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
             jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
-    def _get_object(self, timescale, object, return_type):
+    def _get_object(self, timescale, object, return_type, simulation_phase='ST'):
         """
         Retrieves a specific object based on the provided timescale.
         Does that by looping through all solution files (.h5) files in the 04_SolutionFiles folder and combining the
@@ -197,14 +255,23 @@ class SolutionFilesConfig:
             with PLEXOSSolution(os.path.join(self.DIR_04_SOLUTION_FILES, file)) as db:
                 silence_prints(False)
                 try:
-                    properties = list(db.h5file[f'data/ST/{timescale}/{object}/'].keys())
+                    properties = list(db.h5file[f'data/{simulation_phase}/{timescale}/{object}/'].keys())
                 except KeyError:
-                    continue
+                    try:
+                        properties = list(db.h5file[f'data/LT/{timescale}/{object}/'].keys())
+                        print(f'No data found for {simulation_phase}. However, data found for LT. Consider restarting with correct settings. Automatically running now for LT.')
+                        simulation_phase = 'LT'
+                    except KeyError:
+                        continue
 
-                try:
-                    obj_props = [prop for prop in properties if prop in FILTER_PROPS[object]]
-                except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
+                # For annual timescale, we use all properties
+                if timescale == 'year':
                     obj_props = properties
+                else:
+                    try:
+                        obj_props = [prop for prop in properties if prop in FILTER_PROPS[object]]
+                    except KeyError:  # If relevant object in FILTER_PROPS is not defined, all properties are used
+                        obj_props = properties
 
                 for obj_prop in obj_props:
 
@@ -215,14 +282,14 @@ class SolutionFilesConfig:
                             # (this may be a bug that is corrected in future versions)
                             prop=obj_prop,
                             timescale=timescale,
-                            phase="ST").reset_index(),
+                            phase=simulation_phase).reset_index(),
 
                     else:
                         db_data = db.query_relation_property(
                             relation=object,
                             prop=obj_prop,
                             timescale=timescale,
-                            phase="ST").reset_index(),
+                            phase=simulation_phase).reset_index(),
                     if len(db_data) == 1:
                         db_data = db_data[0]
                     else:
@@ -243,7 +310,7 @@ class SolutionFilesConfig:
         else:
             return pd.concat(dfs)
 
-    def get_processed_object(self, timescale, object, return_type):
+    def get_processed_object(self, timescale, object, return_type, simulation_phase="ST", enrich=True):
         """
         Retrieve the processed data for a specified object for either the interval or year timescale. It needs
         the uncompressed Plexos Solution Files in the 04_SolutionFiles folder. It loops through all Solution Files and
@@ -266,10 +333,10 @@ class SolutionFilesConfig:
 
         # - common_yr
         # todo craig: Can I get the model_yrs info also from other files?
-        model_yrs = self._get_object(timescale='interval', object='regions', return_type='dask') \
+        model_yrs = self._get_object(timescale='year', object='nodes', return_type='pandas', simulation_phase=simulation_phase) \
             .groupby(['model']) \
             .first() \
-            .timestamp.dt.year.values.compute()
+            .timestamp.dt.year.values
         if len(model_yrs) > 1:
             common_yr = model_yrs[-1]
         else:
@@ -277,11 +344,11 @@ class SolutionFilesConfig:
 
         # - filter_regs
         # todo craig: Can I get the model_yrs info also from other files?
-        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators', return_type=return_type),
+        filter_reg_by_gen = enrich_df(self._get_object(timescale='year', object='generators', return_type=return_type, simulation_phase=simulation_phase),
                                       soln_idx=self.soln_idx[
                                           self.soln_idx.Object_type.str.lower() == 'generator'].drop(
                                           columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
-        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes', return_type=return_type),
+        filter_reg_by_load = enrich_df(self._get_object(timescale='year', object='nodes', return_type=return_type, simulation_phase=simulation_phase),
                                        soln_idx=self.soln_idx[self.soln_idx.Object_type.str.lower() == 'node'].drop(
                                            columns='Object_type'), pretty_model_names=PRETTY_MODEL_NAMES)
 
@@ -293,7 +360,8 @@ class SolutionFilesConfig:
         filter_regs = list(set([reg for reg in filter_reg_by_gen] + [reg for reg in filter_reg_by_load]))
 
         # Actual processing
-        df = self._get_object(timescale=timescale, object=object, return_type=return_type)
+        df = self._get_object(timescale=timescale, object=object, return_type=return_type, simulation_phase=simulation_phase)
+
         if return_type == 'dask':
             df = df.repartition(partition_size="100MB")  # Repartition to most efficient size
 
@@ -311,14 +379,23 @@ class SolutionFilesConfig:
             o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
                      .drop(columns='Object_type'))
             if len(o_idx) > 0:
-                if '_' not in object:
-                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                ### Add this in to allow the processing of raw outputs. Useful for export prices, for e.g.
+                if enrich:
+                    soln_idx = o_idx
                 else:
-                    df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr, out_type='rel',
-                                   pretty_model_names=PRETTY_MODEL_NAMES)
+                    soln_idx = None
+                
+                if '_' not in object:
+                    df = enrich_df(df, soln_idx=soln_idx, common_yr=common_yr,
+                                out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                else:
+                    df = enrich_df(df, soln_idx=soln_idx, common_yr=common_yr, out_type='rel',
+                                pretty_model_names=PRETTY_MODEL_NAMES)
+                    
 
                 # Check if df is empty (faster way for dask, instead of df.empty)
+                # This fails if objects are excluded from the SolutionIndex as they are from an external system.
+                # TODO: Add a new column in SolutionIndex to exclude objects from the output
                 assert len(df.index) != 0, f'Merging of SolutionIndex led to empty DataFrame for {object}/{timescale}.'
 
                 # Filter out regions with no generation nor load
@@ -342,12 +419,17 @@ class SolutionFilesConfig:
             o_idx = (self.soln_idx[self.soln_idx.Object_type.str.lower().str.replace(' ', '') == o_key]
                      .drop(columns='Object_type'))
             if len(o_idx) > 0:
+                if enrich:
+                    soln_idx = o_idx
+                else:
+                    soln_idx = soln_idx = None
+            # Add this in to allow the processing of raw outputs. Useful for export prices, for e.g.
                 if '_' not in object:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
+                                out_type='direct', pretty_model_names=PRETTY_MODEL_NAMES)
                 else:
                     df = enrich_df(df, soln_idx=o_idx, common_yr=common_yr,
-                                   out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
+                                out_type='rel', pretty_model_names=PRETTY_MODEL_NAMES)
 
                 # Filter out regions with no generation nor load
                 if (object == 'nodes') | (object == 'regions'):
@@ -389,7 +471,7 @@ class SolutionFilesConfig:
                                    subfolder_name)
 
         # Run tests with baseline path if given
-        if self.cfg['testing']['baseline_output_dir']:
+        if dict.get(dict.get(self.cfg, 'testing', None), 'baseline_output_dir', None):
             print(f'\n\nRunning baseline tests with {self.cfg["testing"]["baseline_output_dir"]}.\n')
 
             output_path_test_baseline = os.path.join(self.cfg['testing']['baseline_output_dir'],
@@ -444,16 +526,17 @@ class SolutionFilesConfig:
                         print(f'\tShape of {file} does not match: {df_test.shape} != {df.shape}.')
                         test_failed = True
 
-                    for col in df.columns:
-                        if pd.to_numeric(df[col], errors='coerce').notna().all():
-                            if not math.isclose(df[col].sum(), df_test[col].sum()):
-                                print(
-                                    f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
-                                test_failed = True
-                        else:
-                            if not set(df[col].unique()) == set(df_test[col].unique()):
-                                print(f'\tUnique values of {file} column {col} do not match.')
-                                test_failed = True
+                    if not test_failed:
+                        for col in df.columns:
+                            if pd.to_numeric(df[col], errors='coerce').notna().all():
+                                if not math.isclose(df[col].sum(), df_test[col].sum()):
+                                    print(
+                                        f'\tSum of {file} column {col} does not match: {df[col].sum()} != {df_test[col].sum()}.')
+                                    test_failed = True
+                            else:
+                                if not set(df[col].unique()) == set(df_test[col].unique()):
+                                    print(f'\tUnique values of {file} column {col} do not match.')
+                                    test_failed = True
 
                 if test_failed:
                     print(f'Test failed: {file}.')
@@ -463,7 +546,7 @@ class SolutionFilesConfig:
             print(f'cfg.testing.baseline_output_dir not set. Skipping baseline tests.')
 
         # Run tests with similar outputs to check for consistency, if given
-        if self.cfg['testing']['similar_output_dirs']:
+        if dict.get(dict.get(self.cfg, 'testing', None), 'similar_output_dirs', None):
             for similar_output_dir in self.cfg['testing']['similar_output_dirs']:
                 print(f'\n\nRunning similarity tests with {similar_output_dir}.\n')
                 output_path_test_similar = os.path.join(similar_output_dir,
