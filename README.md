@@ -61,6 +61,13 @@ Now install julia packages
 - `add H5PLEXOS`
 - `add ZipFile`
 
+### Upgrading Julia
+If upgrading Julia, you will need to associate the Python Julia API with your new installation. 
+
+In addition to updating the environment variables (as above), you will also need to re-run the installation of the API within the solution-file-processing environment:
+
+    import julia
+    julia.install()
 
 ### SFP python package
 Just clone the repository to create a local copy:
