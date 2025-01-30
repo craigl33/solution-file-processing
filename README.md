@@ -64,7 +64,7 @@ Now install julia packages
 ### SFP python package
 Just clone the repository to create a local copy:
 
-    git clone https://gitlab.iea.org/iea/ems/rise/solution-file-processing.git
+    git clone git@gitlab.iea.org:iea/ems/rise/solution-file-processing.git
 
 To install the dependencies, it is recommended to use a virtual environment. Both can be done automatically with the `environment.yml` file. This will create an environment named `solution-file-processing`:
 
