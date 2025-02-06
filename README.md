@@ -1,104 +1,282 @@
-# solution-file-processing
-A package for easier processing of the PLEXOS solution files.
+# Solution File Processing
 
-## Description
-This package is used to process the PLEXOS solution files. It can be used to unarchive the created .zip files, convert them to .h5 files and create outputs and plots from them. Since those files can be quite large, the code uses a caching system to process and save needed objects and variables. Variables is just data from objects which have been processed. All those potentially massive data objects are processed with [dask](https://www.dask.org/) for to avoid any memory overflow and better efficency. In the respective functions to create plots and outputs, these are transformed back into pandas DataFrames. 
+A comprehensive Python package for processing, analyzing, and visualizing PLEXOS solution files. This package provides tools to handle large-scale power system modeling outputs, with features for data extraction, transformation, caching, and visualization.
 
-## Documentation
-- [General project information](docs/Documentation.md#general-project-information)
-   - [Project structure](docs/Documentation.md#project-structure)
-   - [Configuration file](docs/Documentation.md#configuration-file)
-   - [Model directory](docs/Documentation.md#model-directory)
+## Features
 
-- [Contribution](docs/Documentation.md#contribution)
-   - [Add new variables and objects](docs/Documentation.md#add-new-variables-and-objects)
-      - [Objects](docs/Documentation.md#objects)
-      - [Variables](docs/Documentation.md#variables)
-   - [Add new outputs](docs/Documentation.md#add-new-outputs)
-   
-- [Setup process](docs/Documentation.md#setup-process)
-   - [Troubleshooting](docs/Documentation.md#troubleshooting)
+- Unarchive and process PLEXOS solution files (.zip to .h5 conversion)
+- Efficient data handling using dask for large datasets
+- Sophisticated caching system for processed objects and variables
+- Extensive visualization capabilities including:
+  - Generation stacks
+  - Load duration curves
+  - Regional analyses
+  - CO2 emissions
+  - VRE (Variable Renewable Energy) integration metrics
+  - System flexibility metrics
+- Multiple output formats:
+  - Excel-based visualizations
+  - CSV data exports
+  - Summary statistics
+  - Time series analysis
 
-## Setup
-### julia
-The SFP package requires julia to be installed and have a few (julia) packages set up, as well as the python package called julia.
+## Installation
 
-**Installing julia**
-- Install julia from the software centre. If errors, submit an IT ticket requesting them to install it. Add julia to PATH if given the option. 
-- Check whether the path to julia.exe was added to PATH, the format is usually `C:\Users\LASTNAME_F\AppData\Local\Programs\Julia\Julia-1.4.2\bin`. Check by either:
+### Prerequisites
 
-    - Running `where julia` in Windows command prompt. Returns the path to julia.exe if it has been added to PATH
-    - Running `echo %PATH%` in Windows command prompt and checking whether the \bin folder is listed in the result
-- If the path to julia.exe is not in PATH, submit an IT ticket asking for it to be added as doing so requires admin rights.
+1. Julia needs to be installed and accessible:
+```bash
+# Install Julia from software center or submit IT ticket
+# Verify installation with:
+where julia
+```
 
-**julia proxies**
+2. Set up Julia proxies if required:
+```julia
+# Add to ~/.julia/config/startup.jl:
+ENV["HTTP_PROXY"] = "http://proxy.example.org:8080"
+ENV["HTTPS_PROXY"] = "http://proxy.example.org:8080"
+```
 
-Just like python, julia will need to use the corporate proxies. To make sure these work when called from python, add these to a startup file so they are applied each time julia is started. 
-- Find the `.julia` folder in your user directory, normally `C:\Users\LASTNAME_F\.julia` 
-- If there is a `config` folder with a `startup.jl` file in, add the below proxy commands to the file. 
-- If there is no `config` folder, create it. Add the proxies by adding the commands below to a new file e.g. in Notepad, saving as `startup.jl` in the `config` folder (ie a .jl file not .txt). 
+3. Install required Julia packages:
+```julia
+]
+registry add https://github.com/JuliaRegistries/General
+add PyCall
+registry add https://github.com/NREL/JuliaRegistry.git
+add H5PLEXOS
+add ZipFile
+```
 
-    `ENV["HTTP_PROXY"] = "http://proxy.iea.org:8080"`
+### Package Installation
 
-    `ENV["HTTPS_PROXY"] = "http://proxy.iea.org:8080"`
+1. Clone the repository:
+```bash
+git clone git@gitlab.example.org:org/solution-file-processing.git
+```
 
-- Verify this has worked by opening a new julia terminal and running `ENV['HTTP_PROXY']` which should display the IEA proxy address. 
+2. Create and activate conda environment:
+```bash
+conda env create -f environment.yml
+conda activate solution-file-processing
+```
 
-**Registries and packages**
-
-Before installing any other packages in julia, ensure julia has created a General registry. 
-- Open julia and make sure that the IEA proxy is set up (see above)
-- Run pkg mode by pressing `]`
-- `registry add https://github.com/JuliaRegistries/General`
-
-- _This has given 'directory not empty' errors in the past. Manually deleting the temp file folders specified in the  error message and re-running the previous step has solved this in the past._
-
-Now install julia packages
-- Open julia and make sure that the IEA proxy is set up (see above)
-- Run pkg mode by pressing `]`
-- `add PyCall`
-- `registry add https://github.com/NREL/JuliaRegistry.git`
-- `add H5PLEXOS`
-- `add ZipFile`
-
-### SFP python package
-Just clone the repository to create a local copy:
-
-    git clone git@gitlab.iea.org:iea/ems/rise/solution-file-processing.git
-
-To install the dependencies, it is recommended to use a virtual environment. Both can be done automatically with the `environment.yml` file. This will create an environment named `solution-file-processing`:
-
-    conda env create -f environment.yml
-
-This creates a conda environment named `solution-file-processing` and installs all relevant packages which can be installed via conda. Then activate the environment and install the relevant packages which are only available via pip and use the IEA proxy:
-
-    conda activate solution-file-processing
-    python -m pip install --proxy http://proxy.iea.org:8080 julia
-    python -m pip install --proxy http://proxy.iea.org:8080 https://github.com/NREL/h5plexos/archive/master.zip
-
-That's it. Julia needs also to be installed on the system (see above) and if Julia should be used within python (only for unpacking the .zips to .h5 files) it also has to be initialized within python. There is a function for that in the code.
-
-If problems occur, see the Troubleshooting section in the [Documentation](docs/Documentation.md).
-
-The final step is to install the package locally (if you don't want to load it only relative to the project folder): 
-
-    pip install -e .
+3. Install additional dependencies:
+```bash
+python -m pip install --proxy http://proxy.example.org:8080 julia
+python -m pip install --proxy http://proxy.example.org:8080 https://github.com/NREL/h5plexos/archive/master.zip
+pip install -e .
+```
 
 ## Usage
-In the same project folder, create a new python file and import the package:
 
-    import solution_file_processing as sfp
+Basic usage pattern:
 
-It needs to be in the same folder, because right now, no python packaging is used. See [here](https://github.com/rise-iea/knowledge-database/blob/main/Python-Packaging.md) for more information.
+```python
+import solution_file_processing as sfp
 
-Then initialize a new configuration based on a configuration file:
-    
-    config = sfp.SolutionFilesConfig('IDN.toml')
-    config.install_dependencies()  # To install Julia, only when running the first time
-    config.convert_solution_files_to_h5()  # To extract the Zip files, only when running the first time
+# Initialize configuration
+config = sfp.SolutionFilesConfig('config.toml')
 
-To create new outputs or plots run any function from `plots.py` or `outputs.py` and pass the configuration as an argument. For example:
-    
-    sfp.summary.create_output_1(config)
-    sfp.timeseries.create_output_1(config)
-    sfp.outputs.create_plot_1(config)
+# First time setup
+config.install_dependencies()  # Only needed once
+config.convert_solution_files_to_h5()  # Convert solution files
+
+# Create outputs
+sfp.plots.create_plot_2_summary(config)
+sfp.summary.create_output_1(config)
+sfp.timeseries.create_output_1(config)
+```
+
+### Available Output Functions
+
+#### Plots
+- `create_plot_1a`: Generation stacks for days of interest
+- `create_plot_2_summary`: Annual summary plots
+- `create_plot_3`: Annual generation by tech/region
+- `create_plot_4_costs`: Cost savings analysis
+- `create_plot_5_undispatched_tech`: Undispatched capacity analysis
+- `create_plot_6_ldc_and_line_plots`: Load duration curves
+- `create_plot_7_co2_savings`: CO2 emissions analysis
+- `create_plot_8_services`: System services analysis
+- `create_plot_9_av_cap`: Available capacity analysis
+- `create_plot_10`: VRE generation and capacity factor analysis
+
+#### Summary Outputs
+- `create_output_1`: Load by region
+- `create_output_2`: Unserved energy analysis
+- `create_output_3`: Generation by technology and region
+- `create_output_4`: RE/VRE shares
+- `create_output_5`: Unit starts
+- `create_output_6`: Generation maxima
+- `create_output_7`: Transmission losses
+- `create_output_8`: VRE capacity and availability
+- `create_output_9`: VRE curtailment
+- `create_output_10`: Line capacity and flows
+- `create_output_11`: Generation capacity
+- `create_output_12`: Capacity factors
+- `create_output_13`: CO2 emissions
+
+#### Time Series Outputs
+- Generation profiles
+- Load profiles
+- VRE integration metrics
+- System flexibility indicators
+- Reserve provision
+- Price analysis
+
+## Project Structure
+
+```
+solution-file-processing/
+├── solution_file_processing/     # Main package
+│   ├── objects.py               # Data object handling
+│   ├── variables.py             # Variable processing & caching
+│   ├── plots.py                 # Visualization functions
+│   ├── summary.py               # Summary statistics
+│   ├── timeseries.py           # Time series analysis
+│   ├── constants.py            # System constants and mappings
+│   ├── plot_dataframes.py      # Plot-ready data structures
+│   ├── solution_files.py       # Core solution file processing
+│   └── utils/                  # Utility functions
+│       ├── logger.py           # Custom logging
+│       ├── utils.py            # General utilities
+│       └── write_excel.py      # Excel output handling
+├── config_files/               # Configuration templates
+│   ├── china/                  # China-specific configs
+│   ├── thailand/              # Thailand-specific configs
+│   ├── ukraine/               # Ukraine-specific configs
+│   └── vanilla_dev/           # Development configs
+├── docs/                       # Documentation
+├── templates/                  # Excel templates
+├── logs/                      # Log files
+├── legacy/                    # Legacy code
+└── *_run_script.py           # Run scripts for different regions
+```
+
+## Configuration
+
+The package uses TOML configuration files to specify:
+- Model directory structure
+- Solution file locations
+- Regional aggregations
+- Output preferences
+- Caching behavior
+
+The configuration file (TOML format) contains several key sections:
+
+### [path]
+```toml
+[path]
+model_dir = "path/to/model"                    # Main model directory
+lt_output_path = "path/to/input/ExpUnits"      # Long-term output path
+soln_idx_path = "path/to/generator_parameters.xlsx" # Solution index file
+```
+
+### [model]
+```toml
+[model]
+soln_choice = "scenario_name"                  # Solution scenario to process
+```
+
+### [settings]
+```toml
+[settings]
+geo_cols = ["Region", "Subregion"]            # Geographic aggregation levels
+reg_ts = true                                 # Enable regional time series
+```
+
+### [plots]
+```toml
+[plots]
+# Load-related plots
+load_plots = [
+    "load_by_reg",
+    "pk_load_by_reg",
+    "use_by_reg",
+    "pk_netload_by_reg",
+    "gen_cycling_pk",
+    "gen_cycling_pc_pk"
+]
+
+# Generation-related plots
+gen_plots = [
+    "gen_cap_by_reg",
+    "gen_cap_by_tech",
+    "gen_by_tech",
+    "gen_by_reg",
+    "curtailment_rate",
+    "vre_by_reg_av",
+    "cf_tech_trans"
+]
+
+# Other analysis plots
+other_plots = [
+    "co2_by_tech",
+    "co2_by_reg",
+    "co2_intensity_reg",
+    "op_costs_by_prop"
+]
+
+# Quick overview plots
+quick_plots = [
+    "gen_cap_by_reg",
+    "gen_by_tech",
+    "cf_tech",
+    "curtailment_rate"
+]
+```
+
+### [run]
+```toml
+[run]
+working_dir = "path/to/working/dir"            # Working directory
+log_file_path = "path/to/logs/file.log"        # Log file location
+log_timestamp = true                           # Add timestamps to logs
+variables_cache = true                         # Enable caching
+catch_errors = true                           # Error handling mode
+```
+
+### [testing]
+```toml
+[testing]
+# baseline_output_dir = "path/to/baseline"     # Baseline for comparison
+# similar_output_dirs = false                  # Similar outputs check
+```
+
+## Caching System
+
+The package implements a sophisticated caching system to handle large datasets efficiently:
+- Drive cache: Stores processed data in parquet format
+- Memory cache: Maintains frequently accessed data in memory
+- Automatic cache invalidation when source data changes
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+When adding new features:
+- Follow existing code structure
+- Add appropriate documentation
+- Include tests if applicable
+- Update this README if necessary
+
+## License
+
+Proprietary - Internal use only
+
+## Acknowledgments
+
+This package uses several open-source libraries:
+- dask for large data processing
+- pandas for data analysis
+- h5plexos for solution file handling
+- matplotlib for visualization
+- xlsxwriter for Excel output
+
+## Support
+
+For issues and questions, please contact the development team or submit an issue in the repository.
