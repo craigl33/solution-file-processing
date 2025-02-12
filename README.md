@@ -52,7 +52,7 @@ add ZipFile
 
 1. Clone the repository:
 ```bash
-git clone git@gitlab.example.org:org/solution-file-processing.git
+git clone git@gitlab.iea.org:iea/ems/rise/solution-file-processing.git
 ```
 
 2. Create and activate conda environment:
