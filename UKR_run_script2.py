@@ -28,7 +28,7 @@ config.convert_solution_files_to_h5()
 # # sfp.plots.create_plot_3(config)
 # sfp.plots.create_plot_6_ldc_and_line_plots(config)
 
-sfp.plots.create_plot_8_services(config)
+# sfp.plots.create_plot_8_services(config)
 # # sfp.plots.create_plot_4_costs(config) #unimplemented
 # sfp.plots.create_plot_5_undispatched_tech(config)
 # sfp.plots.create_plot_7_co2_savings(config)

@@ -8,7 +8,8 @@ import re
 import toml
 import pandas as pd
 import dask.dataframe as dd
-import julia
+# import julia
+from juliacall import Main as jl
 from h5plexos.query import PLEXOSSolution
 import math
 import shutil
@@ -187,8 +188,10 @@ class SolutionFilesConfig:
         # todo maybe also allow .zips in nested folders to be converted
         from julia.api import Julia
 
-        jl = Julia(compiled_modules=False)
-        jl.using("H5PLEXOS")
+        # jl = Julia(compiled_modules=False)
+        # jl.using("H5PLEXOS")
+
+        jl.seval("using H5PLEXOS")
 
         ### Check if there are any files to convert in folder and all subfolders
         ### If not, return, otherwise move all folders to root, delete subfolders and convert
@@ -220,8 +223,8 @@ class SolutionFilesConfig:
 
         print(f'Found {len(missing_soln_files)} missing h5 files. Starting conversion...')
         for h5_file in missing_soln_files:
-            jl.eval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
-            jl.eval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
+            jl.seval("cd(\"{}\")".format(self.DIR_04_SOLUTION_FILES.replace('\\', '/')))
+            jl.seval("process(\"{}\", \"{}\")".format(f'{h5_file}.zip', f'{h5_file}.h5'))
 
     def _get_object(self, timescale, object, return_type, simulation_phase='ST'):
         """
